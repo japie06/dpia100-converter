@@ -1,0 +1,2 @@
+3 validation error(s)
+Must strictly be 'S' (Stam) or 'V' (Variabel)

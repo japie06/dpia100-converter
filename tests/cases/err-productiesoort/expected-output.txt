@@ -1,0 +1,3 @@
+2 validation error(s)
+JWP is not supported
+Must be one of: NOR

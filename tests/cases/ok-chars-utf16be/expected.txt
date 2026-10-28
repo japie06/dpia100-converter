@@ -1,0 +1,8 @@
+CMTE00101   123   1                                        S   07102026         TSTUSERáàâä éèêë íìîï óòôö úùûü çñýÿ                        01112026                              NOR      
+CMTE00101   123   1                                        S   07102026         TSTUSERÁÀÂÄ ÉÈÊË ÍÌÎÏ ÓÒÔÖ ÚÙÛÜ ÇÑÝŸ                        01112026                              NOR      
+CMTE00101   123   1                                        S   07102026         TSTUSERGebiedscoördinator café één reünie geëist            01112026                              NOR      
+CMTE00101   123   1                                        S   07102026         TSTUSERFaçade, à la carte, crème brûlée, naïef, ragoût      01112026                              NOR      
+CMTE00101   123   1                                        S   07102026         TSTUSER€ 250 ’ ‘ “ ” „ – — … ½ ¼ ¾ ° § © ® ™ ² ³ µ          01112026                              NOR      
+CMTE00101   123   1                                        S   07102026         TSTUSERß æ Æ œ Œ ø Ø å Å Š š Ž ž £ ¥ ¢ « » × ÷ ¿ ¡ ¶        01112026                              NOR      
+CMTE00101   123   1                                        S   07102026         TSTUSERd’Ancona, ’s-Hertogenbosch, 't Zand, Zuid-Holland    01112026                              NOR      
+CMTE00101   123   1                                        S   07102026         TSTUSERRuud's "test" & co @ 50% (a/b) \ #1: ok? ja! <x>     01112026                              NOR      

@@ -1,0 +1,11 @@
+CMTE00101   123   1                                        V   07102026         TSTUSER-12.50                                               01112026                              NOR      
+CMTE00101   123   1                                        V   07102026         TSTUSER12.50                                                01112026                              NOR      
+CMTE00101   123   1                                        V   07102026         TSTUSER0.250                                                01112026                              NOR      
+CMTE00101   123   1                                        V   07102026         TSTUSER3250                                                 01112026                              NOR      
+CMTE00101   123   1                                        V   07102026         TSTUSER3250.50                                              01112026                              NOR      
+CMTE00101   123   1                                        V   07102026         TSTUSER007                                                  01112026                              NOR      
+CMTE00101   123   1                                        V   07102026         TSTUSER                                                     01112026                              NOR      
+CMTE00101   123   1                                        V   07102026         TSTUSER15                                                   01112026                              NOR      
+CMTE00101   123   1                                        V   07102026         TSTUSER-5                                                   01112026                              NOR      
+CMTE00101   123   1                                        V   07102026         TSTUSER-7.5                                                 01112026                              NOR      
+CMTE00101   123   1                                        V   07102026         TSTUSER1.234                                                01112026                              NOR      

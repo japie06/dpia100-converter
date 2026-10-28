@@ -1,0 +1,5 @@
+4 warning(s)
+Comma changed to dot in 1 Waarde value(s)
+Waarde '1,234' was written as '1.234'
+Waarde '3.250' is read by Beaufort
+Waarde '1.234,56' looks like

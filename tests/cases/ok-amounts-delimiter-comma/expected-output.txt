@@ -1,0 +1,5 @@
+4 warning(s)
+Comma changed to dot in 1 Waarde value(s)
+Waarde '1,234' has a thousand separator (English notation
+Waarde '1,234.56' looks like an amount
+Waarde '1.234,56' looks like an amount

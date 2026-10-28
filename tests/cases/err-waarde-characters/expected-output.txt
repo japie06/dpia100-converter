@@ -1,0 +1,3 @@
+4 validation error(s)
+Contains line break, tab or control character
+Characters not available in Windows-1252

@@ -1,0 +1,5 @@
+Rubriek,Pers. Nr,Dienstv,S of V,Waarde,Ingangsdatum,Productiesoort
+E00101,1,1,V,"12,50",1-11-2026,NOR
+E00101,1,1,V,"1,234",1-11-2026,NOR
+E00101,1,1,V,"1,234.56",1-11-2026,NOR
+E00101,1,1,V,"1.234,56",1-11-2026,NOR

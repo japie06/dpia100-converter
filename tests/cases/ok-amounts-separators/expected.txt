@@ -1,0 +1,7 @@
+CMTE00101     1   1                                        V   07102026         TSTUSER3.250                                                01112026                              NOR      
+CMTE00101     1   1                                        V   07102026         TSTUSER1.234,56                                             01112026                              NOR      
+CMTE00101     1   1                                        V   07102026         TSTUSER1,234.56                                             01112026                              NOR      
+CMTE00101     1   1                                        V   07102026         TSTUSER100.000                                              01112026                              NOR      
+CMTE00101     1   1                                        V   07102026         TSTUSER12.345                                               01112026                              NOR      
+CMTE00101     1   1                                        V   07102026         TSTUSER1.234.567                                            01112026                              NOR      
+CMTE00101     1   1                                        V   07102026         TSTUSER1.11.2026                                            01112026                              NOR      

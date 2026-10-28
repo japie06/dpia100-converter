@@ -1,0 +1,5 @@
+6 validation error(s)
+Must contain digits only
+Exceeds max length of 6 digits
+Cannot be zero
+Field is empty

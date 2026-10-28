@@ -1,0 +1,1 @@
+Input encoding    : Windows-1252

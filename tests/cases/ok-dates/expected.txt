@@ -1,0 +1,11 @@
+CMTE00101   123   1                                        S   07102026         TSTUSERx                                                    01112026                              NOR      
+CMTE00101   123   1                                        S   07102026         TSTUSERx                                                    01112026                              NOR      
+CMTE00101   123   1                                        S   07102026         TSTUSERx                                                    01112026                              NOR      
+CMTE00101   123   1                                        S   07102026         TSTUSERx                                                    01112026                              NOR      
+CMTE00101   123   1                                        S   07102026         TSTUSERx                                                    01112026                              NOR      
+CMTE00101   123   1                                        S   07102026         TSTUSERx                                                    01112026                              NOR      
+CMTE00101   123   1                                        S   07102026         TSTUSERx                                                    01112026                              NOR      
+CMTE00101   123   1                                        S   07102026         TSTUSERx                                                    01112026                              NOR      
+CMTE00101   123   1                                        S   07102026         TSTUSERx                                                    01112026                              NOR      
+CMTE00101   123   1                                        S   07102026         TSTUSERx                                                    01112026                              NOR      
+CMTE00101   123   1                                        S   07102026         TSTUSERx                                                    29022028                              NOR      

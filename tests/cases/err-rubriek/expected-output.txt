@@ -1,0 +1,4 @@
+3 validation error(s)
+Exceeds max length of 6 chars
+alphanumeric only
+Field is empty

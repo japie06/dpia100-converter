@@ -1,0 +1,14 @@
+12 validation error(s)
+Characters not available in Windows-1252
+U+0132
+U+0133
+U+0141
+U+015E
+U+0151
+U+0106
+U+1EC5
+U+2082
+U+2192
+U+200B
+U+0395
+U+D83D

@@ -1,0 +1,6 @@
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.md  text eol=crlf
+*.pdf binary
+# Test fixtures are exact bytes (encodings, BOMs, CRLF): never convert them.
+tests/cases/** -text

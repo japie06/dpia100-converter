@@ -1,0 +1,8 @@
+dpia100.txt
+*.old
+tests/out/
+tests/beaufort/probes/
+# Beaufort import reports: contain server paths and names
+tests/beaufort/Findings */
+# Visma/Raet documentation: copyrighted, local reference only
+docs/*.pdf
