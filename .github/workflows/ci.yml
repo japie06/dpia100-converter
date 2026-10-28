@@ -11,7 +11,7 @@ jobs:
     # windows-latest has both Windows PowerShell 5.1 (powershell) and PowerShell 7 (pwsh).
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Run regression suite (PS 5.1 and 7)
         shell: pwsh
         run: ./tests/run-tests.ps1
@@ -23,7 +23,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Check that the tag matches $ScriptVersion
         shell: pwsh
         run: |
