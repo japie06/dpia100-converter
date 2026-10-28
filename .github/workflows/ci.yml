@@ -35,7 +35,7 @@ jobs:
         run: |
           $name = "dpia100-converter-${{ github.ref_name }}"
           New-Item -ItemType Directory $name | Out-Null
-          Copy-Item dpia100.ps1, dpia100.bat, README.md, LICENSE $name
+          Copy-Item dpia100.ps1, dpia100.bat, voorbeeld.csv, README.md, LICENSE $name
           Compress-Archive -Path $name -DestinationPath "$name.zip"
       - name: Extract release notes from CHANGELOG
         shell: pwsh

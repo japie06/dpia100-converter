@@ -433,12 +433,12 @@ while ([string]::IsNullOrWhiteSpace($procescode)) {
     }
 }
 
-# 2. Creatie datum (Default: today in 'dd mm yyyy')
+# 2. Creatiedatum (Default: today in 'dd mm yyyy')
 # ASSUMPTION: Formatted into 8 digits (ddMMyyyy) and right-aligned with 3 spaces (pos 61-71).
 $defaultDateStr = (Get-Date).ToString("dd MM yyyy")
 $creatieDatumFormatted = ""
 while ([string]::IsNullOrWhiteSpace($creatieDatumFormatted)) {
-    $inputD = Read-Host "Creatie datum (dd mm yyyy) [Press ENTER for '$defaultDateStr']"
+    $inputD = Read-Host "Creatiedatum (dd mm yyyy) [Press ENTER for '$defaultDateStr']"
     $dateStr = if ([string]::IsNullOrWhiteSpace($inputD)) { $defaultDateStr } else { $inputD.Trim() }
     $dtRef = [DateTime]::MinValue
     if (Test-And-ParseDate -rawDate $dateStr -parsedDate ([ref]$dtRef)) {
@@ -448,17 +448,17 @@ while ([string]::IsNullOrWhiteSpace($creatieDatumFormatted)) {
     }
 }
 
-# 3. Creatie gebruiker (Mandatory, max 16 chars)
+# 3. Creatiegebruiker (Mandatory, max 16 chars)
 # ASSUMPTION: Username must match an authorized user in Beaufort for batch import (Module 100251).
 $creatieGebruiker = ""
 while ([string]::IsNullOrWhiteSpace($creatieGebruiker)) {
-    $inputU = (Read-Host "Creatie gebruiker [Mandatory]").Trim()
+    $inputU = (Read-Host "Creatiegebruiker [Mandatory]").Trim()
     if ([string]::IsNullOrWhiteSpace($inputU)) {
-        Write-Warning "Creatie gebruiker cannot be empty."
+        Write-Warning "Creatiegebruiker cannot be empty."
     } elseif ($inputU.Length -gt 16) {
-        Write-Warning "Creatie gebruiker cannot exceed 16 characters."
+        Write-Warning "Creatiegebruiker cannot exceed 16 characters."
     } elseif (Get-UnencodableChars $inputU) {
-        Write-Warning "Creatie gebruiker contains characters that do not exist in Windows-1252: $(Get-UnencodableChars $inputU)"
+        Write-Warning "Creatiegebruiker contains characters that do not exist in Windows-1252: $(Get-UnencodableChars $inputU)"
     } else {
         $creatieGebruiker = $inputU
     }

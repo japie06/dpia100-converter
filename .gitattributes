@@ -4,3 +4,5 @@
 *.pdf binary
 # Test fixtures are exact bytes (encodings, BOMs, CRLF): never convert them.
 tests/cases/** -text
+# Example input shipped in the release zip: exact bytes (Windows-1252, CRLF).
+voorbeeld.csv -text

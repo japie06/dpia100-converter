@@ -4,6 +4,20 @@ All notable changes to `dpia100.ps1` and `dpia100.bat`. Newest first. Format bas
 [Keep a Changelog](https://keepachangelog.com/). Releases are numbered from v1.0.0 (tag `vX.Y.Z`,
 zip on the GitHub Releases page); older entries are dated.
 
+## Unreleased
+
+### Added
+- `voorbeeld.csv`: an example input file, included in the release zip and shown in the README. Test case
+  `ok-voorbeeld` keeps it valid.
+
+### Changed
+- The prompts are spelled as correct Dutch: `Creatiedatum` and `Creatiegebruiker` (were `Creatie datum`
+  and `Creatie gebruiker`), also in the related warnings. Header matching is unchanged: a CSV header
+  `Ingangs datum` or `Mutatie waarde` is still recognised.
+- README rewritten for less technical users: an *Installeren* section (download, unblock, unzip), an
+  example of the console window and of `voorbeeld.csv`, an explanation of *Column mapping*, a simpler
+  section on amounts, and Dutch spelling fixes.
+
 ## v1.0.0 (2026-10-28)
 
 First numbered release.

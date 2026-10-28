@@ -18,6 +18,7 @@ a Dutch municipality who drag a CSV onto `dpia100.bat`.
 | `dpia100.ps1` | The script, in the root. All logic is in this one file. |
 | `dpia100.bat` | Launcher, in the root next to the script; contents are also in `README.md`. |
 | `README.md`, `field-layout.md` | User guide (Dutch) and file format reference, in the root. |
+| `voorbeeld.csv` | Example input (Windows-1252, `;`, CRLF) shipped in the release zip and shown in `README.md`. Byte-identical to `tests/cases/ok-voorbeeld/input.csv`; change both together. |
 | `CLAUDE.md` | These notes, in the root. |
 | `docs/CHANGELOG.md` | Change history, one `## vX.Y.Z (date)` section per release. |
 | `LICENSE` | MIT. |
