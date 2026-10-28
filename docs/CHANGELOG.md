@@ -1,9 +1,21 @@
 # Changelog
 
 All notable changes to `dpia100.ps1` and `dpia100.bat`. Newest first. Format based on
-[Keep a Changelog](https://keepachangelog.com/). The project has no version numbers yet; entries are dated.
+[Keep a Changelog](https://keepachangelog.com/). Releases are numbered from v1.0.0 (tag `vX.Y.Z`,
+zip on the GitHub Releases page); older entries are dated.
 
-## 2026-10-28 (public release)
+## v1.0.0 (2026-10-28)
+
+First numbered release.
+
+### Added
+- The version is shown in the start banner (`=== Beaufort DPIA100 Generator v1.0.0 ===`).
+- MIT license.
+- GitHub Actions: the regression suite runs on PowerShell 5.1 and 7 for every push and pull request.
+  A `v*` tag publishes a GitHub Release with a zip of `dpia100.ps1`, `dpia100.bat`, `README.md` and
+  `LICENSE`.
+- README: download from Releases, unblocking a downloaded zip, and a note that the project is not
+  affiliated with Visma/Raet.
 
 ### Changed
 - Republished as the public repository `dpia100-converter` with a fresh history. Personal data was

@@ -136,6 +136,9 @@ param (
     [switch]$NoPause
 )
 
+# NOTE: Bump together with a new section in docs/CHANGELOG.md and a git tag vX.Y.Z (see CLAUDE.md).
+$ScriptVersion = '1.0.0'
+
 
 # -------------------------------------------------------------------------
 # Exit / Error Handling
@@ -414,7 +417,7 @@ function Find-PropertyByPattern([string[]]$headerNames, [string[]]$patterns) {
 # Interactive Prompts
 # -------------------------------------------------------------------------
 
-Write-Host "`n=== Beaufort DPIA100 Generator ===" -ForegroundColor Cyan
+Write-Host "`n=== Beaufort DPIA100 Generator v$ScriptVersion ===" -ForegroundColor Cyan
 
 # 1. Procescode (Default: CMT, max 3 alphanumeric uppercase)
 # ASSUMPTION: 'CMT' is the standard default process code defined in Beaufort (Module 200502).

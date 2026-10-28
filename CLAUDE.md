@@ -19,7 +19,9 @@ a Dutch municipality who drag a CSV onto `dpia100.bat`.
 | `dpia100.bat` | Launcher, in the root next to the script; contents are also in `README.md`. |
 | `README.md`, `field-layout.md` | User guide (Dutch) and file format reference, in the root. |
 | `CLAUDE.md` | These notes, in the root. |
-| `docs/CHANGELOG.md` | Change history. |
+| `docs/CHANGELOG.md` | Change history, one `## vX.Y.Z (date)` section per release. |
+| `LICENSE` | MIT. |
+| `.github/workflows/ci.yml` | Runs the test suite on every push/PR; a `v*` tag publishes a release zip. |
 | `tests/run-tests.ps1` | Regression suite: every case in `tests/cases` on PowerShell 5.1 and 7. |
 | `tests/beaufort/` | Probe files for what Beaufort accepts (`make-probes.ps1`), results in `findings.md`. |
 | `docs/DPIA100 record indeling.pdf` | Beaufort help (2024): record layout. Primary spec. Local only, not in the repo (copyrighted). |
@@ -129,7 +131,8 @@ Top to bottom:
   `expected.txt` (exact output bytes) or no `expected.txt` (must fail: exit 1, no output, stale file
   renamed to `.old`). Optional `expected-output.txt` (console lines that must appear), `answers.txt`
   (prompt answers; default `CMT` / `07 10 2026` / `TSTUSER` / `Y`, the last one confirms warnings) and `output-name.txt` (output file name;
-  default `DPIA100_<case>.<engine>.txt`). Run it after every script change.
+  default `DPIA100_<case>.<engine>.txt`). Run it after every script change. GitHub Actions also runs it
+  on `windows-latest` for every push and pull request.
 - **Fixtures are raw bytes** (`.gitattributes`: `-text`). Write new ones with
   `[IO.File]::WriteAllBytes`, not an editor that may change encoding or line endings. Build
   `expected.txt` from the layout in `field-layout.md`, not by copying the script's own output.
@@ -157,6 +160,15 @@ Top to bottom:
 - **Real Windows.** The suite covers 5.1 via `powershell.exe -File`, not the `.bat` itself. Untested:
   the machine with a GPO-enforced `RemoteSigned` policy. Under RemoteSigned the
   script runs if it is local and unblocked; a downloaded copy needs `Unblock-File`.
+
+## Releasing
+
+- Open work is tracked in GitHub Issues (labels `beaufort-probe`, `enhancement`, `later`, `docs`, `bug`),
+  not in a markdown checklist.
+- To release: bump `$ScriptVersion` in `dpia100.ps1`, add a `## vX.Y.Z (date)` section to
+  `docs/CHANGELOG.md`, merge to main, then `git tag vX.Y.Z` and push the tag. CI runs the tests, checks
+  that the tag matches `$ScriptVersion`, and publishes a release with the zip and that changelog section
+  as notes. Version scheme: patch = fix, minor = new behaviour, major = output format change.
 
 ## Working with the owner
 

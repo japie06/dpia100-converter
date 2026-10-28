@@ -1,5 +1,9 @@
 # DPIA100 converter
 
+[![CI](https://github.com/japie06/dpia100-converter/actions/workflows/ci.yml/badge.svg)](https://github.com/japie06/dpia100-converter/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/japie06/dpia100-converter)](https://github.com/japie06/dpia100-converter/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Dit script zet een CSV-bestand met mutaties om naar een `dpia100.txt` die je in Beaufort kunt importeren
 (functie *Import externe indirecte mutaties*, 100254). Het doet hetzelfde als de knop **Maak DPIA100** in
 het Excel-hulpmiddel van Raet, maar controleert de gegevens strenger voordat er een bestand wordt gemaakt.
@@ -12,9 +16,15 @@ het Excel-hulpmiddel van Raet, maar controleert de gegevens strenger voordat er 
 - Maakt een `dpia100.txt` in het vaste Beaufort-formaat (187 tekens per regel, Windows-1252), zodat
   letters als `ö` en `é` goed overkomen.
 
+## Downloaden
+
+Download het zip-bestand `dpia100-converter-vX.Y.Z.zip` van de nieuwste versie onder
+[**Releases**](https://github.com/japie06/dpia100-converter/releases/latest) en pak het uit. Het
+versienummer staat ook bovenaan in het venster als het script start.
+
 ## Benodigde bestanden
 
-Zet deze twee bestanden in **dezelfde map**:
+Zet deze twee bestanden in **dezelfde map** (in de zip staan ze al bij elkaar):
 
 - `dpia100.ps1`: het script
 - `dpia100.bat`: het startbestand met deze inhoud:
@@ -89,7 +99,8 @@ geweigerd met een foutmelding, bijvoorbeeld de `ĳ` als één teken (typ `ij`), 
 - **Oud bestand hernoemd**: na een mislukte poging wordt een eerder gemaakte `dpia100.txt` hernoemd
   naar `dpia100.txt.old`. Zo kun je niet per ongeluk een oud bestand importeren.
 - **Script start niet** (*"is not digitally signed"*): het script komt van internet of uit een e-mail.
-  Klik met rechts op `dpia100.ps1` → *Eigenschappen* → vink *Blokkering opheffen* aan.
+  Klik met rechts op `dpia100.ps1` → *Eigenschappen* → vink *Blokkering opheffen* aan. Tip: doe dit
+  met het zip-bestand **vóór** het uitpakken, dan zijn alle uitgepakte bestanden meteen vrijgegeven.
 - **Melding over *ConstrainedLanguage***: PowerShell is op deze pc dichtgezet. Neem contact op met IT.
 
 ## Wat het (nog) niet doet
@@ -101,8 +112,14 @@ af bij het importeren. Zie `field-layout.md` voor de technische details.
 
 ## Voor beheerders
 
-- Wijzigingen staan in `docs/CHANGELOG.md`; notities voor ontwikkelaars in `CLAUDE.md`.
+- Wijzigingen staan in `docs/CHANGELOG.md`; notities voor ontwikkelaars in `CLAUDE.md`. Openstaand
+  werk staat in de [Issues](https://github.com/japie06/dpia100-converter/issues).
 - Na elke wijziging aan het script: `pwsh tests\run-tests.ps1`. Dit test alle gevallen in
   `tests\cases` op PowerShell 5.1 en 7 en vergelijkt de uitvoer byte voor byte.
 - `tests\beaufort\` bevat testbestanden om na te gaan wat Beaufort zelf accepteert (bijzondere tekens,
   regeleinden), met de resultaten in `findings.md`.
+
+## Licentie
+
+[MIT](LICENSE). Dit is geen product van Visma of Raet en wordt niet door hen ondersteund. Beaufort is
+een merk van Visma.
