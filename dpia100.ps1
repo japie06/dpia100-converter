@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Generates a fixed-width Beaufort dpia100.txt file from an input CSV file.
+    Generates a fixed-width Beaufort DPIA100 import file from an input CSV file.
 .DESCRIPTION
     - Automatically detects delimiter (;, ,, \t).
     - Fully independent of column order.
@@ -16,6 +16,7 @@
     - Exports in Windows-1252 (ANSI) so characters like 'ö' do not cause column shifts.
     - Prints which CSV column was used for each field, so a wrong match is visible.
     - On any failure, an older output file is renamed to *.old so it cannot be imported by mistake.
+    - Writes the output next to the input CSV as DPIA100_<csv name>.txt, unless -OutputTxtPath is given.
     - Only productiesoort NOR is supported (JWP needs a verrekenperiode, which is not implemented).
     - Scope: PS and DV mutations only. See .NOT_IN_CURRENT_SPEC for Beaufort features left out.
 
@@ -89,13 +90,18 @@
        in the header. The same CSV column may not be mapped to two fields.
     10. STALE OUTPUT PROTECTION:
        If the run fails, an existing output file (from an earlier run) is renamed to '<name>.old' so an
-       outdated dpia100.txt cannot be imported by mistake.
+       outdated import file cannot be imported by mistake.
     11. PRODUCTIESOORT NOR ONLY (current spec; JWP may be added later, see .NOT_IN_CURRENT_SPEC):
        JWP (herrekenen over een jaarwerkperiode) requires a verrekenperiode (ppjjjj) and a matching
        ingangsdatum. The verrekenperiode is not implemented, so JWP is rejected.
     12. OUTPUT FILE NAME STARTS WITH 'DPIA100':
        Beaufort only finds import files whose name starts with 'DPIA100' (owner). The check ignores case:
-       the default lowercase 'dpia100.txt' imports fine. Any other -OutputTxtPath name is rejected.
+       a lowercase 'dpia100.txt' imports fine. Any other -OutputTxtPath name is rejected.
+    13. OUTPUT LOCATION AND NAME:
+       Without -OutputTxtPath, the file is written next to the input CSV as 'DPIA100_<csv name>.txt'
+       (owner, issue #10). The working directory is no use: with a CSV dragged onto the .bat, Explorer
+       sets it to an unpredictable folder (user profile, System32). The name always passes decision 12.
+       An explicit -OutputTxtPath is used as given; a relative path resolves against the working directory.
 
 .NOT_IN_CURRENT_SPEC
     Supported by Beaufort / the official Excel tool, not by this script. Candidates for a later version.
@@ -131,7 +137,8 @@ param (
     # DECISION: No default path. If omitted (or empty), a file-open dialog is shown.
     [string]$InputCsvPath = $null,
     # Output is always written as Windows-1252 (see architectural decision 1).
-    [string]$OutputTxtPath = ".\dpia100.txt",
+    # DECISION: Empty means DPIA100_<csv name>.txt next to the input CSV (decision 13).
+    [string]$OutputTxtPath = $null,
     # The .bat launcher has its own 'pause', so it passes -NoPause to avoid a double prompt.
     [switch]$NoPause
 )
@@ -262,6 +269,11 @@ if (-not (Test-Path -LiteralPath $InputCsvPath -PathType Leaf)) {
     Stop-WithError "Input file not found: $InputCsvPath"
 }
 $InputCsvPath = (Resolve-Path -LiteralPath $InputCsvPath).ProviderPath
+
+# DECISION: Default output next to the input CSV, named after it (decision 13).
+if (-not $OutputTxtPath) {
+    $OutputTxtPath = Join-Path (Split-Path -Parent $InputCsvPath) ("DPIA100_" + [System.IO.Path]::GetFileNameWithoutExtension($InputCsvPath) + ".txt")
+}
 
 # DECISION: Output path is resolved up front, so every later failure can retire a stale output file.
 # Relative paths are resolved against the PowerShell working directory; absolute paths are used as-is
@@ -474,6 +486,8 @@ try {
     Stop-WithError "Could not read '$InputCsvPath': $($_.Exception.Message)"
 }
 $csvText = $csvFile.Text
+Write-Host "Input file        : $InputCsvPath" -ForegroundColor Gray
+Write-Host "Output file       : $fullOutputPath" -ForegroundColor Gray
 Write-Host "Input encoding    : $($csvFile.EncodingName)" -ForegroundColor Gray
 
 # Ensure file is not empty or header-only
@@ -856,7 +870,7 @@ try {
     Stop-WithError "Could not write '$fullOutputPath': $($_.Exception.Message) (is the file open in another program?)"
 }
 
-Write-Host "`n[SUCCESS] File successfully created: $fullOutputPath" -ForegroundColor Green
+Write-Host "`n[SUCCESS] File successfully created:`n$fullOutputPath" -ForegroundColor Green
 Write-Host "Encoding       : Windows-1252 (ANSI - single-byte compatible)" -ForegroundColor Green
 Write-Host "Records parsed : $($outputLines.Count)" -ForegroundColor Green
 if ($replacedStamp) {

@@ -14,6 +14,9 @@
       output-name.txt      Optional: output file name (default DPIA100_<case>.<engine>.txt). For a
                            failure case with a name that does not start with DPIA100, an existing file
                            of that name must be left untouched instead of renamed to .old.
+      default-output       Optional marker (empty file): run without -OutputTxtPath, with input.csv
+                           copied to out\<case>.<engine>.csv. The script must then write the default
+                           out\DPIA100_<case>.<engine>.txt next to it (decision 13).
     Fixtures are stored as raw bytes (.gitattributes: -text). Edit them with care: an editor that saves
     UTF-8 or LF changes the test.
 .EXAMPLE
@@ -65,6 +68,7 @@ foreach ($case in $cases) {
     $namePath     = Join-Path $case.FullName 'output-name.txt'
     $outName      = if (Test-Path $namePath) { (Get-Content $namePath -TotalCount 1).Trim() } else { $null }
     $foreignName  = $outName -and -not $outName.StartsWith('DPIA100', [StringComparison]::OrdinalIgnoreCase)
+    $useDefault   = Test-Path (Join-Path $case.FullName 'default-output')
 
     foreach ($engine in $engines) {
         $total++
@@ -72,7 +76,16 @@ foreach ($case in $cases) {
         Remove-Item "$outFile*" -Force -ErrorAction SilentlyContinue
         if (-not $mustSucceed) { Set-Content $outFile 'stale output from an earlier run' }
 
-        $console  = $answers | & $engine -NoProfile -ExecutionPolicy Bypass -File $script -InputCsvPath (Join-Path $case.FullName 'input.csv') -OutputTxtPath $outFile -NoPause 2>&1 | Out-String
+        $inputCsv = Join-Path $case.FullName 'input.csv'
+        $outArgs  = @('-OutputTxtPath', $outFile)
+        if ($useDefault) {
+            # The default output name is derived from the CSV name, so the copy is named to match $outFile.
+            $copy = Join-Path $outDir "$($case.Name).$engine.csv"
+            Copy-Item -LiteralPath $inputCsv -Destination $copy -Force
+            $inputCsv = $copy
+            $outArgs  = @()
+        }
+        $console  = $answers | & $engine -NoProfile -ExecutionPolicy Bypass -File $script -InputCsvPath $inputCsv @outArgs -NoPause 2>&1 | Out-String
         $exitCode = $LASTEXITCODE
 
         $problems = [System.Collections.Generic.List[string]]::new()

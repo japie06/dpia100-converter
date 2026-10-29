@@ -1,4 +1,5 @@
 dpia100.txt
+DPIA100_*.txt
 *.old
 tests/out/
 tests/beaufort/probes/
