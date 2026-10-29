@@ -160,9 +160,13 @@ Top to bottom:
 - **pwsh on Linux.** It writes LF line endings, so convert to CRLF before comparing.
   `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` breaks NFC normalization, so test the decomposed `ö` case
   with ICU available.
-- **Real Windows.** The suite covers 5.1 via `powershell.exe -File`, not the `.bat` itself. Untested:
-  the machine with a GPO-enforced `RemoteSigned` policy. Under RemoteSigned the
-  script runs if it is local and unblocked; a downloaded copy needs `Unblock-File`.
+- **Real Windows.** The suite covers 5.1 via `powershell.exe -File`, not the `.bat` itself. Tested by
+  the owner on a municipality PC (#4, 2026-10-29): `RemoteSigned` at CurrentUser/LocalMachine, no
+  GPO (MachinePolicy/UserPolicy `Undefined`), FullLanguage. The `.bat` (drag-and-drop and file picker)
+  and *Run with PowerShell* run even with blocked files from a downloaded zip, because the Process-scope
+  Bypass wins. Only `.\dpia100.ps1` from a PowerShell window fails ("not digitally signed") until
+  unblocked. Output next to a CSV in a OneDrive/SharePoint folder works. A GPO-enforced policy was not
+  seen; if it ever is, the `.bat` Bypass is overridden and unblocking becomes required.
 
 ## Releasing
 

@@ -139,10 +139,11 @@ een vinkje `✓`, Poolse of Turkse letters (`ł`, `ş`) en emoji.
   opnieuw. Regel 1 is de kopregel; de eerste regel met gegevens is regel 2.
 - **Oud bestand hernoemd**: na een mislukte poging wordt een eerder gemaakte `DPIA100_<naam>.txt`
   hernoemd naar `DPIA100_<naam>.txt.old`. Zo kun je niet per ongeluk een oud bestand importeren.
-- **Script start niet** (*"is not digitally signed"*): de bestanden zijn nog geblokkeerd omdat ze van
-  internet komen. Hef de blokkering op zoals bij [Installeren](#installeren), stap 2. Heb je de zip al
-  uitgepakt, doe het dan bij `dpia100.ps1`: klik met de rechtermuisknop → *Eigenschappen* → vink
-  *Blokkering opheffen* aan.
+- **Script start niet** (*"is not digitally signed"*): je start `dpia100.ps1` vanuit een
+  PowerShell-venster terwijl de bestanden nog geblokkeerd zijn, omdat ze van internet komen. Start het
+  script met `dpia100.bat`, of hef de blokkering op zoals bij [Installeren](#installeren), stap 2. Heb
+  je de zip al uitgepakt, doe het dan bij `dpia100.ps1`: klik met de rechtermuisknop →
+  *Eigenschappen* → vink *Blokkering opheffen* aan.
 - **Melding over *ConstrainedLanguage***: PowerShell is op deze pc dichtgezet. Neem contact op met IT.
 
 ## Wat het (nog) niet doet
