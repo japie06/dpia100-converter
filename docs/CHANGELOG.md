@@ -11,6 +11,13 @@ zip on the GitHub Releases page); older entries are dated.
   `ok-voorbeeld` keeps it valid.
 
 ### Changed
+- The CSV is checked before the three questions (decision 14, #11). On errors the script stops right
+  away, without asking procescode, creatiedatum and creatiegebruiker. Without errors it prints
+  `[OK] N row(s) checked, no errors found.`, lists any warnings, asks the questions, and then asks the
+  `Y` confirmation for warnings (`Create the file anyway, with the N warning(s) above?`).
+- Test runner: `expected-output.txt` lines must now appear in order, a new `unexpected-output.txt` lists
+  lines that must not appear, and a failure case without `answers.txt` must stop before the prompts.
+  New cases `ok-order-no-warnings` and `ok-order-warnings`; the `err-warnings-*` cases check the order.
 - The output file is written next to the input CSV and named after it: `mutaties oktober.csv` gives
   `DPIA100_mutaties oktober.txt` in the same folder (decision 13, #10). It used to be `dpia100.txt` in
   the working directory, which after a drag-and-drop onto the `.bat` was an unpredictable folder. Users

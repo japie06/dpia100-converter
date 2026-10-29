@@ -1,0 +1,9 @@
+=== Beaufort DPIA100 Generator
+Input file        :
+Output file       :
+Detected delimiter:
+Column mapping:
+[OK] 3 row(s) checked, no errors found.
+Comma changed to dot in 1 Waarde value(s)
+TSTUSER
+[SUCCESS] File successfully created:

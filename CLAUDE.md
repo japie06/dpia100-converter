@@ -74,14 +74,14 @@ Top to bottom:
    - `Get-UniqueHeaderNames`
    - `Test-And-ParseDate`
    - `Find-PropertyByPattern` (patterns of 2 characters or fewer must match the whole header)
-7. Prompts: procescode, creatiedatum, creatiegebruiker.
-8. CSV parsing: the header via `Split-CsvHeader`, the data rows via `ConvertFrom-Csv -Header`.
-9. Header mapping. The mapping is printed; the script aborts on a missing field or on one column
+7. CSV parsing: the header via `Split-CsvHeader`, the data rows via `ConvertFrom-Csv -Header`.
+8. Header mapping. The mapping is printed; the script aborts on a missing field or on one column
    mapped to two fields.
-10. Per-row validation into `$validationErrors` and `$preparedRecords`. Completely empty rows are
-    skipped.
-11. Abort on errors, build the 187-character lines with a length check, then write with the strict
-    encoder.
+9. Per-row validation into `$validationErrors` and `$preparedRecords`. Completely empty rows are
+   skipped. Abort on errors, otherwise print `[OK]` and list the warnings.
+10. Prompts: procescode, creatiedatum, creatiegebruiker. They come after the validation, so a broken
+    CSV never asks anything (decision 14). Then the `Y` confirmation, only with warnings.
+11. Build the 187-character lines with a length check, then write with the strict encoder.
 
 ## Conventions
 
@@ -130,11 +130,16 @@ Top to bottom:
 - **Regression suite.** `pwsh tests\run-tests.ps1` (optionally `-Filter err-*`). Runs each folder in
   `tests/cases` on `powershell.exe` (5.1) and `pwsh`. A case has `input.csv` plus either
   `expected.txt` (exact output bytes) or no `expected.txt` (must fail: exit 1, no output, stale file
-  renamed to `.old`). Optional `expected-output.txt` (console lines that must appear), `answers.txt`
+  renamed to `.old`). Optional `expected-output.txt` (console lines that must appear, **in that
+  order**), `unexpected-output.txt` (whole lines that must not appear), `answers.txt`
   (prompt answers; default `CMT` / `07 10 2026` / `TSTUSER` / `Y`, the last one confirms warnings) and `output-name.txt` (output file name;
   default `DPIA100_<case>.<engine>.txt`). An empty `default-output` marker runs the case without
   `-OutputTxtPath` on a copy `out\<case>.<engine>.csv`, so the script's default name lands on that same
-  output path. Run it after every script change. GitHub Actions also runs it
+  output path. Run it after every script change.
+- **Order of operations (decision 14).** Prompt text is not captured when stdin is piped, but each answer
+  read is echoed on its own line. The runner uses that: a failure case without `answers.txt` must not
+  show `TSTUSER` or `[OK]`. The `ok-order-*` cases expect the echo, so they fail if it ever disappears
+  and the check would pass silently. GitHub Actions also runs it
   on `windows-latest` for every push and pull request.
 - **Fixtures are raw bytes** (`.gitattributes`: `-text`). Write new ones with
   `[IO.File]::WriteAllBytes`, not an editor that may change encoding or line endings. Build

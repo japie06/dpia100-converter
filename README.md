@@ -38,16 +38,21 @@ Het versienummer staat bovenaan in het venster als het script start.
    het eruit moet zien.
 2. **Sleep het CSV-bestand op `dpia100.bat`.** Dubbelklikken op `dpia100.bat` kan ook: je kunt dan zelf
    een bestand kiezen.
-3. Beantwoord de drie vragen:
+3. Het script controleert eerst het hele CSV-bestand. Zijn er fouten, dan zie je meteen de lijst met
+   fouten (zie [Als er iets misgaat](#als-er-iets-misgaat)) en worden er geen vragen gesteld.
+4. Controleer onder *Column mapping* welke kolom voor welk veld is gebruikt. Het script herkent de
+   kolommen aan de kopregel (de eerste regel, met de kolomnamen). Links staat het veld, rechts de
+   kolomnaam uit jouw CSV. Klopt een koppeling niet, sluit het venster, pas de kolomnaam in Excel aan
+   en probeer het opnieuw. Let vooral op *Mutatiewaarde*: die kolom kan het script niet controleren.
+5. Staat er **[OK]**, dan beantwoord je de drie vragen:
    - **Procescode**: druk op Enter voor `CMT`, of typ een andere code (max. 3 tekens). Deze moet in
      Beaufort bestaan als aanleverend proces.
    - **Creatiedatum**: druk op Enter voor vandaag, of typ een datum (`dd mm jjjj`).
    - **Creatiegebruiker**: je Beaufort-gebruikersnaam (verplicht, max. 16 tekens).
-4. Controleer onder *Column mapping* welke kolom voor welk veld is gebruikt. Het script herkent de
-   kolommen aan de kopregel (de eerste regel, met de kolomnamen). Links staat het veld, rechts de
-   kolomnaam uit jouw CSV. Klopt een koppeling niet, pas dan de kolomnaam in Excel aan en probeer het
-   opnieuw. Let vooral op *Mutatiewaarde*: die kolom kan het script niet controleren.
-5. Het bestand komt in **dezelfde map als je CSV-bestand**, met de naam van de CSV erin:
+
+   Waren er waarschuwingen (zie [Bedragen](#bedragen)), dan vraagt het script daarna nog of het
+   bestand toch gemaakt moet worden.
+6. Het bestand komt in **dezelfde map als je CSV-bestand**, met de naam van de CSV erin:
    `mutaties oktober.csv` wordt `DPIA100_mutaties oktober.txt`. Het volledige pad staat in het venster
    bij *Output file* en bij **[SUCCESS]**. Zet het bestand in de *Bestandsuitwisseling* naar HR Core en
    importeer het met functie 100254. Beoordeel daarna de mutaties (100251) en verwerk ze (100252).
@@ -60,10 +65,7 @@ Het versienummer staat bovenaan in het venster als het script start.
 Zo ziet het venster eruit bij `voorbeeld.csv` (jouw antwoorden staan achter de dubbele punt):
 
 ```text
-=== Beaufort DPIA100 Generator v1.0.0 ===
-Procescode [Press ENTER for 'CMT']:
-Creatiedatum (dd mm yyyy) [Press ENTER for '28 10 2026']:
-Creatiegebruiker [Mandatory]: JANSENP
+=== Beaufort DPIA100 Generator v1.1.0 ===
 Input file        : H:\Mutaties\voorbeeld.csv
 Output file       : H:\Mutaties\DPIA100_voorbeeld.txt
 Input encoding    : Windows-1252
@@ -77,7 +79,13 @@ Column mapping:
   Ingangsdatum    <- 'Ingangsdatum'
   Productiesoort  <- 'Productiesoort'
 
+[OK] 3 row(s) checked, no errors found.
+
 Comma changed to dot in 1 Waarde value(s), because a numeric rubriek in Beaufort only accepts a dot (a text rubriek gets the dot too): row 3 '125,50' -> '125.50'.
+
+Procescode [Press ENTER for 'CMT']:
+Creatiedatum (dd mm yyyy) [Press ENTER for '28 10 2026']:
+Creatiegebruiker [Mandatory]: JANSENP
 
 [SUCCESS] File successfully created:
 H:\Mutaties\DPIA100_voorbeeld.txt

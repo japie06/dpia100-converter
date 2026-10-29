@@ -1,5 +1,5 @@
 6 warning(s)
 Waarde '3.250' is read by Beaufort as 3,250
 Waarde '1.234,56' looks like an amount with a thousand separator
-Waarde '1.234.567' looks like
 Waarde '12.345' is read
+Waarde '1.234.567' looks like
