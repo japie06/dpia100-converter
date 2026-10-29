@@ -4,13 +4,29 @@ All notable changes to `dpia100.ps1` and `dpia100.bat`. Newest first. Format bas
 [Keep a Changelog](https://keepachangelog.com/). Releases are numbered from v1.0.0 (tag `vX.Y.Z`,
 zip on the GitHub Releases page); older entries are dated.
 
-## Unreleased
+## v1.1.0 (2026-10-29)
 
 ### Added
 - `voorbeeld.csv`: an example input file, included in the release zip and shown in the README. Test case
   `ok-voorbeeld` keeps it valid.
 
 ### Changed
+- The CSV is checked before the three questions (decision 14, #11). On errors the script stops right
+  away, without asking procescode, creatiedatum and creatiegebruiker. Without errors it prints
+  `[OK] N row(s) checked, no errors found.`, lists any warnings, asks the questions, and then asks the
+  `Y` confirmation for warnings (`Create the file anyway, with the N warning(s) above?`).
+- Test runner: `expected-output.txt` lines must now appear in order, a new `unexpected-output.txt` lists
+  lines that must not appear, and a failure case without `answers.txt` must stop before the prompts.
+  New cases `ok-order-no-warnings` and `ok-order-warnings`; the `err-warnings-*` cases check the order.
+- The output file is written next to the input CSV and named after it: `mutaties oktober.csv` gives
+  `DPIA100_mutaties oktober.txt` in the same folder (decision 13, #10). It used to be `dpia100.txt` in
+  the working directory, which after a drag-and-drop onto the `.bat` was an unpredictable folder. Users
+  who looked for `dpia100.txt` in a fixed place now find the file next to their CSV. An explicit
+  `-OutputTxtPath` works as before. The stale-file protection (`.old`) applies to the new name.
+- The input and output paths are printed up front (`Input file`, `Output file`), before the encoding and
+  delimiter lines. The `[SUCCESS]` line puts the path on its own line, so a long path stays readable.
+  Test cases `ok-output-default` and `err-output-default`; the test runner has a new
+  `default-output` marker to run a case without `-OutputTxtPath`.
 - The prompts are spelled as correct Dutch: `Creatiedatum` and `Creatiegebruiker` (were `Creatie datum`
   and `Creatie gebruiker`), also in the related warnings. Header matching is unchanged: a CSV header
   `Ingangs datum` or `Mutatie waarde` is still recognised.

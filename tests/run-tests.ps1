@@ -8,12 +8,19 @@
       expected.txt         Success case: the exact expected output bytes.
                            No expected.txt = failure case: exit code must be 1, no output file may be
                            written, and an existing output file must be renamed to .old (decision 10).
-      expected-output.txt  Optional: lines that must appear in the console output (errors, warnings).
-      answers.txt          Optional: answers to the prompts, one per line.
+      expected-output.txt  Optional: lines that must appear in the console output (errors, warnings),
+                           in this order.
+      unexpected-output.txt Optional: whole console lines that must not appear, e.g. 'Y': the echo of
+                           an answer that must not have been read.
+      answers.txt          Optional: answers to the prompts, one per line. A failure case without it
+                           must stop before the prompts (decision 14): no answer echo, no [OK].
                            Default: CMT / 07 10 2026 / TSTUSER / Y (the Y confirms warnings, if any).
       output-name.txt      Optional: output file name (default DPIA100_<case>.<engine>.txt). For a
                            failure case with a name that does not start with DPIA100, an existing file
                            of that name must be left untouched instead of renamed to .old.
+      default-output       Optional marker (empty file): run without -OutputTxtPath, with input.csv
+                           copied to out\<case>.<engine>.csv. The script must then write the default
+                           out\DPIA100_<case>.<engine>.txt next to it (decision 13).
     Fixtures are stored as raw bytes (.gitattributes: -text). Edit them with care: an editor that saves
     UTF-8 or LF changes the test.
 .EXAMPLE
@@ -61,10 +68,13 @@ foreach ($case in $cases) {
     $answers      = if (Test-Path $answersPath) { @(Get-Content $answersPath) } else { $defaultAnswers }
     $outputPath   = Join-Path $case.FullName 'expected-output.txt'
     $mustContain  = if (Test-Path $outputPath) { @(Get-Content $outputPath -Encoding UTF8 | Where-Object { $_ }) } else { @() }
+    $absentPath   = Join-Path $case.FullName 'unexpected-output.txt'
+    $mustNotShow  = if (Test-Path $absentPath) { @(Get-Content $absentPath -Encoding UTF8 | Where-Object { $_ }) } else { @() }
 
     $namePath     = Join-Path $case.FullName 'output-name.txt'
     $outName      = if (Test-Path $namePath) { (Get-Content $namePath -TotalCount 1).Trim() } else { $null }
     $foreignName  = $outName -and -not $outName.StartsWith('DPIA100', [StringComparison]::OrdinalIgnoreCase)
+    $useDefault   = Test-Path (Join-Path $case.FullName 'default-output')
 
     foreach ($engine in $engines) {
         $total++
@@ -72,7 +82,16 @@ foreach ($case in $cases) {
         Remove-Item "$outFile*" -Force -ErrorAction SilentlyContinue
         if (-not $mustSucceed) { Set-Content $outFile 'stale output from an earlier run' }
 
-        $console  = $answers | & $engine -NoProfile -ExecutionPolicy Bypass -File $script -InputCsvPath (Join-Path $case.FullName 'input.csv') -OutputTxtPath $outFile -NoPause 2>&1 | Out-String
+        $inputCsv = Join-Path $case.FullName 'input.csv'
+        $outArgs  = @('-OutputTxtPath', $outFile)
+        if ($useDefault) {
+            # The default output name is derived from the CSV name, so the copy is named to match $outFile.
+            $copy = Join-Path $outDir "$($case.Name).$engine.csv"
+            Copy-Item -LiteralPath $inputCsv -Destination $copy -Force
+            $inputCsv = $copy
+            $outArgs  = @()
+        }
+        $console  = $answers | & $engine -NoProfile -ExecutionPolicy Bypass -File $script -InputCsvPath $inputCsv @outArgs -NoPause 2>&1 | Out-String
         $exitCode = $LASTEXITCODE
 
         $problems = [System.Collections.Generic.List[string]]::new()
@@ -92,8 +111,28 @@ foreach ($case in $cases) {
             if (Test-Path $outFile) { $problems.Add('an output file exists after a failed run') }
             if (-not (Test-Path "$outFile.old")) { $problems.Add('the stale output file was not renamed to .old') }
         }
+        # The lines must appear in this order, so the files also check the order of operations (decision 14).
+        $searchFrom = 0
         foreach ($text in $mustContain) {
-            if (-not $console.Contains($text)) { $problems.Add("console output does not contain: $text") }
+            $at = $console.IndexOf($text, $searchFrom, [StringComparison]::Ordinal)
+            if ($at -lt 0) {
+                $why = if ($console.Contains($text)) { 'appears, but too early' } else { 'does not appear' }
+                $problems.Add("console output line $why (expected in this order): $text")
+            } else {
+                $searchFrom = $at + $text.Length
+            }
+        }
+        $consoleLines = @($console -split '\r?\n' | ForEach-Object { $_.Trim() })
+        foreach ($text in $mustNotShow) {
+            if ($consoleLines -contains $text.Trim()) { $problems.Add("console output has a line it must not have: $text") }
+        }
+        # Decision 14: a run that fails on the CSV stops before the prompts. Prompt text is not captured
+        # when stdin is piped, but each answer read is echoed, so the default answer TSTUSER must not
+        # appear. Cases that do reach the prompts (cancelled warnings) have their own answers.txt.
+        # The ok-order-* cases expect the echo, so this check cannot pass silently if the echo disappears.
+        if (-not $mustSucceed -and -not (Test-Path $answersPath)) {
+            if ($console -match '(?m)^TSTUSER\s*$') { $problems.Add('the prompts were asked although the CSV failed validation') }
+            if ($console.Contains('[OK]')) { $problems.Add('[OK] was shown although the run failed') }
         }
 
         if ($problems.Count -eq 0) {

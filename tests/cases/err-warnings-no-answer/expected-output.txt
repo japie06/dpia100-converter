@@ -1,2 +1,4 @@
+[OK] 1 row(s) checked, no errors found.
 1 warning(s)
+TSTUSER
 Cancelled. No file was created.

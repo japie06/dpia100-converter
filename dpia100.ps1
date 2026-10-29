@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Generates a fixed-width Beaufort dpia100.txt file from an input CSV file.
+    Generates a fixed-width Beaufort DPIA100 import file from an input CSV file.
 .DESCRIPTION
     - Automatically detects delimiter (;, ,, \t).
     - Fully independent of column order.
@@ -16,6 +16,7 @@
     - Exports in Windows-1252 (ANSI) so characters like 'ö' do not cause column shifts.
     - Prints which CSV column was used for each field, so a wrong match is visible.
     - On any failure, an older output file is renamed to *.old so it cannot be imported by mistake.
+    - Writes the output next to the input CSV as DPIA100_<csv name>.txt, unless -OutputTxtPath is given.
     - Only productiesoort NOR is supported (JWP needs a verrekenperiode, which is not implemented).
     - Scope: PS and DV mutations only. See .NOT_IN_CURRENT_SPEC for Beaufort features left out.
 
@@ -47,8 +48,9 @@
     3. WARNINGS INSTEAD OF ERRORS (Waarde only):
        Two cases are non-fatal: a Waarde longer than 50 characters is truncated (showing the original and
        truncated values; this prevents the #VALUE! error seen in Excel formulas), and amounts Beaufort may
-       read differently (decision 8). All warnings are shown before writing, and the file is only written
-       if the user types Y. Anything else, including end of input, cancels like an error.
+       read differently (decision 8). All warnings are shown before the prompts, and after the prompts the
+       file is only written if the user types Y. Anything else, including end of input, cancels like an
+       error (decision 14).
     4. NO LEADING ZEROS IN OBJECT_ID:
        Beaufort documentation explicitly specifies: "Er mogen geen voorloopnullen in staan".
        Leading zeros are stripped from pers_nr and dv_vlgnr before right-aligning them.
@@ -89,13 +91,23 @@
        in the header. The same CSV column may not be mapped to two fields.
     10. STALE OUTPUT PROTECTION:
        If the run fails, an existing output file (from an earlier run) is renamed to '<name>.old' so an
-       outdated dpia100.txt cannot be imported by mistake.
+       outdated import file cannot be imported by mistake.
     11. PRODUCTIESOORT NOR ONLY (current spec; JWP may be added later, see .NOT_IN_CURRENT_SPEC):
        JWP (herrekenen over een jaarwerkperiode) requires a verrekenperiode (ppjjjj) and a matching
        ingangsdatum. The verrekenperiode is not implemented, so JWP is rejected.
     12. OUTPUT FILE NAME STARTS WITH 'DPIA100':
        Beaufort only finds import files whose name starts with 'DPIA100' (owner). The check ignores case:
-       the default lowercase 'dpia100.txt' imports fine. Any other -OutputTxtPath name is rejected.
+       a lowercase 'dpia100.txt' imports fine. Any other -OutputTxtPath name is rejected.
+    13. OUTPUT LOCATION AND NAME:
+       Without -OutputTxtPath, the file is written next to the input CSV as 'DPIA100_<csv name>.txt'
+       (owner, issue #10). The working directory is no use: with a CSV dragged onto the .bat, Explorer
+       sets it to an unpredictable folder (user profile, System32). The name always passes decision 12.
+       An explicit -OutputTxtPath is used as given; a relative path resolves against the working directory.
+    14. VALIDATE BEFORE THE PROMPTS:
+       The CSV is read, mapped and fully validated before procescode, creatiedatum and creatiegebruiker
+       are asked (owner, issue #11). On errors the script stops without asking anything. Without errors it
+       prints '[OK] N row(s) checked', lists any warnings, asks the three prompts, and only then asks the
+       Y confirmation for warnings. The prompt values are only needed to build the records.
 
 .NOT_IN_CURRENT_SPEC
     Supported by Beaufort / the official Excel tool, not by this script. Candidates for a later version.
@@ -131,13 +143,14 @@ param (
     # DECISION: No default path. If omitted (or empty), a file-open dialog is shown.
     [string]$InputCsvPath = $null,
     # Output is always written as Windows-1252 (see architectural decision 1).
-    [string]$OutputTxtPath = ".\dpia100.txt",
+    # DECISION: Empty means DPIA100_<csv name>.txt next to the input CSV (decision 13).
+    [string]$OutputTxtPath = $null,
     # The .bat launcher has its own 'pause', so it passes -NoPause to avoid a double prompt.
     [switch]$NoPause
 )
 
 # NOTE: Bump together with a new section in docs/CHANGELOG.md and a git tag vX.Y.Z (see CLAUDE.md).
-$ScriptVersion = '1.0.0'
+$ScriptVersion = '1.1.0'
 
 
 # -------------------------------------------------------------------------
@@ -262,6 +275,11 @@ if (-not (Test-Path -LiteralPath $InputCsvPath -PathType Leaf)) {
     Stop-WithError "Input file not found: $InputCsvPath"
 }
 $InputCsvPath = (Resolve-Path -LiteralPath $InputCsvPath).ProviderPath
+
+# DECISION: Default output next to the input CSV, named after it (decision 13).
+if (-not $OutputTxtPath) {
+    $OutputTxtPath = Join-Path (Split-Path -Parent $InputCsvPath) ("DPIA100_" + [System.IO.Path]::GetFileNameWithoutExtension($InputCsvPath) + ".txt")
+}
 
 # DECISION: Output path is resolved up front, so every later failure can retire a stale output file.
 # Relative paths are resolved against the PowerShell working directory; absolute paths are used as-is
@@ -413,56 +431,9 @@ function Find-PropertyByPattern([string[]]$headerNames, [string[]]$patterns) {
     return $null
 }
 
-# -------------------------------------------------------------------------
-# Interactive Prompts
-# -------------------------------------------------------------------------
-
+# DECISION (owner, #11): The CSV is read and fully validated before the prompts (decision 14), so a
+# user with a broken CSV sees the errors at once instead of after answering three questions.
 Write-Host "`n=== Beaufort DPIA100 Generator v$ScriptVersion ===" -ForegroundColor Cyan
-
-# 1. Procescode (Default: CMT, max 3 alphanumeric uppercase)
-# ASSUMPTION: 'CMT' is the standard default process code defined in Beaufort (Module 200502).
-$defaultProces = "CMT"
-$procescode = ""
-while ([string]::IsNullOrWhiteSpace($procescode)) {
-    $inputP = Read-Host "Procescode [Press ENTER for '$defaultProces']"
-    $val = if ([string]::IsNullOrWhiteSpace($inputP)) { $defaultProces } else { $inputP.Trim().ToUpper() }
-    if ($val -match '^[A-Z0-9]{1,3}$') {
-        $procescode = $val
-    } else {
-        Write-Warning "Procescode must be 1 to 3 alphanumeric characters (e.g. CMT, CON)."
-    }
-}
-
-# 2. Creatiedatum (Default: today in 'dd mm yyyy')
-# ASSUMPTION: Formatted into 8 digits (ddMMyyyy) and right-aligned with 3 spaces (pos 61-71).
-$defaultDateStr = (Get-Date).ToString("dd MM yyyy")
-$creatieDatumFormatted = ""
-while ([string]::IsNullOrWhiteSpace($creatieDatumFormatted)) {
-    $inputD = Read-Host "Creatiedatum (dd mm yyyy) [Press ENTER for '$defaultDateStr']"
-    $dateStr = if ([string]::IsNullOrWhiteSpace($inputD)) { $defaultDateStr } else { $inputD.Trim() }
-    $dtRef = [DateTime]::MinValue
-    if (Test-And-ParseDate -rawDate $dateStr -parsedDate ([ref]$dtRef)) {
-        $creatieDatumFormatted = $dtRef.ToString("ddMMyyyy")
-    } else {
-        Write-Warning "Invalid date '$dateStr'. Please use 'dd mm yyyy' or 'dd-mm-yyyy'."
-    }
-}
-
-# 3. Creatiegebruiker (Mandatory, max 16 chars)
-# ASSUMPTION: Username must match an authorized user in Beaufort for batch import (Module 100251).
-$creatieGebruiker = ""
-while ([string]::IsNullOrWhiteSpace($creatieGebruiker)) {
-    $inputU = (Read-Host "Creatiegebruiker [Mandatory]").Trim()
-    if ([string]::IsNullOrWhiteSpace($inputU)) {
-        Write-Warning "Creatiegebruiker cannot be empty."
-    } elseif ($inputU.Length -gt 16) {
-        Write-Warning "Creatiegebruiker cannot exceed 16 characters."
-    } elseif (Get-UnencodableChars $inputU) {
-        Write-Warning "Creatiegebruiker contains characters that do not exist in Windows-1252: $(Get-UnencodableChars $inputU)"
-    } else {
-        $creatieGebruiker = $inputU
-    }
-}
 
 # -------------------------------------------------------------------------
 # File Check & Delimiter Auto-Detection
@@ -474,6 +445,8 @@ try {
     Stop-WithError "Could not read '$InputCsvPath': $($_.Exception.Message)"
 }
 $csvText = $csvFile.Text
+Write-Host "Input file        : $InputCsvPath" -ForegroundColor Gray
+Write-Host "Output file       : $fullOutputPath" -ForegroundColor Gray
 Write-Host "Input encoding    : $($csvFile.EncodingName)" -ForegroundColor Gray
 
 # Ensure file is not empty or header-only
@@ -742,6 +715,95 @@ if ($preparedRecords.Count -eq 0) {
     Stop-WithError "No data rows found (all $skippedEmptyRows row(s) were empty). Aborting."
 }
 
+Write-Host "`n[OK] $($preparedRecords.Count) row(s) checked, no errors found." -ForegroundColor Green
+
+# -------------------------------------------------------------------------
+# Warnings: listed before the prompts, confirmed after them
+# -------------------------------------------------------------------------
+
+# DECISION: Comma -> dot conversions are listed together, so a long list of amounts stays readable and
+# the change is never silent. Only the first few are shown. In a ';' file the comma is the Dutch decimal
+# sign, so the conversion is only reported; otherwise it is a warning that needs confirmation.
+if ($commaConversions.Count -gt 0) {
+    $shownMax = 5
+    $examples = ($commaConversions | Select-Object -First $shownMax) -join ', '
+    $more = if ($commaConversions.Count -gt $shownMax) { ", and $($commaConversions.Count - $shownMax) more" } else { "" }
+    $commaMessage = "Comma changed to dot in $($commaConversions.Count) Waarde value(s), because a numeric rubriek in Beaufort only accepts a dot (a text rubriek gets the dot too): $examples$more."
+    if ($numberNotation -eq 'nl') {
+        Write-Host "`n$commaMessage" -ForegroundColor Gray
+    } else {
+        $warnings.Insert(0, $commaMessage)
+    }
+}
+
+if ($warnings.Count -gt 0) {
+    Write-Host "`n[WARNINGS] $($warnings.Count) warning(s). The values are written as shown:" -ForegroundColor Yellow
+    foreach ($w in $warnings) {
+        Write-Host "  - $w" -ForegroundColor Yellow
+    }
+}
+
+# -------------------------------------------------------------------------
+# Interactive Prompts
+# -------------------------------------------------------------------------
+
+Write-Host ""
+
+# 1. Procescode (Default: CMT, max 3 alphanumeric uppercase)
+# ASSUMPTION: 'CMT' is the standard default process code defined in Beaufort (Module 200502).
+$defaultProces = "CMT"
+$procescode = ""
+while ([string]::IsNullOrWhiteSpace($procescode)) {
+    $inputP = Read-Host "Procescode [Press ENTER for '$defaultProces']"
+    $val = if ([string]::IsNullOrWhiteSpace($inputP)) { $defaultProces } else { $inputP.Trim().ToUpper() }
+    if ($val -match '^[A-Z0-9]{1,3}$') {
+        $procescode = $val
+    } else {
+        Write-Warning "Procescode must be 1 to 3 alphanumeric characters (e.g. CMT, CON)."
+    }
+}
+
+# 2. Creatiedatum (Default: today in 'dd mm yyyy')
+# ASSUMPTION: Formatted into 8 digits (ddMMyyyy) and right-aligned with 3 spaces (pos 61-71).
+$defaultDateStr = (Get-Date).ToString("dd MM yyyy")
+$creatieDatumFormatted = ""
+while ([string]::IsNullOrWhiteSpace($creatieDatumFormatted)) {
+    $inputD = Read-Host "Creatiedatum (dd mm yyyy) [Press ENTER for '$defaultDateStr']"
+    $dateStr = if ([string]::IsNullOrWhiteSpace($inputD)) { $defaultDateStr } else { $inputD.Trim() }
+    $dtRef = [DateTime]::MinValue
+    if (Test-And-ParseDate -rawDate $dateStr -parsedDate ([ref]$dtRef)) {
+        $creatieDatumFormatted = $dtRef.ToString("ddMMyyyy")
+    } else {
+        Write-Warning "Invalid date '$dateStr'. Please use 'dd mm yyyy' or 'dd-mm-yyyy'."
+    }
+}
+
+# 3. Creatiegebruiker (Mandatory, max 16 chars)
+# ASSUMPTION: Username must match an authorized user in Beaufort for batch import (Module 100251).
+$creatieGebruiker = ""
+while ([string]::IsNullOrWhiteSpace($creatieGebruiker)) {
+    $inputU = (Read-Host "Creatiegebruiker [Mandatory]").Trim()
+    if ([string]::IsNullOrWhiteSpace($inputU)) {
+        Write-Warning "Creatiegebruiker cannot be empty."
+    } elseif ($inputU.Length -gt 16) {
+        Write-Warning "Creatiegebruiker cannot exceed 16 characters."
+    } elseif (Get-UnencodableChars $inputU) {
+        Write-Warning "Creatiegebruiker contains characters that do not exist in Windows-1252: $(Get-UnencodableChars $inputU)"
+    } else {
+        $creatieGebruiker = $inputU
+    }
+}
+
+# DECISION (owner): With warnings the file is only written after the user types Y (decision 3). Anything
+# else cancels, also end of input, so an unattended run never writes a file with unconfirmed warnings.
+# Asked after the prompts (decision 14), right before writing.
+if ($warnings.Count -gt 0) {
+    $confirm = Read-Host "`nCreate the file anyway, with the $($warnings.Count) warning(s) above? Type Y to continue, anything else cancels"
+    if ("$confirm".Trim() -notmatch '^(y|yes)$') {
+        Stop-WithError "Cancelled. No file was created."
+    }
+}
+
 # -------------------------------------------------------------------------
 # Build Output Lines (Exact 187-Character Layout)
 # -------------------------------------------------------------------------
@@ -806,38 +868,6 @@ foreach ($rec in $preparedRecords) {
 }
 
 # -------------------------------------------------------------------------
-# Warnings: confirm before writing
-# -------------------------------------------------------------------------
-
-# DECISION: Comma -> dot conversions are listed together, so a long list of amounts stays readable and
-# the change is never silent. Only the first few are shown. In a ';' file the comma is the Dutch decimal
-# sign, so the conversion is only reported; otherwise it is a warning that needs confirmation.
-if ($commaConversions.Count -gt 0) {
-    $shownMax = 5
-    $examples = ($commaConversions | Select-Object -First $shownMax) -join ', '
-    $more = if ($commaConversions.Count -gt $shownMax) { ", and $($commaConversions.Count - $shownMax) more" } else { "" }
-    $commaMessage = "Comma changed to dot in $($commaConversions.Count) Waarde value(s), because a numeric rubriek in Beaufort only accepts a dot (a text rubriek gets the dot too): $examples$more."
-    if ($numberNotation -eq 'nl') {
-        Write-Host "`n$commaMessage" -ForegroundColor Gray
-    } else {
-        $warnings.Insert(0, $commaMessage)
-    }
-}
-
-# DECISION (owner): With warnings the file is only written after the user types Y (decision 3). Anything
-# else cancels, also end of input, so an unattended run never writes a file with unconfirmed warnings.
-if ($warnings.Count -gt 0) {
-    Write-Host "`n[WARNINGS] $($warnings.Count) warning(s). The values are written as shown:" -ForegroundColor Yellow
-    foreach ($w in $warnings) {
-        Write-Host "  - $w" -ForegroundColor Yellow
-    }
-    $confirm = Read-Host "`nCreate the file anyway? Type Y to continue, anything else cancels"
-    if ("$confirm".Trim() -notmatch '^(y|yes)$') {
-        Stop-WithError "Cancelled. No file was created."
-    }
-}
-
-# -------------------------------------------------------------------------
 # Export File strictly as Windows-1252 (ANSI)
 # -------------------------------------------------------------------------
 
@@ -856,7 +886,7 @@ try {
     Stop-WithError "Could not write '$fullOutputPath': $($_.Exception.Message) (is the file open in another program?)"
 }
 
-Write-Host "`n[SUCCESS] File successfully created: $fullOutputPath" -ForegroundColor Green
+Write-Host "`n[SUCCESS] File successfully created:`n$fullOutputPath" -ForegroundColor Green
 Write-Host "Encoding       : Windows-1252 (ANSI - single-byte compatible)" -ForegroundColor Green
 Write-Host "Records parsed : $($outputLines.Count)" -ForegroundColor Green
 if ($replacedStamp) {

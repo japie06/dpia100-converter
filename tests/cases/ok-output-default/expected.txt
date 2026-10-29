@@ -1,0 +1,3 @@
+CMTE00101123456                                            S   07102026         TSTUSERCafé de Brug                                         01112026                              NOR      
+CMTE00205123456   1                                        V   07102026         TSTUSER125.50                                               01112026                              NOR      
+CMTE00310  2345   2                                        S   07102026         TSTUSER36                                                   01122026                              NOR      

@@ -4,7 +4,7 @@
 [![Release](https://img.shields.io/github/v/release/japie06/dpia100-converter)](https://github.com/japie06/dpia100-converter/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Dit script zet een CSV-bestand met mutaties om naar een bestand `dpia100.txt` dat je in Beaufort / HR Core kunt
+Dit script zet een CSV-bestand met mutaties om naar een bestand `DPIA100_<naam>.txt` dat je in Beaufort / HR Core kunt
 importeren (functie *Import externe indirecte mutaties*, 100254). Het doet hetzelfde als de knop
 **Maak DPIA100** in het Excel-hulpmiddel, maar controleert de gegevens strenger voordat er een bestand
 wordt gemaakt.
@@ -38,18 +38,24 @@ Het versienummer staat bovenaan in het venster als het script start.
    het eruit moet zien.
 2. **Sleep het CSV-bestand op `dpia100.bat`.** Dubbelklikken op `dpia100.bat` kan ook: je kunt dan zelf
    een bestand kiezen.
-3. Beantwoord de drie vragen:
+3. Het script controleert eerst het hele CSV-bestand. Zijn er fouten, dan zie je meteen de lijst met
+   fouten (zie [Als er iets misgaat](#als-er-iets-misgaat)) en worden er geen vragen gesteld.
+4. Controleer onder *Column mapping* welke kolom voor welk veld is gebruikt. Het script herkent de
+   kolommen aan de kopregel (de eerste regel, met de kolomnamen). Links staat het veld, rechts de
+   kolomnaam uit jouw CSV. Klopt een koppeling niet, sluit het venster, pas de kolomnaam in Excel aan
+   en probeer het opnieuw. Let vooral op *Mutatiewaarde*: die kolom kan het script niet controleren.
+5. Staat er **[OK]**, dan beantwoord je de drie vragen:
    - **Procescode**: druk op Enter voor `CMT`, of typ een andere code (max. 3 tekens). Deze moet in
      Beaufort bestaan als aanleverend proces.
    - **Creatiedatum**: druk op Enter voor vandaag, of typ een datum (`dd mm jjjj`).
    - **Creatiegebruiker**: je Beaufort-gebruikersnaam (verplicht, max. 16 tekens).
-4. Controleer onder *Column mapping* welke kolom voor welk veld is gebruikt. Het script herkent de
-   kolommen aan de kopregel (de eerste regel, met de kolomnamen). Links staat het veld, rechts de
-   kolomnaam uit jouw CSV. Klopt een koppeling niet, pas dan de kolomnaam in Excel aan en probeer het
-   opnieuw. Let vooral op *Mutatiewaarde*: die kolom kan het script niet controleren.
-5. Bij **[SUCCESS]** staat het volledige pad van het gemaakte bestand in het venster. Zet
-   `dpia100.txt` in de *Bestandsuitwisseling* naar HR Core en importeer het met functie 100254.
-   Beoordeel daarna de mutaties (100251) en verwerk ze (100252).
+
+   Waren er waarschuwingen (zie [Bedragen](#bedragen)), dan vraagt het script daarna nog of het
+   bestand toch gemaakt moet worden.
+6. Het bestand komt in **dezelfde map als je CSV-bestand**, met de naam van de CSV erin:
+   `mutaties oktober.csv` wordt `DPIA100_mutaties oktober.txt`. Het volledige pad staat in het venster
+   bij *Output file* en bij **[SUCCESS]**. Zet het bestand in de *Bestandsuitwisseling* naar HR Core en
+   importeer het met functie 100254. Beoordeel daarna de mutaties (100251) en verwerk ze (100252).
 
    **Let op:** HR Core vindt alleen bestanden waarvan de naam begint met `DPIA100`. Wil je het
    bestand hernoemen, laat de naam dan zo beginnen (bijvoorbeeld `DPIA100_oktober.txt`, niet
@@ -59,10 +65,9 @@ Het versienummer staat bovenaan in het venster als het script start.
 Zo ziet het venster eruit bij `voorbeeld.csv` (jouw antwoorden staan achter de dubbele punt):
 
 ```text
-=== Beaufort DPIA100 Generator v1.0.0 ===
-Procescode [Press ENTER for 'CMT']:
-Creatiedatum (dd mm yyyy) [Press ENTER for '28 10 2026']:
-Creatiegebruiker [Mandatory]: JANSENP
+=== Beaufort DPIA100 Generator v1.1.0 ===
+Input file        : H:\Mutaties\voorbeeld.csv
+Output file       : H:\Mutaties\DPIA100_voorbeeld.txt
 Input encoding    : Windows-1252
 Detected delimiter: ';'
 Column mapping:
@@ -74,9 +79,16 @@ Column mapping:
   Ingangsdatum    <- 'Ingangsdatum'
   Productiesoort  <- 'Productiesoort'
 
+[OK] 3 row(s) checked, no errors found.
+
 Comma changed to dot in 1 Waarde value(s), because a numeric rubriek in Beaufort only accepts a dot (a text rubriek gets the dot too): row 3 '125,50' -> '125.50'.
 
-[SUCCESS] File successfully created: H:\Mutaties\dpia100.txt
+Procescode [Press ENTER for 'CMT']:
+Creatiedatum (dd mm yyyy) [Press ENTER for '28 10 2026']:
+Creatiegebruiker [Mandatory]: JANSENP
+
+[SUCCESS] File successfully created:
+H:\Mutaties\DPIA100_voorbeeld.txt
 ```
 
 ## Kolommen in de CSV
@@ -133,12 +145,13 @@ een vinkje `✓`, Poolse of Turkse letters (`ł`, `ş`) en emoji.
 
 - **Foutenlijst**: pas de genoemde regels aan in de CSV (of in het Excel-bestand) en probeer het
   opnieuw. Regel 1 is de kopregel; de eerste regel met gegevens is regel 2.
-- **Oud bestand hernoemd**: na een mislukte poging wordt een eerder gemaakte `dpia100.txt` hernoemd
-  naar `dpia100.txt.old`. Zo kun je niet per ongeluk een oud bestand importeren.
-- **Script start niet** (*"is not digitally signed"*): de bestanden zijn nog geblokkeerd omdat ze van
-  internet komen. Hef de blokkering op zoals bij [Installeren](#installeren), stap 2. Heb je de zip al
-  uitgepakt, doe het dan bij `dpia100.ps1`: klik met de rechtermuisknop → *Eigenschappen* → vink
-  *Blokkering opheffen* aan.
+- **Oud bestand hernoemd**: na een mislukte poging wordt een eerder gemaakte `DPIA100_<naam>.txt`
+  hernoemd naar `DPIA100_<naam>.txt.old`. Zo kun je niet per ongeluk een oud bestand importeren.
+- **Script start niet** (*"is not digitally signed"*): je start `dpia100.ps1` vanuit een
+  PowerShell-venster terwijl de bestanden nog geblokkeerd zijn, omdat ze van internet komen. Start het
+  script met `dpia100.bat`, of hef de blokkering op zoals bij [Installeren](#installeren), stap 2. Heb
+  je de zip al uitgepakt, doe het dan bij `dpia100.ps1`: klik met de rechtermuisknop →
+  *Eigenschappen* → vink *Blokkering opheffen* aan.
 - **Melding over *ConstrainedLanguage***: PowerShell is op deze pc dichtgezet. Neem contact op met IT.
 
 ## Wat het (nog) niet doet

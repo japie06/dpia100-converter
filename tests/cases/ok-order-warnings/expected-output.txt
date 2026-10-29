@@ -1,0 +1,6 @@
+Column mapping:
+[OK] 7 row(s) checked, no errors found.
+[WARNINGS] 6 warning(s)
+TSTUSER
+[SUCCESS] File successfully created:
+Written with 6 confirmed warning(s)

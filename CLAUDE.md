@@ -6,7 +6,7 @@ in `docs/CHANGELOG.md`.
 
 ## What this is
 
-`dpia100.ps1` converts a CSV of HR mutations into `dpia100.txt`, the fixed-width import file for
+`dpia100.ps1` converts a CSV of HR mutations into `DPIA100_<csv name>.txt` (next to the CSV), the fixed-width import file for
 Visma/Raet **Beaufort** (function 100254, *Import externe indirecte mutaties*). It replaces the official
 Excel tool's "Maak DPIA100" button with stricter validation. Users are non-technical colleagues at
 a Dutch municipality who drag a CSV onto `dpia100.bat`.
@@ -57,8 +57,8 @@ a Dutch municipality who drag a CSV onto `dpia100.bat`.
 Top to bottom:
 1. Comment-based help: description, layout table, `.KEY_ARCHITECTURAL_DECISIONS` (numbered),
    `.NOT_IN_CURRENT_SPEC` (A-D).
-2. `param`: `-InputCsvPath` (empty means a file picker), `-OutputTxtPath` (default `.\dpia100.txt`),
-   `-NoPause`.
+2. `param`: `-InputCsvPath` (empty means a file picker), `-OutputTxtPath` (empty means
+   `DPIA100_<csv name>.txt` next to the input CSV, decision 13), `-NoPause`.
 3. Exit handling:
    - `Exit-Script` is the single exit point. It renames a stale output file to `.old` when the code
      is not 0, and pauses unless `-NoPause` is passed.
@@ -66,22 +66,22 @@ Top to bottom:
    - A `trap` catches unexpected terminating errors.
 4. Constrained Language Mode check, strict Windows-1252 encoder, `Get-UnencodableChars`,
    `Read-CsvFile` (raw bytes plus encoding detection).
-5. Input path resolution and the file picker. The output path is resolved early, so every failure
-   can retire a stale file.
+5. Input path resolution and the file picker. The output path is derived from the input when not
+   given, and resolved early, so every failure can retire a stale file.
 6. Helpers:
    - `Detect-CsvDelimiter`
    - `Split-CsvHeader` (a custom parser for the header record)
    - `Get-UniqueHeaderNames`
    - `Test-And-ParseDate`
    - `Find-PropertyByPattern` (patterns of 2 characters or fewer must match the whole header)
-7. Prompts: procescode, creatiedatum, creatiegebruiker.
-8. CSV parsing: the header via `Split-CsvHeader`, the data rows via `ConvertFrom-Csv -Header`.
-9. Header mapping. The mapping is printed; the script aborts on a missing field or on one column
+7. CSV parsing: the header via `Split-CsvHeader`, the data rows via `ConvertFrom-Csv -Header`.
+8. Header mapping. The mapping is printed; the script aborts on a missing field or on one column
    mapped to two fields.
-10. Per-row validation into `$validationErrors` and `$preparedRecords`. Completely empty rows are
-    skipped.
-11. Abort on errors, build the 187-character lines with a length check, then write with the strict
-    encoder.
+9. Per-row validation into `$validationErrors` and `$preparedRecords`. Completely empty rows are
+   skipped. Abort on errors, otherwise print `[OK]` and list the warnings.
+10. Prompts: procescode, creatiedatum, creatiegebruiker. They come after the validation, so a broken
+    CSV never asks anything (decision 14). Then the `Y` confirmation, only with warnings.
+11. Build the 187-character lines with a length check, then write with the strict encoder.
 
 ## Conventions
 
@@ -130,9 +130,16 @@ Top to bottom:
 - **Regression suite.** `pwsh tests\run-tests.ps1` (optionally `-Filter err-*`). Runs each folder in
   `tests/cases` on `powershell.exe` (5.1) and `pwsh`. A case has `input.csv` plus either
   `expected.txt` (exact output bytes) or no `expected.txt` (must fail: exit 1, no output, stale file
-  renamed to `.old`). Optional `expected-output.txt` (console lines that must appear), `answers.txt`
+  renamed to `.old`). Optional `expected-output.txt` (console lines that must appear, **in that
+  order**), `unexpected-output.txt` (whole lines that must not appear), `answers.txt`
   (prompt answers; default `CMT` / `07 10 2026` / `TSTUSER` / `Y`, the last one confirms warnings) and `output-name.txt` (output file name;
-  default `DPIA100_<case>.<engine>.txt`). Run it after every script change. GitHub Actions also runs it
+  default `DPIA100_<case>.<engine>.txt`). An empty `default-output` marker runs the case without
+  `-OutputTxtPath` on a copy `out\<case>.<engine>.csv`, so the script's default name lands on that same
+  output path. Run it after every script change.
+- **Order of operations (decision 14).** Prompt text is not captured when stdin is piped, but each answer
+  read is echoed on its own line. The runner uses that: a failure case without `answers.txt` must not
+  show `TSTUSER` or `[OK]`. The `ok-order-*` cases expect the echo, so they fail if it ever disappears
+  and the check would pass silently. GitHub Actions also runs it
   on `windows-latest` for every push and pull request.
 - **Fixtures are raw bytes** (`.gitattributes`: `-text`). Write new ones with
   `[IO.File]::WriteAllBytes`, not an editor that may change encoding or line endings. Build
@@ -158,9 +165,13 @@ Top to bottom:
 - **pwsh on Linux.** It writes LF line endings, so convert to CRLF before comparing.
   `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` breaks NFC normalization, so test the decomposed `ö` case
   with ICU available.
-- **Real Windows.** The suite covers 5.1 via `powershell.exe -File`, not the `.bat` itself. Untested:
-  the machine with a GPO-enforced `RemoteSigned` policy. Under RemoteSigned the
-  script runs if it is local and unblocked; a downloaded copy needs `Unblock-File`.
+- **Real Windows.** The suite covers 5.1 via `powershell.exe -File`, not the `.bat` itself. Tested by
+  the owner on a municipality PC (#4, 2026-10-29): `RemoteSigned` at CurrentUser/LocalMachine, no
+  GPO (MachinePolicy/UserPolicy `Undefined`), FullLanguage. The `.bat` (drag-and-drop and file picker)
+  and *Run with PowerShell* run even with blocked files from a downloaded zip, because the Process-scope
+  Bypass wins. Only `.\dpia100.ps1` from a PowerShell window fails ("not digitally signed") until
+  unblocked. Output next to a CSV in a OneDrive/SharePoint folder works. A GPO-enforced policy was not
+  seen; if it ever is, the `.bat` Bypass is overridden and unblocking becomes required.
 
 ## Releasing
 
