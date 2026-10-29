@@ -150,7 +150,7 @@ param (
 )
 
 # NOTE: Bump together with a new section in docs/CHANGELOG.md and a git tag vX.Y.Z (see CLAUDE.md).
-$ScriptVersion = '1.0.0'
+$ScriptVersion = '1.1.0'
 
 
 # -------------------------------------------------------------------------

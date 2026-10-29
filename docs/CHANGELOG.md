@@ -4,7 +4,7 @@ All notable changes to `dpia100.ps1` and `dpia100.bat`. Newest first. Format bas
 [Keep a Changelog](https://keepachangelog.com/). Releases are numbered from v1.0.0 (tag `vX.Y.Z`,
 zip on the GitHub Releases page); older entries are dated.
 
-## Unreleased
+## v1.1.0 (2026-10-29)
 
 ### Added
 - `voorbeeld.csv`: an example input file, included in the release zip and shown in the README. Test case
