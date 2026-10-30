@@ -4,6 +4,30 @@ All notable changes to `dpia100.ps1`, `dpia100.bat` and `dpia100.html`. Newest f
 [Keep a Changelog](https://keepachangelog.com/). Releases are numbered from v1.0.0 (tag `vX.Y.Z`,
 zip on the GitHub Releases page); older entries are dated.
 
+## Unreleased
+
+Changes after reviewing the source of the official Excel tool (owner decisions). Script and page alike.
+
+### Added
+- Productiesoort **COR** is accepted, next to NOR (decision 11).
+- Warning for an **empty Waarde**, which deletes the current value in Beaufort (decision 16). One warning
+  lists the rows. Before, an empty value was written without a message.
+- Warning for a Waarde that looks like a **date not written as dd-mm-yyyy** (`1-11-2026`, `1/11/26`,
+  `2026-11-01`, `1.11.2026`) or a **time not written as hh:mm** (`8:30`, `08:30:00`), the shapes the Excel
+  tool wrote (decision 16). Values are still written as typed. A date with dots used to pass silently.
+
+### Changed
+- **Rubriek must be exactly 6 characters.** A shorter code was left-aligned before; the Excel tool
+  right-aligned it, so its layout was never certain.
+
+### Documentation
+- `field-layout.md`: new *Excel tool* section (how it built each field, its bugs); positions 149-178 are
+  the productiesoort padding, not a field; the Object_id widths of BG, LV, SD and IZ from the tool's
+  source (unverified); procescode and rubriek have length 3 and 6 in the PDF, no alignment; rubriek type H
+  has no effect; `NULL` is written as typed.
+- The round 4 finding that Beaufort drops `€`, curly quotes and dashes (0x80-0x9F, 0xFF) is now marked
+  **unverified**: the Beaufort GUI accepts these characters when typed. They stay accepted; retest in #20.
+
 ## v1.2.0 (2026-10-30)
 
 ### Added

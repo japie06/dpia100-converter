@@ -6,7 +6,8 @@
     - Fully independent of column order.
     - Strictly validates all fields and aborts if errors are found.
     - Truncates [Waarde] with a warning if it exceeds 50 characters (showing old & new values).
-    - Warns about amounts Beaufort may read differently than intended (comma, thousand separator).
+    - Warns about amounts Beaufort may read differently than intended (comma, thousand separator), about
+      empty values (a delete in Beaufort) and about dates and times not written as dd-mm-yyyy / hh:mm.
       With warnings, the file is only written after the user types Y.
     - Complies with Visma / Raet Beaufort specifications (187-character fixed record layout).
     - Reads the CSV with automatic encoding detection (UTF-8 / UTF-16 / Windows-1252), so it behaves
@@ -17,22 +18,22 @@
     - Prints which CSV column was used for each field, so a wrong match is visible.
     - On any failure, an older output file is renamed to *.old so it cannot be imported by mistake.
     - Writes the output next to the input CSV as DPIA100_<csv name>.txt, unless -OutputTxtPath is given.
-    - Only productiesoort NOR is supported (JWP needs a verrekenperiode, which is not implemented).
+    - Productiesoort NOR and COR are supported (JWP needs a verrekenperiode, which is not implemented).
     - Scope: PS and DV mutations only. See .NOT_IN_CURRENT_SPEC for Beaufort features left out.
 
 .BEAUFORT_LAYOUT_SPECIFICATION
     Total record length: Exactly 187 characters / bytes.
     -----------------------------------------------------------------------------------------
     Pos   1 -   3 (Len  3) : Procescode (Uppercase alphanumeric, e.g. CMT, CON)
-    Pos   4 -   9 (Len  6) : Rubriekcode (Uppercase alphanumeric, e.g. E00101)
+    Pos   4 -   9 (Len  6) : Rubriekcode (Exactly 6 uppercase alphanumeric, e.g. E00101)
     Pos  10 -  59 (Len 50) : Object_id (pers_nr [6] + space [1] + dv_vlgnr [3], padded to 50)
     Pos  60 -  60 (Len  1) : Indicator stam/variabel ('S' or 'V')
     Pos  61 -  71 (Len 11) : Creatiedatum (3 leading spaces + ddMMyyyy)
     Pos  72 -  87 (Len 16) : Creatiegebruiker (Right-aligned username, padded with spaces)
     Pos  88 - 137 (Len 50) : Mutatiewaarde (Left-aligned, space padded to 50 chars)
     Pos 138 - 148 (Len 11) : Ingangsdatum (3 leading spaces + ddMMyyyy)
-    Pos 149 - 178 (Len 30) : Not described in the Beaufort docs (always 30 spaces, see .NOT_IN_CURRENT_SPEC)
-    Pos 179 - 181 (Len  3) : Productiesoort (NOR only in this script; Beaufort also knows JWP)
+    Pos 149 - 178 (Len 30) : Not a field: always 30 spaces (the Excel tool's padding, see .NOT_IN_CURRENT_SPEC D)
+    Pos 179 - 181 (Len  3) : Productiesoort (NOR or COR in this script; Beaufort also knows JWP)
     Pos 182 - 187 (Len  6) : Verrekenperiode (Always 6 spaces in this script; Beaufort format ppjjjj)
     -----------------------------------------------------------------------------------------
 
@@ -46,9 +47,10 @@
        All rows are inspected and all validation errors across the entire CSV are compiled into a
        summary table before aborting, preventing partial imports and tedious single-row trial-and-error.
     3. WARNINGS INSTEAD OF ERRORS (Waarde only):
-       Two cases are non-fatal: a Waarde longer than 50 characters is truncated (showing the original and
-       truncated values; this prevents the #VALUE! error seen in Excel formulas), and amounts Beaufort may
-       read differently (decision 8). All warnings are shown before the prompts, and after the prompts the
+       These cases are non-fatal: a Waarde longer than 50 characters is truncated (showing the original and
+       truncated values; this prevents the #VALUE! error seen in Excel formulas), amounts Beaufort may
+       read differently (decision 8), and empty values, dates and times (decision 16). All warnings are
+       shown before the prompts, and after the prompts the
        file is only written if the user types Y. Anything else, including end of input, cancels like an
        error (decision 14).
     4. NO LEADING ZEROS IN OBJECT_ID:
@@ -92,7 +94,8 @@
     10. STALE OUTPUT PROTECTION:
        If the run fails, an existing output file (from an earlier run) is renamed to '<name>.old' so an
        outdated import file cannot be imported by mistake.
-    11. PRODUCTIESOORT NOR ONLY (current spec; JWP may be added later, see .NOT_IN_CURRENT_SPEC):
+    11. PRODUCTIESOORT NOR OR COR (current spec; JWP may be added later, see .NOT_IN_CURRENT_SPEC):
+       An empty productiesoort becomes NOR. COR is valid in Beaufort (owner; also named by the Excel tool).
        JWP (herrekenen over een jaarwerkperiode) requires a verrekenperiode (ppjjjj) and a matching
        ingangsdatum. The verrekenperiode is not implemented, so JWP is rejected.
     12. OUTPUT FILE NAME STARTS WITH 'DPIA100':
@@ -114,6 +117,16 @@
        PowerShell 7 and the page (headless Edge), and tests/web/differential.ps1 compares both on random
        input. By design the page cannot rename an old output file (decision 10); it writes nothing until
        the user saves, and refuses a file name that does not start with DPIA100 (decision 12).
+    16. EMPTY VALUES, DATES AND TIMES: WARN (owner, after reviewing the Excel tool source):
+       - An empty Waarde deletes the current value in Beaufort. The Excel tool only allowed it through the
+         keyword NULL (a plain empty cell was an error for numeric, date and time rubrieken). The script
+         writes it, with a warning listing the rows. The text NULL is written as typed (owner).
+       - The Excel tool wrote a date in a date rubriek as dd-mm-yyyy and a time as hh:mm. A value that looks
+         like a date in another shape (1-11-2026, 1/11/26, 2026-11-01, 1.11.2026) or a time in another shape
+         (8:30, 08:30:00) is written as typed, with a warning. Without a rubriek lookup the script cannot
+         tell a date rubriek from a text rubriek, so it never converts. 8 digits (01112026) and '8.30' are
+         not recognized: they may be numbers.
+       Each kind is one warning listing the first rows, like the comma conversions.
 
 .NOT_IN_CURRENT_SPEC
     Supported by Beaufort / the official Excel tool, not by this script. Candidates for a later version.
@@ -126,22 +139,30 @@
          ZT pers_nr dv_vlgnr zg_nr zt_nr
        Max lengths: bg_vlgnr 1-2, lv_rglnr 2-3, sd_rglnr 2, oe_oper_sl 10, operfunc_kd 7 (alfanumeriek),
        reg_sal_kd 2, inpas_nr 4, zg_nr 10, zt_nr 10 (the two PDFs differ for bg/lv). ingang_dt = Beaufort date.
-       The Excel tool has extra columns for loonverdeling, org. eenheid, functiecode and speciale doorbel.
-       Field widths for the extra parts are undocumented: verify against Excel tool output before adding.
+       The Excel tool supported PS, DV, BG, LV, SD and IZ (not IP, ZG, ZT). Its source right-aligns each
+       part in a fixed width that includes the separating space: pers_nr 6, dv 4 (space + 3), bg 2 (space
+       + 1), lv 3 (space + 2), sd 3 (space + 2), IZ: oe_oper_sl 11 (space + 10), operfunc_kd 8 (space + 7),
+       ingang_dt 11 (the mutation's ingangsdatum in the Windows short-date format; probably wrong, the PDF
+       asks for the inzet's own date). Those widths follow the 2005 handbook, not the 2024 PDF (bg 2,
+       lv 3), and were never verified in Beaufort: probe them before adding.
     B. VERREKENPERIODE (pos 182-187) AND JWP:
        Format ppjjjj (e.g. 132003). Periods 13-15 are only applied if the ingangsdatum is in December,
        otherwise Beaufort recalculates. For recalculation over a jaarwerkperiode the ingangsdatum must equal
-       the start date of the last loonperiode. The Excel tool has a 'Verreken periode' column.
+       the start date of the last loonperiode. The Excel tool has a 'Verreken periode' column: exactly 6
+       characters, right-aligned, written as typed without a format check.
     C. RUBRIEK LOOKUP (Excel tool tab 'Rubriek': rubriek_kd, gegsrt_id, type):
        - gegsrt_id determines which object_id parts are required; unknown rubrieken are flagged.
-       - type determines the Waarde format: N = numeriek (default), S = tekst, D = datum, T = tijd,
-         H = hoofdletters. Currently only amounts are handled (comma -> dot, warnings, decision 8);
-         dates, times and uppercase values are written as typed (owner decision, see the Waarde section).
+       - type determines the Waarde check: N = numeriek (default; must be numeric), S = tekst, D = datum
+         (rewritten as dd-mm-yyyy), T = tijd (rewritten as hh:mm). H = hoofdletters is listed but has had
+         no effect since 2005. In N, D and T an empty cell was an error; the keyword NULL wrote an empty value.
+         This script only handles amounts (decision 8) and warns about empty values, dates and times
+         (decision 16); values are written as typed (owner decision, see the Waarde section).
        Left out because rubrieken are created freely in Beaufort and a list is hard to keep up to date.
        Without it, PS vs DV is derived from Dienstv being filled; Beaufort rejects mismatches at import.
     D. POSITIONS 149-178:
        Not described in either PDF: the documented fields end at Ingangsdatum (pos 148) and Productiesoort
-       starts at 179. Filled with 30 spaces, which matches the Excel tool output byte for byte.
+       starts at 179. Not a field: the Excel tool source right-aligns productiesoort in 33 positions, so
+       these are its leading spaces. Filled with 30 spaces, which matches the Excel tool byte for byte.
 #>
 
 [CmdletBinding()]
@@ -537,7 +558,11 @@ $validationErrors = [System.Collections.Generic.List[PSCustomObject]]::new()
 $warnings         = [System.Collections.Generic.List[string]]::new()
 $commaConversions = [System.Collections.Generic.List[string]]::new()
 $preparedRecords  = [System.Collections.Generic.List[PSCustomObject]]::new()
-$allowedProductie = @("NOR")
+# Grouped Waarde warnings (decision 16): empty values, and dates and times not in the Excel-tool format.
+$emptyWaardes     = [System.Collections.Generic.List[string]]::new()
+$dateWaardes      = [System.Collections.Generic.List[string]]::new()
+$timeWaardes      = [System.Collections.Generic.List[string]]::new()
+$allowedProductie = @("NOR", "COR")
 
 $rowNumber = 1 # 1 is header
 $skippedEmptyRows = 0
@@ -564,15 +589,17 @@ foreach ($row in $rows) {
     $rawIngang    = [string]$row.$colIngang
     $rawProductie = [string]$row.$colProductie
 
-    # 1. Validate Rubriek (Alphanumeric, max 6 chars, mandatory)
-    # DECISION: Beaufort rubrieken are max 6 uppercase characters (e.g. E00101, P00332).
+    # 1. Validate Rubriek (Alphanumeric, exactly 6 chars, mandatory)
+    # DECISION (owner): Beaufort rubrieken are exactly 6 uppercase characters (e.g. E00101, P00332). The PDF
+    # gives length 6; the Excel tool right-aligned shorter codes, so a shorter code has no known layout.
+    # Characters are checked first: '#N/B' (an Excel lookup that found nothing) needs that message.
     $cleanRubriek = $rawRubriek.Trim().ToUpper()
     if ([string]::IsNullOrWhiteSpace($cleanRubriek)) {
         $validationErrors.Add([PSCustomObject]@{ Row = $rowNumber; Column = "Rubriek"; Value = $rawRubriek; Issue = "Field is empty" })
-    } elseif ($cleanRubriek.Length -gt 6) {
-        $validationErrors.Add([PSCustomObject]@{ Row = $rowNumber; Column = "Rubriek"; Value = $rawRubriek; Issue = "Exceeds max length of 6 chars" })
     } elseif ($cleanRubriek -notmatch '^[A-Z0-9]+$') {
         $validationErrors.Add([PSCustomObject]@{ Row = $rowNumber; Column = "Rubriek"; Value = $rawRubriek; Issue = "Contains invalid characters (alphanumeric only)" })
+    } elseif ($cleanRubriek.Length -ne 6) {
+        $validationErrors.Add([PSCustomObject]@{ Row = $rowNumber; Column = "Rubriek"; Value = $rawRubriek; Issue = "Must be exactly 6 chars (e.g. E00101)" })
     }
 
     # 2. Validate Pers. Nr (Numeric, max 6 digits, mandatory)
@@ -625,7 +652,7 @@ foreach ($row in $rows) {
         $validationErrors.Add([PSCustomObject]@{ Row = $rowNumber; Column = "Ingangsdatum"; Value = $rawIngang; Issue = "Invalid or unparseable date" })
     }
 
-    # 6. Validate Productiesoort (Must be NOR; defaults to NOR if empty)
+    # 6. Validate Productiesoort (Must be NOR or COR; defaults to NOR if empty)
     # DECISION: JWP is rejected because it needs a verrekenperiode, which is not implemented (decision 11).
     # Not in current spec; may be added later (.NOT_IN_CURRENT_SPEC B).
     $cleanProductie = if ([string]::IsNullOrWhiteSpace($rawProductie)) { "NOR" } else { $rawProductie.Trim().ToUpper() }
@@ -647,7 +674,8 @@ foreach ($row in $rows) {
     #           never an error: the rubriek may be a text rubriek. The delimiter decides which notation
     #           is expected ($numberNotation, decision 8).
     # DECISION (owner): No forced format on Waarde. Dates, times and other values are passed through as
-    #       typed (e.g. '1-11-2026'); Beaufort validates them against the rubriek. Empty is allowed.
+    #       typed (e.g. '1-11-2026'); Beaufort validates them against the rubriek. Empty is allowed. Empty
+    #       values and dates and times in another shape than the Excel tool's get a warning (decision 16).
     $cleanWaarde = $rawWaarde.Trim()
     if ($cleanWaarde -match '[\x00-\x1F\x7F]') {
         $validationErrors.Add([PSCustomObject]@{ Row = $rowNumber; Column = "Mutatiewaarde"; Value = ($cleanWaarde -replace '[\x00-\x1F\x7F]+', ' <line break/tab> '); Issue = "Contains line break, tab or control character" })
@@ -687,6 +715,17 @@ foreach ($row in $rows) {
         $warnings.Add("${rowLabel}: Waarde '$cleanWaarde' is read by Beaufort as $($cleanWaarde -replace '\.', ',') in a numeric rubriek. If the dot is a thousand separator, write it without the dot.")
     } elseif ($isNumberLike -and ($cleanWaarde -match '\..*,|,.*\.|\..*\.|,.*,')) {
         $warnings.Add("${rowLabel}: Waarde '$cleanWaarde' looks like an amount with a thousand separator. A numeric rubriek rejects it at processing (PI_2229); write it without, e.g. 1234.56.")
+    }
+    # DECISION (owner): An empty Waarde is a deliberate delete of the current value in Beaufort; the Excel
+    # tool only allowed it through the keyword NULL. Dates and times are written as typed, but the Excel
+    # tool wrote them as dd-mm-yyyy and hh:mm, so other shapes get a warning (decision 16).
+    if ($cleanWaarde.Length -eq 0) {
+        $emptyWaardes.Add("row $rowNumber (Pers. Nr: $cleanPersNr)")
+    } elseif ($cleanWaarde -match '^[0-9]{1,2}([-/. ])[0-9]{1,2}\1[0-9]{4}$|^[0-9]{1,2}([-/])[0-9]{1,2}\2[0-9]{2}$|^[0-9]{4}([-/.])[0-9]{1,2}\3[0-9]{1,2}$' -and
+              $cleanWaarde -notmatch '^[0-9]{2}-[0-9]{2}-[0-9]{4}$') {
+        $dateWaardes.Add("row $rowNumber '$cleanWaarde'")
+    } elseif ($cleanWaarde -match '^[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?$' -and $cleanWaarde -notmatch '^[0-9]{2}:[0-9]{2}$') {
+        $timeWaardes.Add("row $rowNumber '$cleanWaarde'")
     }
     if ($cleanWaarde.Length -gt 50) {
         $origWaarde = $cleanWaarde
@@ -730,6 +769,23 @@ Write-Host "`n[OK] $($preparedRecords.Count) row(s) checked, no errors found." -
 # -------------------------------------------------------------------------
 # Warnings: listed before the prompts, confirmed after them
 # -------------------------------------------------------------------------
+
+# DECISION: Empty values, dates and times are each listed in one warning, so a deliberate bulk delete or a
+# column of dates stays readable (decision 16). Only the first few rows are shown.
+function Join-Examples([System.Collections.Generic.List[string]]$list) {
+    $shownMax = 5
+    $more = if ($list.Count -gt $shownMax) { ", and $($list.Count - $shownMax) more" } else { "" }
+    return (($list | Select-Object -First $shownMax) -join ', ') + $more
+}
+if ($emptyWaardes.Count -gt 0) {
+    $warnings.Add("Waarde is empty in $($emptyWaardes.Count) row(s): $(Join-Examples $emptyWaardes). An empty Waarde deletes the current value of the rubriek in Beaufort. Fill in the value if that is not intended.")
+}
+if ($dateWaardes.Count -gt 0) {
+    $warnings.Add("$($dateWaardes.Count) Waarde value(s) look like a date but are not written as dd-mm-yyyy: $(Join-Examples $dateWaardes). The official Excel tool wrote dates as dd-mm-yyyy; in a date rubriek Beaufort may read another shape differently. Write e.g. 01-11-2026.")
+}
+if ($timeWaardes.Count -gt 0) {
+    $warnings.Add("$($timeWaardes.Count) Waarde value(s) look like a time but are not written as hh:mm: $(Join-Examples $timeWaardes). The official Excel tool wrote times as hh:mm; in a time rubriek Beaufort may read another shape differently. Write e.g. 08:30.")
+}
 
 # DECISION: Comma -> dot conversions are listed together, so a long list of amounts stays readable and
 # the change is never silent. Only the first few are shown. In a ';' file the comma is the Dutch decimal
@@ -853,9 +909,9 @@ foreach ($rec in $preparedRecords) {
     # 8. Ingangsdatum (pos 138-148, len 11 -> 3 leading spaces + 8 digits)
     $f8_IngangsDatum = $rec.IngangsDatum.PadLeft(11, ' ')
 
-    # 9. Externe referentie / Filler (pos 149-178, len 30)
-    # NOTE: Positions 149 to 178 are not described in either Beaufort PDF (.NOT_IN_CURRENT_SPEC D).
-    # Filled with 30 spaces, which matches the Excel tool output.
+    # 9. Filler (pos 149-178, len 30)
+    # NOTE: Positions 149 to 178 are not described in either Beaufort PDF and are not a field: the Excel
+    # tool pads productiesoort to 33 positions (.NOT_IN_CURRENT_SPEC D). Filled with 30 spaces.
     $f9_Filler = "".PadRight(30, ' ')
 
     # 10. Productiesoort (pos 179-181, len 3)

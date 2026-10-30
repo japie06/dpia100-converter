@@ -1,0 +1,6 @@
+[OK] 15 row(s) checked, no errors found.
+[WARNINGS] 3 warning(s)
+Waarde is empty in 2 row(s): row 2 (Pers. Nr: 1), row 3 (Pers. Nr: 2). An empty Waarde deletes the current value of the rubriek in Beaufort.
+6 Waarde value(s) look like a date but are not written as dd-mm-yyyy: row 4 '1-11-2026', row 5 '1/11/26', row 6 '2026-11-01', row 7 '1 11 2026', row 8 '1.11.2026', and 1 more.
+2 Waarde value(s) look like a time but are not written as hh:mm: row 12 '8:30', row 13 '08:30:00'.
+Written with 3 confirmed warning(s)

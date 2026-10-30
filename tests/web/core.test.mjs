@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { loadCore, analyzeText, csv } from './core.mjs';
 
 const core = loadCore();
-const row = (waarde, extra = {}) => [extra.rubriek ?? 'E00101', extra.persNr ?? '123', extra.dv ?? '1', extra.sv ?? 'V', waarde, extra.datum ?? '1-11-2026', 'NOR'];
+const row = (waarde, extra = {}) => [extra.rubriek ?? 'E00101', extra.persNr ?? '123', extra.dv ?? '1', extra.sv ?? 'V', waarde, extra.datum ?? '1-11-2026', extra.prod ?? 'NOR'];
 
 describe('dates (PS: Test-And-ParseDate)', () => {
   // Results probed on PowerShell 5.1 and 7.
@@ -87,7 +87,8 @@ describe('amounts by delimiter (decision 8)', () => {
     ['1.234,56', ['1.234,56', 'separator'], ['1.234,56', 'separator'], ['1.234,56', 'separator']],
     ['1.234.567', ['1.234.567', 'separator'], ['1.234.567', 'separator'], ['1.234.567', 'separator']],
     ['12.50', ['12.50', null], ['12.50', null], ['12.50', null]],
-    ['1.11.2026', ['1.11.2026', null], ['1.11.2026', null], ['1.11.2026', null]]
+    // A dotted date is not an amount, but gets the date warning (decision 16).
+    ['1.11.2026', ['1.11.2026', 'dateShape'], ['1.11.2026', 'dateShape'], ['1.11.2026', 'dateShape']]
   ];
   const delims = [';', ',', '\t'];
   for (const [value, ...expected] of table) {
@@ -104,6 +105,52 @@ describe('amounts by delimiter (decision 8)', () => {
     const r = analyzeText(core, csv([row('x'.repeat(60))]));
     assert.equal(r.records[0].waarde.length, 50);
     assert.equal(r.warnings[0].code, 'truncated');
+  });
+});
+
+describe('empty values, dates and times (decision 16)', () => {
+  const kinds = value => analyzeText(core, csv([row(value)])).warnings.map(w => w.code);
+  test('an empty Waarde is written, with a warning', () => {
+    const r = analyzeText(core, csv([row(''), row('x'), row('  ', { persNr: '7' })]));
+    assert.deepEqual(r.records.map(x => x.waarde), ['', 'x', '']);
+    assert.deepEqual(r.warnings, [{ code: 'emptyValue', rows: [{ row: 2, persNr: '123' }, { row: 4, persNr: '7' }] }]);
+  });
+  test('dates not as dd-mm-yyyy get a warning and are written as typed', () => {
+    for (const v of ['1-11-2026', '1/11/26', '01/11/2026', '2026-11-01', '1 11 2026', '1.11.2026']) {
+      assert.deepEqual(kinds(v), ['dateShape'], v);
+    }
+    const r = analyzeText(core, csv([row('1-11-2026')]));
+    assert.equal(r.records[0].waarde, '1-11-2026');
+    assert.deepEqual(r.warnings[0].values, [{ row: 2, value: '1-11-2026' }]);
+  });
+  test('times not as hh:mm get a warning', () => {
+    for (const v of ['8:30', '08:30:00']) assert.deepEqual(kinds(v), ['timeShape'], v);
+  });
+  test('the Excel-tool shapes and number-like values pass', () => {
+    for (const v of ['01-11-2026', '08:30', '01112026', '8.30', '1-11', '1-11/2026', '123:45', 'x']) {
+      assert.deepEqual(kinds(v), [], v);
+    }
+  });
+  test('one warning per kind, after the row warnings', () => {
+    const r = analyzeText(core, csv([row('8:30'), row('1-11-2026'), row(''), row('x'.repeat(60))]));
+    assert.deepEqual(r.warnings.map(w => w.code), ['truncated', 'emptyValue', 'dateShape', 'timeShape']);
+  });
+});
+
+describe('rubriek and productiesoort', () => {
+  const codes = extra => analyzeText(core, csv([row('x', extra)])).errors.map(e => e.code);
+  test('rubriek must be exactly 6 characters', () => {
+    assert.deepEqual(codes({ rubriek: 'E0010' }), ['length']);
+    assert.deepEqual(codes({ rubriek: 'E001011' }), ['length']);
+    assert.deepEqual(codes({ rubriek: ' e00101 ' }), []);
+    assert.deepEqual(codes({ rubriek: '#N/B' }), ['chars']);
+  });
+  test('productiesoort NOR or COR, empty is NOR', () => {
+    assert.deepEqual(codes({ prod: 'cor' }), []);
+    assert.equal(analyzeText(core, csv([row('x', { prod: ' cor ' })])).records[0].productie, 'COR');
+    assert.equal(analyzeText(core, csv([row('x', { prod: '' })])).records[0].productie, 'NOR');
+    assert.deepEqual(codes({ prod: 'JWP' }), ['jwp']);
+    assert.deepEqual(codes({ prod: 'XYZ' }), ['invalid']);
   });
 });
 
