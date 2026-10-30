@@ -6,3 +6,8 @@
 tests/cases/** -text
 # Example input shipped in the release zip: exact bytes (Windows-1252, CRLF).
 voorbeeld.csv -text
+# The web page and its test scripts. The CSP hashes in dpia100.html are computed over LF-normalized text
+# (as the HTML parser sees it), so the line endings of a checkout do not matter.
+*.html text eol=crlf
+*.js   text eol=crlf
+*.mjs  text eol=crlf

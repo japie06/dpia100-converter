@@ -96,6 +96,32 @@ Processing (100252): 10 processed, 4 rejected.**
     import.
   - For a future amount probe: give each value its own ingangsdatum, or check in 100251 before 100252.
 
+## Round 4 (web app): files made by dpia100.html
+A happy-flow file made with the web page imported fine in the sandbox (owner, 2026-10-30). Round 4
+checks the web app more widely. The page is tested byte-identical to the script, so this is an
+acceptance run of the whole chain: CSV → page → Beaufort.
+
+How to run:
+1. Same settings at the top of `make-probes.ps1` as round 3. Rubrieken `$RubTxt` (PS),
+   `$RubDv` (DV) and `$RubNum` (DV, numeric, 2 decimals), all stam.
+2. Run `pwsh tests\beaufort\make-probes.ps1 -Web`. It writes `probes\web-probes.csv` (the input) and lets
+   the page's core make `probes\DPIA100_web-probes.txt` (one file, about 150 records). The script prints
+   the SHA-256 of that file.
+3. Optional, to cover the real interface: open `web-probes.csv` in `dpia100.html` with the same
+   procescode, creatiedatum and user, confirm the warning, and compare the saved file with
+   `fc /b` (or its SHA-256). It must be identical.
+4. Import `DPIA100_web-probes.txt` (100254), check in 100251, and process W05 (100252). `probes\index-web.txt`
+   lists each W-ID with its CSV row.
+
+| ID | Probe (CSV input → page) | Import | Check in 100251 | Processing |
+|---|---|---|---|---|
+| W01 | Keys: PS, DV, leading zeros, dv `0` (PS key), spaces around keys | | Right person and dienstverband? | |
+| W02 | Lowercase rubriek, `STAM` / `s`, productiesoort empty / `nor` | | | |
+| W03 | Every Windows-1252 character 0x80-0xFF typed in UTF-8; decomposed accent; curly quotes; `;` and `"` in a value | | Shown as typed? | |
+| W04 | Ingangsdatum in 6 input formats | | All the same date? | |
+| W05 | Amounts `12,50` `-12,50` `3250,5` `0,25` `12.50` `3250` (numeric rubriek, own date each) | | Stored as 12,50 / -12,50 / 3250,50 / 0,25 / 12,50 / 3250? | No PI_2229 expected |
+| W06 | Exactly 50 characters; 60 cut to 50 (warning); empty Waarde | | Complete / cut / empty? | |
+
 ## Results
 
 | ID | Probe | Import (round 2) | Check in 100251 | Consequence for script |

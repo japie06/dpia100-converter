@@ -11,19 +11,33 @@ Visma/Raet **Beaufort** (function 100254, *Import externe indirecte mutaties*). 
 Excel tool's "Maak DPIA100" button with stricter validation. Users are non-technical colleagues at
 a Dutch municipality who drag a CSV onto `dpia100.bat`.
 
+`dpia100.html` is the same converter as a web page (decision 15): one self-contained file, Dutch UI,
+everything local in the browser, opened from the release zip or GitHub Pages. It is a line-by-line
+JavaScript port of the script, not a wrapper: a browser cannot run PowerShell. The two share the spec
+(`field-layout.md`, the numbered decisions), the fixtures in `tests/cases`, and a differential test.
+
 ## Files
 
 | Path | Purpose |
 |---|---|
 | `dpia100.ps1` | The script, in the root. All logic is in this one file. |
 | `dpia100.bat` | Launcher, in the root next to the script; contents are also in `README.md`. |
+| `dpia100.html` | The web version, in the root: CSP, style, core script (logic), UI script (Dutch), all inline. |
+| `docs/privacy-en-beveiliging.md` | Dutch explanation of the web version's privacy guardrails, for IT and privacy officers. |
+| `tests/web/WebTest.ps1` | Helpers to run pages in headless Edge, the CSP policy and the static page checks. |
+| `tests/web/harness.js` | Runs the cases on the core of `dpia100.html` and produces the PowerShell console lines. |
+| `package.json`, `playwright.config.mjs` | Developer test tooling for the page (`npm test`): node:test and Playwright on the installed Edge. Not needed by users. |
+| `tests/web/core.test.mjs`, `tests/web/core.mjs` | Unit tests of the page's core (node:test) and the loader that takes the core from the page. |
+| `tests/web/ui.spec.mjs` | Playwright UI tests: file input and download first, the open and save dialogs stubbed. |
+| `tests/web/update-csp.ps1` | Rewrites the CSP hashes in `dpia100.html` after a change to an inline block. |
+| `tests/web/differential.ps1` | Random CSV files through the script and the page; both must agree. |
 | `README.md`, `field-layout.md` | User guide (Dutch) and file format reference, in the root. |
 | `voorbeeld.csv` | Example input (Windows-1252, `;`, CRLF) shipped in the release zip and shown in `README.md`. Byte-identical to `tests/cases/ok-voorbeeld/input.csv`; change both together. |
 | `CLAUDE.md` | These notes, in the root. |
 | `docs/CHANGELOG.md` | Change history, one `## vX.Y.Z (date)` section per release. |
 | `LICENSE` | MIT. |
-| `.github/workflows/ci.yml` | Runs the test suite on every push/PR; a `v*` tag publishes a release zip. |
-| `tests/run-tests.ps1` | Regression suite: every case in `tests/cases` on PowerShell 5.1 and 7. |
+| `.github/workflows/ci.yml` | Runs the tests on every push/PR; a `v*` tag publishes a release zip and deploys the page to GitHub Pages. |
+| `tests/run-tests.ps1` | Regression suite: every case in `tests/cases` on PowerShell 5.1, 7 and the page in Edge, plus page checks. |
 | `tests/beaufort/` | Probe files for what Beaufort accepts (`make-probes.ps1`), results in `findings.md`. |
 | `docs/DPIA100 record indeling.pdf` | Beaufort help (2024): record layout. Primary spec. Local only, not in the repo (copyrighted). |
 | `docs/Microsoft Word - Handboek DPIA100 via Excel.doc.pdf` | Raet handbook (2005): Excel tool and Beaufort setup. Local only, not in the repo (copyrighted). |
@@ -51,6 +65,24 @@ a Dutch municipality who drag a CSV onto `dpia100.bat`.
 - **File name starts with `DPIA100`.** Beaufort only finds import files with that prefix (case does not
   matter). The script rejects any other `-OutputTxtPath` name before the stale-file logic is armed, so
   an unrelated file is never renamed to `.old` (decision 12). Probe files follow the same rule.
+- **Two front ends, one set of rules (decision 15).** Every rule change goes into `dpia100.ps1` **and**
+  the core script of `dpia100.html`, with the same decision references. The English console texts are
+  mirrored in `tests/web/harness.js` (so `expected-output.txt` checks the page too); the page itself
+  shows Dutch texts. Run the suite and `tests/web/differential.ps1` after any change to either.
+- **The page stays self-contained and offline.** No external resources, libraries, fonts, build step or
+  minification. Its scripts may not use network, navigation or code-from-string APIs (`fetch`,
+  `XMLHttpRequest`, `location`, `open()`, `innerHTML`, `eval`, ...); `page-security` enforces the list in
+  `tests/web/WebTest.ps1`. Build DOM with `textContent`/`createElement` only (Trusted Types is on).
+- **CSP hashes.** The CSP allows only the inline blocks with the hashes it lists. After changing the
+  style, core or UI block run `pwsh tests\web\update-csp.ps1`; otherwise the browser refuses the block.
+  Hashes are over LF-normalized text, so line endings do not matter. Keep the three blocks (ids
+  `dpia100-style`, `dpia100-core`, `dpia100-ui`) and no others; no inline event handlers or `style=`.
+- **The core has no DOM access.** It takes bytes and returns plain objects with codes; the UI and the
+  harness turn codes into Dutch and English text. Emulate .NET where it differs from JS (whitespace set
+  of `Trim`/`\s`, `ToUpper` per character, `\d` = any Unicode digit); the comments name each case.
+- **The page never touches existing files.** It writes only when the user saves; in the save dialog it
+  refuses names not starting with `DPIA100`; after a download it warns about `(1).txt`. Never add
+  storage of CSV content; `localStorage` holds only procescode and user name, and only when ticked.
 
 ## Script structure
 
@@ -74,7 +106,8 @@ Top to bottom:
    - `Get-UniqueHeaderNames`
    - `Test-And-ParseDate`
    - `Find-PropertyByPattern` (patterns of 2 characters or fewer must match the whole header)
-7. CSV parsing: the header via `Split-CsvHeader`, the data rows via `ConvertFrom-Csv -Header`.
+7. CSV parsing: the header via `Split-CsvHeader`, the data rows via `ConvertFrom-Csv -Header`, with a
+   line break prefixed so a first row starting with `#` is not taken for a `#TYPE` line.
 8. Header mapping. The mapping is printed; the script aborts on a missing field or on one column
    mapped to two fields.
 9. Per-row validation into `$validationErrors` and `$preparedRecords`. Completely empty rows are
@@ -82,6 +115,22 @@ Top to bottom:
 10. Prompts: procescode, creatiedatum, creatiegebruiker. They come after the validation, so a broken
     CSV never asks anything (decision 14). Then the `Y` confirmation, only with warnings.
 11. Build the 187-character lines with a length check, then write with the strict encoder.
+
+## Web page structure (`dpia100.html`)
+
+1. Comment, then `<meta charset>` and directly after it the CSP meta tag (before anything can load).
+2. `<style id="dpia100-style">`: light and dark theme via CSS variables, works down to phone width.
+3. Static markup: header, step 1 (drop zone, file bar), step 2 (check), step 3 (form), privacy section,
+   footer. A `#startup-error` banner shows until the UI script removes it (JavaScript off or blocked).
+4. `<script id="dpia100-core">`: `const DPIA100`, the port. `analyze(bytes, fileName)` covers everything up
+   to the row validation (decision 14) and returns `{ fatal, errors, warnings, commaConversions,
+   records, mapping, ... }`. Also `checkProcescode`, `checkCreatiedatum`, `checkGebruiker`, `buildLines`,
+   `encodeOutput`, `outputFileName`, `isValidOutputName`. Each function names its PowerShell counterpart.
+   The data rows are parsed by a port of PowerShell's `ImportCsvHelper` (`CsvCommands.cs`), quirks
+   included; a lone CR is data, as in 5.1.
+5. `<script id="dpia100-ui">`: Dutch texts per code, rendering, file choice (open dialog with a handle
+   for *Opnieuw controleren*, plain file input otherwise), save (save dialog, otherwise Blob download),
+   remembered settings. Logs `DPIA100 converter <version> gestart` (the smoke test waits for it).
 
 ## Conventions
 
@@ -127,8 +176,8 @@ Top to bottom:
 
 ## Testing
 
-- **Regression suite.** `pwsh tests\run-tests.ps1` (optionally `-Filter err-*`). Runs each folder in
-  `tests/cases` on `powershell.exe` (5.1) and `pwsh`. A case has `input.csv` plus either
+- **Regression suite.** `pwsh tests\run-tests.ps1` (optionally `-Filter err-*`, `-Engine edge`). Runs
+  each folder in `tests/cases` on `powershell.exe` (5.1), `pwsh` and `edge` (the page). A case has `input.csv` plus either
   `expected.txt` (exact output bytes) or no `expected.txt` (must fail: exit 1, no output, stale file
   renamed to `.old`). Optional `expected-output.txt` (console lines that must appear, **in that
   order**), `unexpected-output.txt` (whole lines that must not appear), `answers.txt`
@@ -141,6 +190,45 @@ Top to bottom:
   show `TSTUSER` or `[OK]`. The `ok-order-*` cases expect the echo, so they fail if it ever disappears
   and the check would pass silently. GitHub Actions also runs it
   on `windows-latest` for every push and pull request.
+- **The `edge` engine.** All cases run in one headless Edge page: the core block copied from
+  `dpia100.html` plus `tests/web/harness.js`, which answers the prompts like piped input and returns the
+  exit code, output bytes and the English console lines. Path-only console lines (`Input file`,
+  `Output file`, the path after `[SUCCESS]`, `Encoding`) are not checked for `edge`, and there is no
+  `.old` check: the page never touches files. `msedge.exe` hands off to a detached process, so stdout is
+  lost; pages report through `console.log`, which `--enable-logging` writes to `chrome_debug.log` in a
+  throwaway profile. Never let a test page start a real download: it hangs headless Edge.
+- **Page checks** (with `edge`, `-Filter page-*` for only these): `page-security` (CSP equals the
+  canonical policy, no external resources, forbidden-API scan), `page-version` (equals `$ScriptVersion`),
+  `page-1252-table` (the page's encoder equals .NET's strict 1252), `page-smoke-crlf`/`-lf` (the real
+  page starts under its CSP without violations).
+- **Unit and UI tests of the page (`npm test`, Node.js LTS).** The roles are separate: `run-tests.ps1` is
+  the authoritative parity runner; `npm test` runs the fast unit tests and the UI interactions.
+  - `npm run test:unit`: `node:test`, no dependencies. `tests/web/core.test.mjs` tests the core
+    function by function (dates, delimiter, CSV quirks, .NET semantics, the decision 8 table per
+    delimiter, 1252, layout, prompts). `tests/web/core.mjs` loads the core block from the page in a `vm`.
+  - `npm run test:ui`: Playwright Test, `tests/web/ui.spec.mjs`, on the **installed Edge**
+    (`channel: 'msedge'` in `playwright.config.mjs`). Never run `npx playwright install`; set
+    `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` for `npm ci`. The main route is primary: dialogs switched off,
+    a real file chooser and a real Blob download, with exact bytes, warnings confirmation, errors,
+    *Onthoud* across a reload, form checks and drag and drop. The open and save dialogs are tested
+    separately with stubs (save, re-check, refused name, changed-file guard). Every test fails on a CSP
+    violation or script error. Failure traces and screenshots go to `tests/out/playwright`.
+  - No linters for now (ESLint, html-validate): `page-security` and the CSP hashes cover the risks.
+  - Keep `@playwright/test` pinned exactly in `package.json` and commit `package-lock.json`.
+- **Differential test.** `pwsh tests\web\differential.ps1 [-Count N] [-Seed S] [-Engine powershell]`
+  generates random CSVs (encodings, delimiters, quoting quirks, broken values) into `tests/out/diff`,
+  runs each through the script and all through the page, and compares exit codes, bytes, key console
+  lines and error positions. CI runs 40 files with the run number as seed; rerun a failure with that
+  seed. It captures PowerShell output as UTF-8 (`-Command` with `[Console]::OutputEncoding`).
+- **Visual check of the page.** Headless Edge can screenshot a state: inject a script that loads a
+  fixture through the file input into a copy of the page (add its hash with `Set-PagePolicy`) and run
+  `msedge --headless --screenshot=x.png --window-size=1280,2000 --virtual-time-budget=5000 <file URL>`.
+  The window cannot be narrower than about 500 px; add `--blink-settings=preferredColorScheme=1` for
+  light mode or `--force-dark-mode` for dark.
+- **Manual checks in a real browser** (not covered headless): drag and drop from Explorer, the real save
+  dialog (overwrite prompt, a name without DPIA100), *Opnieuw controleren*
+  after saving the CSV in Excel while it is still open, the page from a network share, and Firefox
+  (download path).
 - **Fixtures are raw bytes** (`.gitattributes`: `-text`). Write new ones with
   `[IO.File]::WriteAllBytes`, not an editor that may change encoding or line endings. Build
   `expected.txt` from the layout in `field-layout.md`, not by copying the script's own output.
@@ -160,6 +248,9 @@ Top to bottom:
   blank line) can share the main file; only whole-file variations (line endings, encoding) need their
   own file. The owner imports them and saves the reports in `tests/beaufort/Findings <date>/`
   (git-ignored: server paths and names). Results go into `tests/beaufort/findings.md`.
+  `make-probes.ps1 -Web` (round 4) tests the web app instead. It writes one probe CSV of valid input,
+  `web-probes.csv`, and lets the page's core make `DPIA100_web-probes.txt` through the `edge` harness.
+  The owner can recreate that file in the real page and compare.
 - **Headless runs.** Pipe the prompt answers in (add `Y` to confirm warnings) and pass `-NoPause`
   (works on 5.1 and 7): `printf 'CMT\n07 10 2026\nTSTUSER\nY\n' | pwsh -NoProfile -File dpia100.ps1 -InputCsvPath t.csv -OutputTxtPath out.txt -NoPause`
 - **pwsh on Linux.** It writes LF line endings, so convert to CRLF before comparing.
@@ -177,10 +268,13 @@ Top to bottom:
 
 - Open work is tracked in GitHub Issues (labels `beaufort-probe`, `enhancement`, `later`, `docs`, `bug`),
   not in a markdown checklist.
-- To release: bump `$ScriptVersion` in `dpia100.ps1`, add a `## vX.Y.Z (date)` section to
-  `docs/CHANGELOG.md`, merge to main, then `git tag vX.Y.Z` and push the tag. CI runs the tests, checks
-  that the tag matches `$ScriptVersion`, and publishes a release with the zip and that changelog section
-  as notes. Version scheme: patch = fix, minor = new behaviour, major = output format change.
+- To release: bump `$ScriptVersion` in `dpia100.ps1` and `VERSION` in the core of `dpia100.html` (then
+  `update-csp.ps1`), add a `## vX.Y.Z (date)` section to `docs/CHANGELOG.md`, merge to main, then
+  `git tag vX.Y.Z` and push the tag. CI runs the tests, checks that the tag matches both versions,
+  publishes a release with the zip (html, ps1, bat, voorbeeld.csv, README, LICENSE) and that changelog
+  section as notes, and deploys `dpia100.html` to GitHub Pages as `index.html`. Pages must be enabled
+  once (Settings > Pages > Source: GitHub Actions). Version scheme: patch = fix, minor = new behaviour,
+  major = output format change.
 
 ## Working with the owner
 

@@ -1,6 +1,7 @@
 # DPIA100 field layout
 
-Technical reference for the DPIA100 import file as produced by `dpia100.ps1`.
+Technical reference for the DPIA100 import file as produced by `dpia100.ps1` and by the web version
+`dpia100.html` (same rules, byte-identical output; both are tested on every case in `tests/cases`).
 
 **Sources** (the PDFs are copyrighted and not included in the repo)
 - `docs/DPIA100 record indeling.pdf`: Beaufort help, "Mutatiebestand maken (importeren)", Visma 2024-08.
@@ -12,7 +13,7 @@ Technical reference for the DPIA100 import file as produced by `dpia100.ps1`.
 
 | Property | Value |
 |---|---|
-| File name | Must start with `DPIA100`, otherwise Beaufort does not find it (owner; case does not matter, `dpia100.txt` works). The script rejects other names (decision 12) and by default writes `DPIA100_<csv name>.txt` next to the input CSV (decision 13). Location settings: `IMP_FILE` / `IMP_PAD`, or `Beaufort.asn` |
+| File name | Must start with `DPIA100`, otherwise Beaufort does not find it (owner; case does not matter, `dpia100.txt` works). The script rejects other names (decision 12) and by default writes `DPIA100_<csv name>.txt` next to the input CSV (decision 13). The web version suggests the same name in its save dialog and refuses a chosen name that does not start with `DPIA100`. Location settings: `IMP_FILE` / `IMP_PAD`, or `Beaufort.asn` |
 | Location | Beaufort *files* folder, default `...\Raet\Beaufort <versie>\files\` |
 | Encoding | Windows-1252, single byte per character. UTF-8 shifts columns after `ö`, `é` etc. |
 | Record length | Exactly 187 characters = 187 bytes |

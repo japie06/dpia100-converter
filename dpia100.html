@@ -1,0 +1,1401 @@
+<!doctype html>
+<!--
+  DPIA100 converter (web version). Converts a CSV with HR mutations into a DPIA100 import file for
+  Visma/Raet Beaufort, entirely inside the browser. Same rules and output as dpia100.ps1.
+  Source, documentation and tests: https://github.com/japie06/dpia100-converter (MIT license).
+
+  PRIVACY: the Content-Security-Policy below allows no network access of any kind and only the inline
+  blocks with these exact SHA-256 hashes. After changing an inline script or style block, run
+  tests/web/update-csp.ps1. See docs/privacy-en-beveiliging.md.
+-->
+<html lang="nl" translate="no">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-uZWV6lCR76LkQHdpwgJIs3obwAny2udVH3tE1tXEprc=' 'sha256-ZkSbkC87xIYIQLkAhF/AwWidupYSOdm73GsEAcloao8='; style-src 'sha256-V22O4laejLQ2OPxcAoI9UKPHbjw2czl6+bDs9TiZzhc='; connect-src 'none'; form-action 'none'; base-uri 'none'; require-trusted-types-for 'script'; trusted-types 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="google" content="notranslate">
+<title>DPIA100 converter</title>
+<style id="dpia100-style">
+:root {
+  --bg: #f4f6f9; --surface: #ffffff; --surface-2: #f8f9fb; --text: #1b2230; --muted: #5a6476; --border: #d9dee7;
+  --accent: #1d5bb8; --accent-hover: #174b99; --accent-ink: #ffffff; --accent-soft: #e8f0fc;
+  --ok: #17703a; --ok-bg: #e9f6ee; --err: #b3261e; --err-bg: #fdeeed; --warn: #7d5300; --warn-bg: #fff5dc;
+  --info: #284f8f; --info-bg: #edf2fa; --focus: #f0a400; --radius: 12px;
+  --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 1px 3px rgba(16, 24, 40, .08);
+  --mono: Consolas, "Cascadia Mono", "Courier New", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #11151c; --surface: #1a2029; --surface-2: #202733; --text: #e6e9ef; --muted: #a2abba; --border: #2e3644;
+    --accent: #6ea6ff; --accent-hover: #8db9ff; --accent-ink: #0d1420; --accent-soft: #1b2a42;
+    --ok: #63c787; --ok-bg: #15291d; --err: #ff8f86; --err-bg: #351a19; --warn: #f0c35a; --warn-bg: #33290f;
+    --info: #9fc3ff; --info-bg: #172338; --shadow: none;
+  }
+}
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.5 "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+.wrap { max-width: 980px; margin: 0 auto; padding: 0 16px; }
+a { color: var(--accent); }
+a:hover { color: var(--accent-hover); }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.skip { position: absolute; left: -9999px; }
+.skip:focus { left: 16px; top: 8px; z-index: 10; background: var(--surface); padding: 8px 12px; border-radius: 8px; }
+h1, h2, h3 { line-height: 1.25; margin: 0; }
+h2 { font-size: 1.3rem; display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+h2:focus { outline: none; }
+h3 { font-size: 1.02rem; margin: 20px 0 8px; }
+p { margin: 0 0 12px; }
+code, .mono { font-family: var(--mono); font-size: .92em; }
+
+.site-header { background: var(--surface); border-bottom: 1px solid var(--border); }
+.header-inner { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-top: 18px; padding-bottom: 18px; }
+.brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.brand-icon { width: 44px; height: 44px; flex: none; color: var(--accent); }
+.brand h1 { font-size: 1.45rem; }
+.tagline { color: var(--muted); margin: 2px 0 0; font-size: .95rem; }
+.privacy-pill {
+  display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 999px;
+  background: var(--ok-bg); color: var(--ok); font-weight: 600; font-size: .92rem; text-decoration: none;
+}
+.privacy-pill:hover { color: var(--ok); text-decoration: underline; }
+.privacy-pill svg { width: 18px; height: 18px; }
+
+main.wrap { padding-top: 24px; padding-bottom: 32px; display: grid; gap: 20px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 24px; min-width: 0; }
+.step-num {
+  display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; flex: none;
+  background: var(--accent); color: var(--accent-ink); font-size: 1rem; font-weight: 700;
+}
+
+.drop {
+  display: grid; justify-items: center; gap: 6px; text-align: center; cursor: pointer;
+  padding: 36px 16px; border: 2px dashed var(--border); border-radius: var(--radius); background: var(--surface-2);
+  transition: border-color .15s, background-color .15s;
+}
+.drop:hover, .drop.dragging { border-color: var(--accent); background: var(--accent-soft); }
+.drop.compact { grid-auto-flow: column; justify-content: center; align-items: center; gap: 4px 12px; padding: 14px 16px; }
+.drop.compact svg { width: 26px; height: 26px; }
+.drop.compact .drop-title { font-size: 1rem; }
+.drop.compact + input + .help { display: none; }
+.drop svg { width: 44px; height: 44px; color: var(--accent); }
+.drop-title { font-size: 1.12rem; font-weight: 600; }
+.drop-sub { color: var(--muted); }
+.help { color: var(--muted); font-size: .92rem; margin: 10px 0 0; }
+.file-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; margin-top: 16px; padding: 12px 16px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); }
+.file-meta { display: grid; min-width: 0; }
+.file-name { font-weight: 600; overflow-wrap: anywhere; }
+.file-details { color: var(--muted); font-size: .9rem; }
+.file-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.btn {
+  font: inherit; font-weight: 600; border-radius: 8px; padding: 9px 16px; cursor: pointer;
+  border: 1px solid transparent; display: inline-flex; align-items: center; gap: 8px;
+}
+.btn-primary { background: var(--accent); color: var(--accent-ink); font-size: 1.05rem; padding: 12px 22px; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-secondary { background: var(--surface); color: var(--accent); border-color: var(--accent); }
+.btn-secondary:hover { background: var(--accent-soft); }
+.btn-ghost { background: transparent; color: var(--text); border-color: var(--border); }
+.btn-ghost:hover { background: var(--surface-2); }
+.btn-small { padding: 5px 12px; font-size: .9rem; }
+
+.banner { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: 10px; margin: 0 0 14px; border: 1px solid transparent; }
+.banner > svg { width: 22px; height: 22px; flex: none; margin-top: 1px; }
+.banner-text { min-width: 0; }
+.banner-text > strong { display: block; font-size: 1.02rem; }
+.banner-text p { margin: 4px 0 0; }
+.banner-ok { background: var(--ok-bg); color: var(--ok); border-color: color-mix(in srgb, var(--ok) 25%, transparent); }
+.banner-error { background: var(--err-bg); color: var(--err); border-color: color-mix(in srgb, var(--err) 25%, transparent); }
+.banner-warn { background: var(--warn-bg); color: var(--warn); border-color: color-mix(in srgb, var(--warn) 25%, transparent); }
+.banner-info { background: var(--info-bg); color: var(--info); border-color: color-mix(in srgb, var(--info) 20%, transparent); }
+.banner .banner-text p, .banner .banner-text li { color: var(--text); }
+.banner ul { margin: 6px 0 0; padding-left: 20px; }
+
+.table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: .94rem; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { background: var(--surface-2); font-weight: 600; white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+td.value { font-family: var(--mono); font-size: .9rem; overflow-wrap: anywhere; min-width: 8em; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.tbl-errors td:last-child { min-width: 16em; }
+.issue-hint { display: block; color: var(--muted); font-size: .88rem; margin-top: 2px; }
+.empty { color: var(--muted); font-style: italic; font-family: inherit; }
+.missing { color: var(--err); font-weight: 600; }
+.tbl-mapping th, .tbl-mapping td { white-space: nowrap; }
+.tbl-mapping .highlight { background: var(--warn-bg); }
+.changed { display: block; color: var(--muted); font-size: .85rem; font-family: inherit; }
+.row-actions { display: flex; justify-content: flex-end; margin: 8px 0 0; }
+.warn-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.warn-list li { padding: 10px 14px; border-radius: 8px; background: var(--warn-bg); border-left: 4px solid var(--warn); overflow-wrap: anywhere; }
+.warn-list .quote { font-family: var(--mono); font-size: .9rem; }
+details.preview { margin-top: 18px; }
+details.preview summary { cursor: pointer; font-weight: 600; color: var(--accent); padding: 6px 0; }
+details.preview .table-wrap { margin-top: 8px; max-height: 480px; overflow: auto; }
+details.preview th { position: sticky; top: 0; }
+
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px 20px; }
+.field label { display: block; font-weight: 600; margin-bottom: 6px; }
+.field input {
+  width: 100%; font: inherit; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface); color: var(--text);
+}
+.field input:focus-visible { outline: 3px solid var(--focus); outline-offset: 0; border-color: var(--accent); }
+.field input[aria-invalid="true"] { border-color: var(--err); }
+#f-proces { text-transform: uppercase; max-width: 8em; }
+.field .help { margin-top: 6px; }
+.field-error { color: var(--err); font-weight: 600; font-size: .92rem; margin: 6px 0 0; }
+.check { display: flex; gap: 10px; align-items: flex-start; margin-top: 18px; cursor: pointer; }
+.check input { width: 20px; height: 20px; margin: 2px 0 0; flex: none; accent-color: var(--accent); }
+.confirm { margin-top: 18px; padding: 4px 16px 14px; border-radius: 10px; background: var(--warn-bg); border: 1px solid color-mix(in srgb, var(--warn) 25%, transparent); }
+.confirm .check { margin-top: 12px; font-weight: 600; }
+.actions { margin-top: 22px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+#make-result { margin-top: 20px; }
+.next-steps { margin: 8px 0 0; padding-left: 22px; }
+.next-steps li { margin: 4px 0; }
+
+details.privacy > summary { cursor: pointer; list-style: none; display: grid; gap: 2px; padding-left: 28px; position: relative; }
+details.privacy > summary::-webkit-details-marker { display: none; }
+details.privacy > summary::before { content: "\25B8"; position: absolute; left: 0; top: 0; font-size: 1.3rem; line-height: 1.25; color: var(--accent); }
+details.privacy[open] > summary::before { content: "\25BE"; }
+details.privacy > summary h2 { margin: 0; }
+details.privacy[open] > summary { margin-bottom: 16px; }
+.summary-sub { color: var(--muted); font-size: .95rem; }
+.privacy-list { margin: 0; padding-left: 22px; display: grid; gap: 8px; }
+.site-footer { color: var(--muted); font-size: .9rem; padding: 0 0 32px; }
+.site-footer .wrap { display: flex; gap: 6px 16px; flex-wrap: wrap; }
+
+@media (max-width: 600px) {
+  .card { padding: 18px 16px; }
+  .header-inner { padding-top: 14px; padding-bottom: 14px; }
+  .brand h1 { font-size: 1.25rem; }
+  .file-actions .btn { flex: 1 1 auto; justify-content: center; }
+  .btn-primary { width: 100%; justify-content: center; }
+}
+@media (prefers-reduced-motion: reduce) { .drop { transition: none; } }
+@media print {
+  .site-header, .drop, .file-actions, #step-make, #privacy, .row-actions { display: none !important; }
+  .card { box-shadow: none; border: 0; padding: 0; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Naar de inhoud</a>
+<header class="site-header">
+  <div class="wrap header-inner">
+    <div class="brand">
+      <svg class="brand-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 5h17l9 9v26a3 3 0 0 1-3 3H12a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3z"/><path d="M29 5v9h9"/>
+        <path d="M16 24h16M16 30h16M16 36h10"/>
+      </svg>
+      <div>
+        <h1>DPIA100 converter</h1>
+        <p class="tagline">Van CSV naar importbestand voor Beaufort (functie 100254)</p>
+      </div>
+    </div>
+    <a class="privacy-pill" href="#privacy">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      Alles blijft op deze computer
+    </a>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+  <div id="startup-error" class="banner banner-error" role="alert">
+    <div class="banner-text">
+      <strong>Deze pagina kan niet starten.</strong>
+      <p>JavaScript is uitgeschakeld of geblokkeerd in deze browser. Open de pagina in Microsoft Edge of Google Chrome, of vraag je IT-afdeling om hulp.</p>
+    </div>
+  </div>
+
+  <section class="card" id="step-file" aria-labelledby="h-file">
+    <h2 id="h-file"><span class="step-num" aria-hidden="true">1</span>Kies je CSV-bestand</h2>
+    <div id="drop" class="drop" role="button" tabindex="0" aria-describedby="drop-help">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>
+      </svg>
+      <span class="drop-title">Sleep je CSV-bestand hierheen</span>
+      <span class="drop-sub">of klik hier om een bestand te kiezen</span>
+    </div>
+    <input type="file" id="file-input" accept=".csv,.txt,text/csv,text/plain" hidden>
+    <p id="drop-help" class="help">Sla je gegevens in Excel op als <em>CSV (gescheiden door lijstscheidingsteken)</em> of <em>CSV UTF-8</em>. Het bestand wordt alleen in deze browser gelezen.</p>
+    <div id="file-bar" class="file-bar" hidden>
+      <div class="file-meta">
+        <span class="file-name" id="file-name"></span>
+        <span class="file-details" id="file-details"></span>
+      </div>
+      <div class="file-actions">
+        <button type="button" class="btn btn-secondary" id="btn-recheck">Opnieuw controleren</button>
+        <button type="button" class="btn btn-ghost" id="btn-other">Ander bestand</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="step-check" aria-labelledby="h-check" hidden>
+    <h2 id="h-check" tabindex="-1"><span class="step-num" aria-hidden="true">2</span>Controle</h2>
+    <div id="check-status" aria-live="polite"></div>
+    <div id="check-body"></div>
+  </section>
+
+  <section class="card" id="step-make" aria-labelledby="h-make" hidden>
+    <h2 id="h-make"><span class="step-num" aria-hidden="true">3</span>Bestand maken</h2>
+    <form id="make-form" novalidate>
+      <div class="fields">
+        <div class="field">
+          <label for="f-proces">Procescode</label>
+          <input id="f-proces" maxlength="3" autocomplete="off" spellcheck="false" placeholder="CMT" value="CMT" aria-describedby="f-proces-help f-proces-err">
+          <p class="help" id="f-proces-help">Het aanleverend proces in Beaufort, meestal CMT.</p>
+          <p class="field-error" id="f-proces-err" hidden></p>
+        </div>
+        <div class="field">
+          <label for="f-datum">Creatiedatum</label>
+          <input id="f-datum" type="date" min="0001-01-01" max="9999-12-31" aria-describedby="f-datum-help f-datum-err">
+          <p class="help" id="f-datum-help">Standaard vandaag.</p>
+          <p class="field-error" id="f-datum-err" hidden></p>
+        </div>
+        <div class="field">
+          <label for="f-gebruiker">Creatiegebruiker</label>
+          <input id="f-gebruiker" maxlength="16" autocomplete="off" spellcheck="false" aria-required="true" aria-describedby="f-gebruiker-help f-gebruiker-err">
+          <p class="help" id="f-gebruiker-help">Je gebruikersnaam in Beaufort, maximaal 16 tekens.</p>
+          <p class="field-error" id="f-gebruiker-err" hidden></p>
+        </div>
+      </div>
+      <label class="check"><input type="checkbox" id="f-remember"> <span>Onthoud procescode en gebruikersnaam op deze computer</span></label>
+      <div id="confirm-box" class="confirm" hidden>
+        <label class="check"><input type="checkbox" id="f-confirm" aria-describedby="f-confirm-err"> <span id="confirm-text"></span></label>
+        <p class="field-error" id="f-confirm-err" hidden></p>
+      </div>
+      <div class="actions">
+        <button type="submit" class="btn btn-primary" id="btn-make">Maak het importbestand</button>
+      </div>
+    </form>
+    <div id="make-result" aria-live="polite"></div>
+  </section>
+
+  <details class="card privacy" id="privacy">
+    <summary><h2 id="h-privacy">Privacy en veiligheid</h2><span class="summary-sub">Alles blijft op deze computer. Lees hoe dat is geregeld.</span></summary>
+    <ul class="privacy-list">
+      <li><strong>Alles gebeurt op deze computer.</strong> Je CSV-bestand wordt alleen in deze browser gelezen en gecontroleerd. Er gaat niets naar internet: niet naar GitHub, niet naar de makers en niet naar Visma.</li>
+      <li><strong>De pagina kan geen verbinding maken.</strong> Een beveiligingsregel in de pagina (een Content Security Policy) verbiedt elk netwerkverkeer en alle code behalve de gecontroleerde code in dit bestand. Probeer het gerust: zet wifi uit of haal de netwerkkabel eruit, de pagina werkt gewoon.</li>
+      <li><strong>Er wordt alleen opgeslagen wat je zelf kiest:</strong> het importbestand, en als je <em>Onthoud</em> aanvinkt de procescode en gebruikersnaam in deze browser. Gegevens uit je CSV worden nooit bewaard.</li>
+      <li><strong>Gebruik op deze pagina geen vertaalfunctie of AI-assistent</strong> (zoals Copilot in Edge). Die sturen de inhoud van de pagina naar een externe dienst.</li>
+      <li>De pagina is open source en kan door iedereen worden nagekeken: <a href="https://github.com/japie06/dpia100-converter" target="_blank" rel="noopener noreferrer">broncode op GitHub</a>. Uitleg voor IT en privacy: <a href="https://github.com/japie06/dpia100-converter/blob/main/docs/privacy-en-beveiliging.md" target="_blank" rel="noopener noreferrer">privacy en beveiliging</a>.</li>
+    </ul>
+  </details>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>DPIA100 converter <span id="version"></span></span>
+    <span>MIT-licentie</span>
+    <span>Geen product van Visma of Youforce.</span>
+  </div>
+</footer>
+
+<script id="dpia100-core">
+/* DPIA100 core: validation and record building, ported line by line from dpia100.ps1.
+   No DOM access here; the UI script below and tests/web/harness.js both use this API.
+   Comments name the PowerShell counterpart (PS: ...) and the numbered decisions in the header of
+   dpia100.ps1 (decision N). A rule change goes into both files (decision 15). */
+const DPIA100 = (() => {
+  'use strict';
+
+  // NOTE: Keep equal to $ScriptVersion in dpia100.ps1 (checked by tests/run-tests.ps1 and CI).
+  const VERSION = '1.2.0';
+
+  // ---------------------------------------------------------------------------------------------
+  // .NET string semantics
+  // ---------------------------------------------------------------------------------------------
+
+  // NOTE: Char.IsWhiteSpace, String.Trim() and regex \s use this set in .NET (probed on PS 5.1 and 7).
+  // JS trim() and \s differ: they also remove U+FEFF and do not remove U+0085.
+  const WS = '\\t\\n\\v\\f\\r \\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000';
+  const reTrim = new RegExp(`^[${WS}]+|[${WS}]+$`, 'g');
+  const reBlank = new RegExp(`^[${WS}]*$`);
+  const trim = s => s.replace(reTrim, '');
+  const isBlank = s => s == null || reBlank.test(s); // [string]::IsNullOrWhiteSpace
+  // String.ToUpper(): per character and never longer, so 'ß' stays 'ß' (JS toUpperCase gives 'SS').
+  const toUpper = s => {
+    let r = '';
+    for (const ch of s) {
+      const u = ch.toUpperCase();
+      r += u.length === ch.length ? u : ch;
+    }
+    return r;
+  };
+  const pad2 = n => String(n).padStart(2, '0');
+  const hex4 = code => code.toString(16).toUpperCase().padStart(4, '0');
+
+  // ---------------------------------------------------------------------------------------------
+  // Windows-1252 (decisions 1 and 7)
+  // ---------------------------------------------------------------------------------------------
+
+  // Bytes 0x80-0x9F. The five undefined bytes (81 8D 8F 90 9D) map to the C1 control with the same
+  // number, as in .NET code page 1252 and the WHATWG decoder (probed). All other bytes equal U+00xx.
+  const CP1252_HIGH = [
+    0x20AC, 0x0081, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021, 0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, 0x008D, 0x017D, 0x008F,
+    0x0090, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014, 0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x009D, 0x017E, 0x0178
+  ];
+  const ENCODE = new Map();
+  for (let b = 0; b < 256; b++) ENCODE.set(b >= 0x80 && b <= 0x9F ? CP1252_HIGH[b - 0x80] : b, b);
+
+  // PS: Get-UnencodableChars. Per UTF-16 code unit (an emoji gives two entries), unique, in order.
+  function unencodableChars(text) {
+    const bad = [];
+    for (let i = 0; i < text.length; i++) {
+      const code = text.charCodeAt(i);
+      if (!ENCODE.has(code)) {
+        const item = `${text[i]} (U+${hex4(code)})`;
+        if (!bad.includes(item)) bad.push(item);
+      }
+    }
+    return bad.join(', ');
+  }
+
+  // PS: [IO.File]::WriteAllLines with the strict encoder: every line ends in CRLF, also the last one.
+  function encodeOutput(lines) {
+    const text = lines.map(l => l + '\r\n').join('');
+    const bytes = new Uint8Array(text.length);
+    for (let i = 0; i < text.length; i++) {
+      const b = ENCODE.get(text.charCodeAt(i));
+      if (b === undefined) throw new Error(`Character U+${hex4(text.charCodeAt(i))} does not exist in Windows-1252`);
+      bytes[i] = b;
+    }
+    return bytes;
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Reading the CSV
+  // ---------------------------------------------------------------------------------------------
+
+  // PS: Read-CsvFile (decision 6). BOM -> that encoding; otherwise strict UTF-8; if the bytes are not
+  // valid UTF-8 -> Windows-1252. Throws on invalid UTF-8 after a UTF-8 BOM, as .NET does.
+  function readCsv(bytes) {
+    const strictUtf8 = () => new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
+    if (bytes.length >= 3 && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
+      return { text: strictUtf8().decode(bytes.subarray(3)), encodingName: 'UTF-8 (BOM)' };
+    }
+    if (bytes.length >= 2 && bytes[0] === 0xFF && bytes[1] === 0xFE) {
+      return { text: new TextDecoder('utf-16le', { ignoreBOM: true }).decode(bytes.subarray(2)), encodingName: 'UTF-16 LE' };
+    }
+    if (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xFF) {
+      return { text: new TextDecoder('utf-16be', { ignoreBOM: true }).decode(bytes.subarray(2)), encodingName: 'UTF-16 BE' };
+    }
+    try {
+      return { text: strictUtf8().decode(bytes), encodingName: 'UTF-8 (no BOM)' };
+    } catch (e) {
+      return { text: new TextDecoder('windows-1252').decode(bytes), encodingName: 'Windows-1252' };
+    }
+  }
+
+  const splitLines = text => text.split(/\r?\n/); // PS: -split '\r?\n'
+
+  // PS: Detect-CsvDelimiter. Counts ';', tab and ',' in the first non-empty line; on a tie the first
+  // in that order wins; ';' when none occurs.
+  function detectDelimiter(text) {
+    const first = splitLines(text).find(l => !isBlank(l));
+    if (first === undefined) throw new Error('The CSV file is empty.');
+    const line = trim(first.replace(/^﻿+|﻿+$/g, ''));
+    let best = ';';
+    let bestCount = 0;
+    for (const c of [';', '\t', ',']) {
+      const count = line.split(c).length - 1;
+      if (count > bestCount) {
+        best = c;
+        bestCount = count;
+      }
+    }
+    return best;
+  }
+
+  // PS: Split-CsvHeader (decision 9). Parses only the header record; returns the raw names and the rest.
+  function splitHeader(text, delim) {
+    const fields = [];
+    let sb = '';
+    let i = 0;
+    let inQuotes = false;
+    while (i < text.length && (text[i] === '﻿' || text[i] === '\r' || text[i] === '\n')) i++;
+    while (i < text.length) {
+      const c = text[i];
+      if (inQuotes) {
+        if (c === '"') {
+          if (i + 1 < text.length && text[i + 1] === '"') { sb += '"'; i += 2; continue; }
+          inQuotes = false; i++; continue;
+        }
+        sb += c; i++; continue;
+      }
+      if (c === '"') { inQuotes = true; i++; continue; }
+      if (c === delim) { fields.push(sb); sb = ''; i++; continue; }
+      if (c === '\r' || c === '\n') {
+        i += (c === '\r' && i + 1 < text.length && text[i + 1] === '\n') ? 2 : 1;
+        break;
+      }
+      sb += c; i++;
+    }
+    fields.push(sb);
+    return { fields, rest: text.substring(i) };
+  }
+
+  // PS: Get-UniqueHeaderNames. Line breaks -> space, empty -> placeholder, duplicates (ignoring case,
+  // like a PowerShell hashtable) -> suffixed with (2), (3), ...
+  function uniqueHeaderNames(rawNames) {
+    const seen = new Set();
+    const result = [];
+    let empty = 0;
+    for (const raw of rawNames) {
+      let name = trim(raw.replace(/[\r\n]+/g, ' '));
+      if (isBlank(name)) {
+        empty++;
+        name = `(empty column ${empty})`;
+      }
+      const base = name;
+      let n = 2;
+      while (seen.has(name.toLowerCase())) { name = `${base} (${n})`; n++; }
+      seen.add(name.toLowerCase());
+      result.push(name);
+    }
+    return result;
+  }
+
+  // PS: ConvertFrom-Csv -Delimiter -Header, which uses ImportCsvHelper.ParseNextRecord in PowerShell's
+  // CsvCommands.cs. Quirks kept on purpose (all probed on PS 5.1 and 7):
+  // - leading spaces and tabs of a field are skipped, also before an opening quote;
+  // - text after a closing quote is appended ("ab"cd -> abcd); a quote inside a field is literal;
+  // - blank and whitespace-only lines are not records (so they do not count as rows);
+  // - an unterminated quote runs to the end of the file;
+  // - a lone CR is ordinary data, as in Windows PowerShell 5.1 (PowerShell 7 ends the record there).
+  // The '#TYPE' line quirk is not reproduced: dpia100.ps1 prefixes a line break to avoid it.
+  function parseRecords(text, delim) {
+    let pos = 0;
+    const eof = () => pos >= text.length;
+    const peek = c => pos < text.length && text[pos] === c;
+    // PS: IsNewLine. Returns the line break that ch starts (consuming the LF of CRLF), or ''.
+    const newLine = ch => {
+      if (ch === '\n') return '\n';
+      if (ch === '\r' && peek('\n')) { pos++; return '\r\n'; }
+      return '';
+    };
+    // PS: ReadTillNextDelimiter. Trailing blanks are only dropped if nothing else follows.
+    const readTillNextDelimiter = eatTrailingBlanks => {
+      let temp = '';
+      let nonWhiteSpace = false;
+      let end = false;
+      for (;;) {
+        if (eof()) { end = true; break; }
+        const ch = text[pos++];
+        if (ch === delim) break;
+        if (newLine(ch)) { end = true; break; }
+        temp += ch;
+        if (ch !== ' ' && ch !== '\t') nonWhiteSpace = true;
+      }
+      return { text: eatTrailingBlanks && !nonWhiteSpace ? trim(temp) : temp, end };
+    };
+    const parseNextRecord = () => {
+      const result = [];
+      let current = '';
+      let inQuote = false;
+      while (!eof()) {
+        const ch = text[pos++];
+        if (ch === delim) {
+          if (inQuote) current += ch;
+          else { result.push(current); current = ''; }
+        } else if (ch === '"') {
+          if (inQuote) {
+            if (peek('"')) { pos++; current += '"'; }
+            else {
+              inQuote = false;
+              const t = readTillNextDelimiter(true);
+              result.push(current + t.text); current = '';
+              if (t.end) break;
+            }
+          } else if (current.length === 0) {
+            inQuote = true;
+          } else {
+            const t = readTillNextDelimiter(false);
+            result.push(current + ch + t.text); current = '';
+            if (t.end) break;
+          }
+        } else if (ch === ' ' || ch === '\t') {
+          if (inQuote) current += ch;
+          else if (current.length === 0) continue;
+          else {
+            const t = readTillNextDelimiter(true);
+            result.push(current + ch + t.text); current = '';
+            if (t.end) break;
+          }
+        } else {
+          const nl = newLine(ch);
+          if (!nl) current += ch;
+          else if (inQuote) current += nl;
+          else { result.push(current); current = ''; break; }
+        }
+      }
+      if (current.length !== 0) result.push(current);
+      return result;
+    };
+    const records = [];
+    for (;;) {
+      const values = parseNextRecord();
+      if (values.length === 0) break;
+      if (values.length === 1 && values[0] === '') continue; // blank line
+      records.push(values);
+    }
+    return records;
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Field helpers
+  // ---------------------------------------------------------------------------------------------
+
+  // PS: Test-And-ParseDate. TryParseExact accepts 'd M yyyy', 'd-M-yyyy', 'd/M/yyyy' (and dd/MM
+  // variants), 'yyyy-MM-dd' and 'ddMMyyyy'; the fallback accepts day, month, year separated by any
+  // run of white space, '.', '-' or '/'. The fallback covers the first family; ISO and compact need
+  // exactly two digits for month and day (probed). Returns 'ddMMyyyy', or null for no valid date.
+  const reIso = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/;
+  const reCompact = /^([0-9]{2})([0-9]{2})([0-9]{4})$/;
+  const reDmy = new RegExp(`^([0-9]{1,2})[${WS}.\\-/]+([0-9]{1,2})[${WS}.\\-/]+([0-9]{4})$`);
+  function validDate(y, m, d) {
+    if (y < 1 || y > 9999 || m < 1 || m > 12 || d < 1) return null;
+    const leap = y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0);
+    if (d > [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1]) return null;
+    return pad2(d) + pad2(m) + String(y).padStart(4, '0');
+  }
+  function parseDate(raw) {
+    if (isBlank(raw)) return null;
+    const clean = trim(raw);
+    let m = reIso.exec(clean);
+    if (m) return validDate(+m[1], +m[2], +m[3]);
+    m = reCompact.exec(clean) || reDmy.exec(clean);
+    if (m) return validDate(+m[3], +m[2], +m[1]);
+    return null;
+  }
+
+  // PS: Find-PropertyByPattern. Patterns of 1-2 characters must equal the whole header (decision 9);
+  // longer ones match anywhere. Ignores case, like -eq and -like.
+  function findColumn(headerNames, patterns) {
+    for (const name of headerNames) {
+      const clean = trim(name.replace(/[\r\n"]/g, ' ')).toLowerCase();
+      for (const p of patterns) {
+        const lp = p.toLowerCase();
+        if (p.length <= 2 ? clean === lp : clean.includes(lp)) return name;
+      }
+    }
+    return null;
+  }
+
+  // Field labels as used in all messages (CLAUDE.md conventions), with the header patterns.
+  const FIELDS = [
+    ['Rubriek', ['Rubriek']],
+    ['Pers. Nr', ['Pers. Nr', 'Pers_nr', 'PersNr', 'Persoon', 'Persoonsnummer']],
+    ['Dienstverband', ['Dienstv', 'Dienstverband', 'Dv']],
+    ['S of V', ['S of V', 'Stam']],
+    ['Mutatiewaarde', ['Mutatie waarde', 'Waarde', 'Mutatiewaarde']],
+    ['Ingangsdatum', ['Ingangs datum', 'Ingangsdatum']],
+    ['Productiesoort', ['Productie', 'soort', 'Productiesoort', 'Productiecode']]
+  ];
+
+  // .NET regex classes for the amount checks (decision 8): \d is any Unicode digit, \s the set above.
+  const D = '\\p{Nd}';
+  const S = `[${WS}]`;
+  const reControl = /[\x00-\x1F\x7F]/;
+  const reControlRun = /[\x00-\x1F\x7F]+/g;
+  const reLoneSurrogate = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+  const reNumberLike = new RegExp(`^-?${S}*[${D}.,]+$`, 'u');
+  const reHasDigit = new RegExp(D, 'u');
+  const reDottedDate = new RegExp(`^${D}{1,2}\\.${D}{1,2}\\.${D}{4}$`, 'u');
+  const reCommaAmount = new RegExp(`^(-)?${S}*(${D}+)(?:,(${D}+))?$`, 'u');
+  const reThousandWhole = new RegExp(`^[1-9]${D}{0,2}$`, 'u');
+  const reDotThousand = new RegExp(`^-?${S}*[1-9]${D}{0,2}\\.${D}{3}$`, 'u');
+  const reTwoSeparators = /\..*,|,.*\.|\..*\.|,.*,/;
+
+  // ---------------------------------------------------------------------------------------------
+  // analyze: everything up to and including the row validation (decision 14: before the prompts)
+  // ---------------------------------------------------------------------------------------------
+
+  // Returns the outcome of reading, mapping and validating the CSV. fatal is null when a file can be
+  // made; otherwise { code, ... } with code read, empty, headerOnly, noRecords, missingHeaders,
+  // doubleMapped, validation (see errors) or allEmpty. Errors are { row, field, code, value, ... } with
+  // the raw cell value; warnings are { code, row, persNr, ... }. Renderers turn codes into text.
+  function analyze(bytes, fileName) {
+    const r = {
+      fileName, encodingName: null, delimiter: null, notation: null, headerNames: [], mapping: [], fatal: null,
+      errors: [], warnings: [], commaConversions: [], commaReported: false, records: [], skippedEmptyRows: 0
+    };
+    let text;
+    try {
+      const file = readCsv(bytes);
+      text = file.text;
+      r.encodingName = file.encodingName;
+    } catch (e) {
+      r.fatal = { code: 'read', message: e.message };
+      return r;
+    }
+
+    const nonEmptyLines = splitLines(text).filter(l => !isBlank(l));
+    if (nonEmptyLines.length === 0) { r.fatal = { code: 'empty' }; return r; }
+    if (nonEmptyLines.length === 1) { r.fatal = { code: 'headerOnly' }; return r; }
+
+    r.delimiter = detectDelimiter(text);
+    const header = splitHeader(text, r.delimiter);
+    // The delimiter hints at the number notation of the Excel that saved the CSV (decision 8).
+    r.notation = r.delimiter === ';' ? 'nl' : r.delimiter === ',' ? 'en' : null;
+    r.headerNames = uniqueHeaderNames(header.fields);
+    const rows = parseRecords('\r\n' + header.rest, r.delimiter);
+    if (rows.length === 0) { r.fatal = { code: 'noRecords' }; return r; }
+
+    r.mapping = FIELDS.map(([field, patterns]) => ({ field, column: findColumn(r.headerNames, patterns) }));
+    const missing = r.mapping.filter(m => !m.column).map(m => m.field);
+    if (missing.length > 0) { r.fatal = { code: 'missingHeaders', fields: missing }; return r; }
+    // One CSV column may not feed two fields (PS: Group-Object -Property Column).
+    const groups = [];
+    for (const m of r.mapping) {
+      let g = groups.find(x => x.column === m.column);
+      if (!g) groups.push(g = { column: m.column, fields: [] });
+      g.fields.push(m.field);
+    }
+    const doubles = groups.filter(g => g.fields.length > 1);
+    if (doubles.length > 0) { r.fatal = { code: 'doubleMapped', groups: doubles }; return r; }
+
+    validateRows(r, rows);
+
+    if (r.errors.length > 0) { r.fatal = { code: 'validation', count: r.errors.length }; return r; }
+    if (r.records.length === 0) { r.fatal = { code: 'allEmpty', count: r.skippedEmptyRows }; return r; }
+    // Comma conversions are listed together; in a ';' file only reported, otherwise the first warning.
+    if (r.commaConversions.length > 0) {
+      if (r.notation === 'nl') r.commaReported = true;
+      else r.warnings.unshift({ code: 'commaChanged', conversions: r.commaConversions });
+    }
+    return r;
+  }
+
+  // PS: the per-row validation loop. Row 1 is the header; every parsed record counts, also empty ones.
+  function validateRows(r, rows) {
+    const col = {};
+    for (const m of r.mapping) col[m.field] = r.headerNames.indexOf(m.column);
+    const err = (row, field, code, value, extra) => r.errors.push(Object.assign({ row, field, code, value }, extra));
+    let rowNumber = 1;
+    for (const values of rows) {
+      rowNumber++;
+      // Values beyond the header are dropped and missing ones are empty, as with ConvertFrom-Csv.
+      const cells = r.headerNames.map((_, i) => (i < values.length ? values[i] : ''));
+      // Rows where every cell is blank (trailing ';;;;;;' lines from Excel) are skipped.
+      if (cells.every(isBlank)) { r.skippedEmptyRows++; continue; }
+      const raw = field => cells[col[field]];
+      const rawRubriek = raw('Rubriek');
+      const rawPersNr = raw('Pers. Nr');
+      const rawDienstv = raw('Dienstverband');
+      const rawSofV = raw('S of V');
+      const rawWaarde = raw('Mutatiewaarde');
+      const rawIngang = raw('Ingangsdatum');
+      const rawProductie = raw('Productiesoort');
+
+      // 1. Rubriek: max 6 uppercase letters and digits.
+      const cleanRubriek = toUpper(trim(rawRubriek));
+      if (isBlank(cleanRubriek)) err(rowNumber, 'Rubriek', 'empty', rawRubriek);
+      else if (cleanRubriek.length > 6) err(rowNumber, 'Rubriek', 'tooLong', rawRubriek);
+      else if (!/^[A-Z0-9]+$/i.test(cleanRubriek)) err(rowNumber, 'Rubriek', 'chars', rawRubriek);
+
+      // 2. Pers. Nr: digits only (decision 5), no leading zeros (decision 4), max 6.
+      let cleanPersNr = '';
+      const trimPersNr = trim(rawPersNr);
+      if (isBlank(trimPersNr)) err(rowNumber, 'Pers. Nr', 'empty', rawPersNr);
+      else if (!/^[0-9]+$/.test(trimPersNr)) err(rowNumber, 'Pers. Nr', 'digits', rawPersNr);
+      else {
+        cleanPersNr = trimPersNr.replace(/^0+/, '');
+        if (cleanPersNr.length === 0) err(rowNumber, 'Pers. Nr', 'zero', rawPersNr);
+        else if (cleanPersNr.length > 6) err(rowNumber, 'Pers. Nr', 'tooLong', rawPersNr);
+      }
+
+      // 3. Dienstverband: optional (empty or all zeros = PS mutation), digits only, max 3.
+      let cleanDienstv = '';
+      const trimDienstv = trim(rawDienstv);
+      if (trimDienstv.length > 0) {
+        if (!/^[0-9]+$/.test(trimDienstv)) err(rowNumber, 'Dienstverband', 'digits', rawDienstv);
+        else {
+          cleanDienstv = trimDienstv.replace(/^0+/, '');
+          if (cleanDienstv.length > 3) err(rowNumber, 'Dienstverband', 'tooLong', rawDienstv);
+        }
+      }
+
+      // 4. S of V: S/STAM or V/VARIABEL.
+      const cleanSofV = toUpper(trim(rawSofV));
+      const indicator = (cleanSofV === 'S' || cleanSofV === 'STAM') ? 'S' : (cleanSofV === 'V' || cleanSofV === 'VARIABEL') ? 'V' : '';
+      if (indicator === '') err(rowNumber, 'S of V', 'invalid', rawSofV);
+
+      // 5. Ingangsdatum: a real calendar date.
+      const ingang = parseDate(rawIngang);
+      if (ingang === null) err(rowNumber, 'Ingangsdatum', 'invalid', rawIngang);
+
+      // 6. Productiesoort: NOR only, empty means NOR (decision 11).
+      const cleanProductie = isBlank(rawProductie) ? 'NOR' : toUpper(trim(rawProductie));
+      if (cleanProductie === 'JWP') err(rowNumber, 'Productiesoort', 'jwp', rawProductie);
+      else if (cleanProductie !== 'NOR') err(rowNumber, 'Productiesoort', 'invalid', rawProductie);
+
+      // 7. Waarde: no control characters, NFC, Windows-1252 only (decision 7); amounts (decision 8);
+      //    truncated over 50 characters with a warning (decision 3).
+      let cleanWaarde = trim(rawWaarde);
+      const waardeIn = cleanWaarde;
+      if (reControl.test(cleanWaarde)) {
+        err(rowNumber, 'Mutatiewaarde', 'control', cleanWaarde);
+        cleanWaarde = cleanWaarde.replace(reControlRun, ' ');
+      }
+      if (reLoneSurrogate.test(cleanWaarde)) err(rowNumber, 'Mutatiewaarde', 'unicode', rawWaarde); // .NET Normalize throws
+      else cleanWaarde = cleanWaarde.normalize('NFC');
+      const badChars = unencodableChars(cleanWaarde);
+      if (badChars) err(rowNumber, 'Mutatiewaarde', 'encoding', rawWaarde, { chars: badChars });
+
+      const warn = (code, extra) => r.warnings.push(Object.assign({ code, row: rowNumber, persNr: cleanPersNr }, extra));
+      // Number-like: only digits, dots and commas with an optional minus. A date with dots is not an amount.
+      const isNumberLike = reNumberLike.test(cleanWaarde) && reHasDigit.test(cleanWaarde) && !reDottedDate.test(cleanWaarde);
+      const m = isNumberLike ? reCommaAmount.exec(cleanWaarde) : null;
+      if (m) {
+        const sign = m[1] === '-' ? '-' : '';
+        const whole = m[2];
+        const fraction = m[3];
+        let converted = fraction ? `${sign}${whole}.${fraction}` : `${sign}${whole}`;
+        const thousandShape = !!fraction && reThousandWhole.test(whole) && fraction.length === 3;
+        if (thousandShape && r.notation === 'en') {
+          // English notation: '1,234' is 1234. Not converted, because '1.234' would be read as 1,234.
+          warn('thousandEn', { value: cleanWaarde, whole, fraction });
+          converted = cleanWaarde;
+        } else if (thousandShape && !r.notation) {
+          warn('commaAsDecimal', { value: cleanWaarde, converted, whole, fraction });
+        } else if (fraction) {
+          r.commaConversions.push({ row: rowNumber, from: cleanWaarde, to: converted });
+        }
+        cleanWaarde = converted;
+      } else if (isNumberLike && r.notation !== 'en' && reDotThousand.test(cleanWaarde)) {
+        // In English notation '3.250' is a plain decimal (3,25), as Beaufort reads it: no warning.
+        warn('dotDecimal', { value: cleanWaarde, asComma: cleanWaarde.replace(/\./g, ',') });
+      } else if (isNumberLike && reTwoSeparators.test(cleanWaarde)) {
+        warn('separator', { value: cleanWaarde });
+      }
+      if (cleanWaarde.length > 50) {
+        const original = cleanWaarde;
+        cleanWaarde = cleanWaarde.substring(0, 50);
+        warn('truncated', { length: original.length, original, truncated: cleanWaarde });
+      }
+
+      r.records.push({
+        row: rowNumber, rubriek: cleanRubriek, persNr: cleanPersNr, dienstv: cleanDienstv, indicator,
+        waarde: cleanWaarde, waardeIn, ingang: ingang || '01010001', productie: cleanProductie
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Prompt values (asked after a successful analyze, decision 14)
+  // ---------------------------------------------------------------------------------------------
+
+  // Procescode: 1-3 letters or digits, uppercased; empty means CMT.
+  function checkProcescode(input) {
+    const value = isBlank(input) ? 'CMT' : toUpper(trim(input));
+    return /^[A-Z0-9]{1,3}$/i.test(value) ? { value } : { error: 'procescode' };
+  }
+
+  // Creatiedatum: any date format the CSV accepts; empty means today (as 'dd MM yyyy').
+  function checkCreatiedatum(input, today) {
+    const now = today || new Date();
+    const dateStr = isBlank(input) ? `${pad2(now.getDate())} ${pad2(now.getMonth() + 1)} ${now.getFullYear()}` : trim(input);
+    const value = parseDate(dateStr);
+    return value ? { value } : { error: 'creatiedatum', input: dateStr };
+  }
+
+  // Creatiegebruiker: mandatory, max 16 characters, Windows-1252 only.
+  function checkGebruiker(input) {
+    const value = trim(input == null ? '' : input);
+    if (isBlank(value)) return { error: 'gebruikerEmpty' };
+    if (value.length > 16) return { error: 'gebruikerTooLong' };
+    const chars = unencodableChars(value);
+    if (chars) return { error: 'gebruikerChars', chars };
+    return { value };
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Output (exact 187-character layout, field-layout.md)
+  // ---------------------------------------------------------------------------------------------
+
+  function buildLines(records, meta) {
+    return records.map(rec => {
+      const objectKey = isBlank(rec.dienstv) ? rec.persNr.padStart(6) : `${rec.persNr.padStart(6)} ${rec.dienstv.padStart(3)}`;
+      const line =
+        meta.procescode.padEnd(3).substring(0, 3) + // 1-3     Procescode
+        rec.rubriek.padEnd(6).substring(0, 6) +     // 4-9     Rubriekcode
+        objectKey.padEnd(50) +                      // 10-59   Object_id
+        rec.indicator +                             // 60      S/V
+        meta.creatiedatum.padStart(11) +            // 61-71   Creatiedatum
+        meta.gebruiker.padStart(16) +               // 72-87   Creatiegebruiker
+        rec.waarde.padEnd(50) +                     // 88-137  Waarde
+        rec.ingang.padStart(11) +                   // 138-148 Ingangsdatum
+        ''.padEnd(30) +                             // 149-178 not documented (.NOT_IN_CURRENT_SPEC D)
+        rec.productie.padEnd(3).substring(0, 3) +   // 179-181 Productiesoort
+        ''.padEnd(6);                               // 182-187 Verrekenperiode (.NOT_IN_CURRENT_SPEC B)
+      if (line.length !== 187) throw new Error(`Alignment error: Record for Pers. Nr ${rec.persNr} is ${line.length} chars instead of 187.`);
+      return line;
+    });
+  }
+
+  // DPIA100_<csv name>.txt (decision 13). PS: [IO.Path]::GetFileNameWithoutExtension.
+  function outputFileName(csvName) {
+    const name = String(csvName).replace(/^.*[\\/]/, '');
+    const dot = name.lastIndexOf('.');
+    return `DPIA100_${dot >= 0 ? name.substring(0, dot) : name}.txt`;
+  }
+
+  // Beaufort only finds files whose name starts with DPIA100, in any case (decision 12).
+  const isValidOutputName = name => /^dpia100/i.test(name);
+
+  return Object.freeze({
+    VERSION, analyze, checkProcescode, checkCreatiedatum, checkGebruiker, buildLines, encodeOutput,
+    outputFileName, isValidOutputName, parseDate, unencodableChars, trim, isBlank,
+    encodableCodePoints: () => [...ENCODE.keys()].sort((a, b) => a - b)
+  });
+})();
+</script>
+<script id="dpia100-ui">
+/* DPIA100 user interface. Only DOM wiring and Dutch texts; every rule is in the core above.
+   Builds all content with textContent (no HTML strings) and makes no network requests: the CSP and
+   tests/run-tests.ps1 (page-api-scan) enforce both. */
+(() => {
+  'use strict';
+
+  const $ = id => document.getElementById(id);
+  const STORE_KEY = 'dpia100.instellingen';
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const PREVIEW_MAX = 1000;
+
+  // ---------------------------------------------------------------------------------------------
+  // Dutch texts. Field labels match the console version (Rubriek, Pers. Nr, ...).
+  // ---------------------------------------------------------------------------------------------
+
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  const DIGITS_HINT = 'Staat er bijvoorbeeld 1234,0 of 1.234? Geef de kolom in Excel de opmaak Getal zonder decimalen, of Tekst.';
+  const ISSUES = {
+    'Rubriek/empty': ['Leeg.', 'Vul de rubriekcode in, bijvoorbeeld E00101.'],
+    'Rubriek/tooLong': ['Langer dan 6 tekens.', 'Een rubriekcode heeft maximaal 6 letters en cijfers.'],
+    'Rubriek/chars': ['Alleen letters en cijfers zijn toegestaan.', 'Geen spaties of andere tekens. #N/B uit Excel betekent dat een formule niets vond.'],
+    'Pers. Nr/empty': ['Leeg.', 'Vul het persoonsnummer in.'],
+    'Pers. Nr/digits': ['Alleen cijfers toegestaan (geen decimalen, spaties of letters).', DIGITS_HINT],
+    'Pers. Nr/zero': ['Mag niet 0 zijn.', ''],
+    'Pers. Nr/tooLong': ['Langer dan 6 cijfers.', 'Voorloopnullen tellen niet mee.'],
+    'Dienstverband/digits': ['Alleen cijfers toegestaan (geen decimalen, spaties of letters).', DIGITS_HINT],
+    'Dienstverband/tooLong': ['Langer dan 3 cijfers.', 'Laat het veld leeg voor een persoonsmutatie.'],
+    'S of V/invalid': ['Moet S (stam) of V (variabel) zijn.', ''],
+    'Ingangsdatum/invalid': ['Geen geldige datum.', 'Bijvoorbeeld 1-11-2026, 01112026 of 2026-11-01. Bestaat de datum (geen 31 februari)?'],
+    'Productiesoort/jwp': ['JWP wordt niet ondersteund: daarvoor is een verrekenperiode nodig.', 'Gebruik NOR of laat het veld leeg.'],
+    'Productiesoort/invalid': ['Alleen NOR is toegestaan.', 'Laat het veld leeg voor NOR.'],
+    'Mutatiewaarde/control': ['Bevat een regeleinde, tab of ander stuurteken.', 'Haal de Enter (Alt+Enter) of tab uit de cel.'],
+    'Mutatiewaarde/unicode': ['Bevat ongeldige tekens.', ''],
+    'Mutatiewaarde/encoding': [e => `Bevat tekens die Beaufort niet kent: ${e.chars}.`, 'Vervang ze, bijvoorbeeld ĳ door ij en → door ->.']
+  };
+  const issueText = e => {
+    const t = ISSUES[`${e.field}/${e.code}`][0];
+    return typeof t === 'function' ? t(e) : t;
+  };
+  const issueHint = e => ISSUES[`${e.field}/${e.code}`][1];
+
+  const FATALS = {
+    read: f => ['Het bestand kon niet worden gelezen.', `Is het wel een CSV-bestand? (${f.message})`],
+    empty: () => ['Het bestand is leeg.', 'Kies het juiste bestand, of sla het opnieuw op vanuit Excel.'],
+    headerOnly: () => ['Het bestand bevat alleen een kopregel en geen gegevens.', 'De eerste regel (met de kolomnamen) is gevonden, maar er staan geen mutaties onder.'],
+    noRecords: () => ['Er konden geen gegevensregels worden gelezen.', 'Controleer of het bestand als CSV is opgeslagen.'],
+    missingHeaders: f => [`Er ${f.fields.length === 1 ? 'ontbreekt een verplichte kolom' : 'ontbreken verplichte kolommen'}: ${f.fields.join(', ')}.`,
+      'De kolommen worden herkend aan de kopregel (de eerste regel, met de kolomnamen). Pas de kolomnaam aan in Excel en controleer opnieuw.'],
+    doubleMapped: f => ['Een kolom is aan meer dan één veld gekoppeld.',
+      `${f.groups.map(g => `'${g.column}' → ${g.fields.join(' en ')}`).join('; ')}. Geef de kolom in Excel een duidelijkere naam.`],
+    allEmpty: f => ['Er staan geen mutaties in het bestand.', `Alle ${plural(f.count, 'regel is', 'regels zijn')} leeg.`]
+  };
+
+  const rowLabel = w => `Regel ${w.row}${w.persNr ? ` (pers. nr ${w.persNr})` : ''}`;
+  const conversionList = list => {
+    const shown = list.slice(0, 5).map(c => `regel ${c.row}: ${c.from} → ${c.to}`).join(', ');
+    return list.length > 5 ? `${shown} en nog ${list.length - 5}` : shown;
+  };
+  const commaText = list => `Komma veranderd in punt bij ${plural(list.length, 'waarde', 'waarden')}, want een numerieke rubriek in Beaufort accepteert alleen een punt (een tekstrubriek krijgt de punt ook): ${conversionList(list)}.`;
+  const WARNINGS = {
+    commaChanged: w => commaText(w.conversions),
+    thousandEn: w => `${rowLabel(w)}: '${w.value}' heeft een scheidingsteken voor duizendtallen (Engelse notatie). Zo geschreven; een numerieke rubriek keurt dit af bij verwerken (PI_2229). Bedoel je ${w.whole}${w.fraction}, schrijf dan ${w.whole}${w.fraction}.`,
+    commaAsDecimal: w => `${rowLabel(w)}: '${w.value}' is geschreven als '${w.converted}' (de komma gelezen als decimaalteken). Is de komma een scheidingsteken voor duizendtallen, schrijf dan ${w.whole}${w.fraction}.`,
+    dotDecimal: w => `${rowLabel(w)}: Beaufort leest '${w.value}' als ${w.asComma} in een numerieke rubriek. Is de punt een scheidingsteken voor duizendtallen, schrijf het dan zonder punt.`,
+    separator: w => `${rowLabel(w)}: '${w.value}' lijkt een bedrag met een scheidingsteken voor duizendtallen. Een numerieke rubriek keurt dit af bij verwerken (PI_2229); schrijf het zonder, bijvoorbeeld 1234.56.`,
+    truncated: w => `${rowLabel(w)}: de waarde is ingekort van ${w.length} naar 50 tekens. Was: '${w.original}'. Wordt: '${w.truncated}'.`
+  };
+
+  const PROMPT_ERRORS = {
+    procescode: () => 'De procescode moet 1 tot 3 letters of cijfers zijn, bijvoorbeeld CMT of CON.',
+    creatiedatum: () => 'Vul een geldige datum in.',
+    gebruikerEmpty: () => 'Vul je gebruikersnaam in Beaufort in.',
+    gebruikerTooLong: () => 'Maximaal 16 tekens.',
+    gebruikerChars: r => `Bevat tekens die niet in het bestand passen: ${r.chars}.`
+  };
+
+  const DELIMITERS = { ';': 'puntkomma (;)', ',': 'komma (,)', '\t': 'tab' };
+  const ENCODINGS = {
+    'UTF-8 (BOM)': 'UTF-8 met BOM', 'UTF-8 (no BOM)': 'UTF-8', 'UTF-16 LE': 'UTF-16 LE', 'UTF-16 BE': 'UTF-16 BE',
+    'Windows-1252': 'Windows-1252 (ANSI)'
+  };
+
+  // ---------------------------------------------------------------------------------------------
+  // DOM helpers
+  // ---------------------------------------------------------------------------------------------
+
+  function el(tag, props, ...children) {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(props || {})) {
+      if (v == null || v === false) continue;
+      if (k === 'class') e.className = v;
+      else if (k === 'text') e.textContent = v;
+      else e.setAttribute(k, v === true ? '' : String(v));
+    }
+    for (const c of children.flat()) {
+      if (c != null && c !== false) e.append(c);
+    }
+    return e;
+  }
+
+  const ICONS = {
+    ok: ['M22 11.1V12a10 10 0 1 1-5.9-9.1', 'M22 4 12 14l-3-3'],
+    error: ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z', 'M15 9l-6 6M9 9l6 6'],
+    warn: ['M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z', 'M12 9v4M12 17h.01'],
+    info: ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z', 'M12 16v-4M12 8h.01']
+  };
+  function icon(kind) {
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '2');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    svg.setAttribute('aria-hidden', 'true');
+    for (const d of ICONS[kind]) {
+      const path = document.createElementNS(SVG_NS, 'path');
+      path.setAttribute('d', d);
+      svg.append(path);
+    }
+    return svg;
+  }
+
+  function banner(kind, title, ...body) {
+    return el('div', { class: `banner banner-${kind}`, role: kind === 'error' ? 'alert' : null },
+      icon(kind), el('div', { class: 'banner-text' }, el('strong', { text: title }), ...body));
+  }
+
+  function table(cls, headers, rows) {
+    return el('div', { class: 'table-wrap' },
+      el('table', { class: cls },
+        el('thead', null, el('tr', null, headers.map(h => el('th', { scope: 'col', text: h })))),
+        el('tbody', null, rows)));
+  }
+
+  // Cell values as the user typed them: empty shown as (leeg), line breaks and tabs made visible.
+  function valueCell(v) {
+    if (DPIA100.isBlank(v)) return el('td', { class: 'value' }, el('span', { class: 'empty', text: '(leeg)' }));
+    return el('td', { class: 'value', text: v.replace(/[\x00-\x1F\x7F]+/g, ' ⏎ ') });
+  }
+
+  const formatDate = d => `${d.substring(0, 2)}-${d.substring(2, 4)}-${d.substring(4)}`;
+  const timeNow = d => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+
+  // ---------------------------------------------------------------------------------------------
+  // State: the chosen file and the result of the last check
+  // ---------------------------------------------------------------------------------------------
+
+  let state = null; // { name, file, handle, lastModified, result, checkedAt }
+
+  async function loadFile(file, handle) {
+    let bytes;
+    try {
+      bytes = new Uint8Array(await file.arrayBuffer());
+    } catch (e) {
+      showReadProblem(file.name);
+      return;
+    }
+    state = { name: file.name, file, handle, lastModified: file.lastModified, result: DPIA100.analyze(bytes, file.name), checkedAt: new Date() };
+    render();
+    $('h-check').focus();
+  }
+
+  async function loadHandle(handle) {
+    let file;
+    try {
+      file = await handle.getFile();
+    } catch (e) {
+      showReadProblem(handle.name);
+      return;
+    }
+    await loadFile(file, handle);
+  }
+
+  function showReadProblem(name) {
+    state = null;
+    $('file-bar').hidden = true;
+    $('step-make').hidden = true;
+    $('step-check').hidden = false;
+    $('check-body').replaceChildren();
+    $('check-status').replaceChildren(banner('error', `${name} kon niet worden gelezen.`,
+      el('p', { text: 'Is het bestand verplaatst, hernoemd of nog geopend in een ander programma? Kies het bestand opnieuw.' })));
+  }
+
+  // Edge and Chrome: the open dialog returns a handle, so 'Opnieuw controleren' can read the file again
+  // after it was fixed in Excel. Other browsers (or a blocking policy): the plain file input.
+  async function pickFile() {
+    if (typeof window.showOpenFilePicker === 'function') {
+      try {
+        const [handle] = await window.showOpenFilePicker({
+          multiple: false,
+          types: [{ description: 'CSV-bestand', accept: { 'text/csv': ['.csv'], 'text/plain': ['.txt'] } }]
+        });
+        if (handle) await loadHandle(handle);
+        return;
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;
+      }
+    }
+    $('file-input').click();
+  }
+
+  async function recheck() {
+    if (!state) return pickFile();
+    if (state.handle) return loadHandle(state.handle);
+    // A file from the plain file input is a snapshot: after it changed on disk it must be chosen again.
+    let readable = true;
+    try { await state.file.slice(0, 1).arrayBuffer(); } catch (e) { readable = false; }
+    if (readable) await loadFile(state.file, null);
+    else await pickFile();
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Rendering the check (step 2)
+  // ---------------------------------------------------------------------------------------------
+
+  function render() {
+    const r = state.result;
+    const f = r.fatal;
+    $('file-bar').hidden = false;
+    $('drop').classList.add('compact');
+    $('file-name').textContent = state.name;
+    $('file-details').textContent = [
+      ENCODINGS[r.encodingName] || r.encodingName,
+      r.delimiter ? `scheidingsteken ${DELIMITERS[r.delimiter]}` : null,
+      `gecontroleerd om ${timeNow(state.checkedAt)}`
+    ].filter(Boolean).join(' · ');
+    $('step-check').hidden = false;
+    $('make-result').replaceChildren();
+    const status = $('check-status');
+    const body = $('check-body');
+    body.replaceChildren();
+
+    if (f && f.code !== 'validation') {
+      const [title, text] = FATALS[f.code](f);
+      status.replaceChildren(banner('error', title, el('p', { text }), el('p', { text: 'Er is geen bestand gemaakt.' })));
+      if (r.mapping.length > 0) body.append(mappingSection(r));
+      $('step-make').hidden = true;
+      return;
+    }
+    if (f) {
+      status.replaceChildren(banner('error', `${plural(r.errors.length, 'fout', 'fouten')} gevonden. Er is geen bestand gemaakt.`,
+        el('p', { text: 'Pas de regels hieronder aan in Excel, sla de CSV op en klik op Opnieuw controleren. Regel 1 is de kopregel; de eerste mutatie staat op regel 2.' })));
+      body.append(errorsSection(r), mappingSection(r));
+      $('step-make').hidden = true;
+      return;
+    }
+
+    const extra = r.skippedEmptyRows > 0 ? el('p', { text: `${plural(r.skippedEmptyRows, 'lege regel is', 'lege regels zijn')} overgeslagen.` }) : null;
+    status.replaceChildren(banner('ok', `${plural(r.records.length, 'regel', 'regels')} gecontroleerd, geen fouten.`, extra));
+    body.append(mappingSection(r));
+    if (r.commaReported) body.append(banner('info', 'Bedragen aangepast', el('p', { text: commaText(r.commaConversions) })));
+    if (r.warnings.length > 0) body.append(warningsSection(r));
+    body.append(previewSection(r));
+    prepareMakeStep(r);
+  }
+
+  // One column per field, so the overview stays two rows high; Mutatiewaarde is highlighted.
+  function mappingSection(r) {
+    const mark = m => (m.field === 'Mutatiewaarde' ? 'highlight' : null);
+    const headers = el('tr', null, el('th', { scope: 'row', text: 'Veld' }), r.mapping.map(m => el('th', { scope: 'col', class: mark(m), text: m.field })));
+    const columns = el('tr', null, el('th', { scope: 'row', text: 'Kolom in je CSV' }),
+      r.mapping.map(m => (m.column ? el('td', { class: mark(m), text: m.column })
+        : el('td', { class: mark(m) }, el('span', { class: 'missing', text: '(niet gevonden)' })))));
+    return el('div', null,
+      el('h3', { text: 'Welke kolom is gebruikt?' }),
+      el('div', { class: 'table-wrap' }, el('table', { class: 'tbl-mapping' }, el('tbody', null, headers, columns))),
+      el('p', { class: 'help', text: 'Controleer vooral Mutatiewaarde: die waarde kan niet worden gecontroleerd. Klopt een koppeling niet, pas dan de kolomnaam aan in Excel.' }));
+  }
+
+  function errorsSection(r) {
+    const rows = r.errors.map(e => el('tr', null,
+      el('td', { class: 'num', text: e.row }),
+      el('td', { text: e.field }),
+      valueCell(e.value),
+      el('td', null, issueText(e), issueHint(e) ? el('span', { class: 'issue-hint', text: issueHint(e) }) : null)));
+    const copy = el('button', { type: 'button', class: 'btn btn-ghost btn-small', text: 'Kopieer foutenlijst' });
+    copy.addEventListener('click', () => copyErrors(r, copy));
+    return el('div', null,
+      el('h3', { text: 'Fouten' }),
+      table('tbl-errors', ['Regel', 'Kolom', 'Waarde', 'Probleem'], rows),
+      el('div', { class: 'row-actions' }, copy));
+  }
+
+  async function copyErrors(r, button) {
+    const lines = ['Regel\tKolom\tWaarde\tProbleem', ...r.errors.map(e => [e.row, e.field, e.value.replace(/[\x00-\x1F\x7F]+/g, ' '), issueText(e)].join('\t'))];
+    try {
+      await navigator.clipboard.writeText(lines.join('\r\n'));
+      button.textContent = 'Gekopieerd';
+    } catch (e) {
+      button.textContent = 'Kopiëren lukte niet';
+    }
+    setTimeout(() => { button.textContent = 'Kopieer foutenlijst'; }, 2500);
+  }
+
+  function warningsSection(r) {
+    return el('div', null,
+      el('h3', { text: `Waarschuwingen (${r.warnings.length})` }),
+      el('p', { text: 'Deze waarden worden geschreven zoals hieronder staat. Controleer ze; het bestand wordt pas gemaakt als je dat bij stap 3 bevestigt.' }),
+      el('ul', { class: 'warn-list' }, r.warnings.map(w => el('li', { text: WARNINGS[w.code](w) }))));
+  }
+
+  function previewSection(r) {
+    const shown = r.records.slice(0, PREVIEW_MAX);
+    const rows = shown.map(rec => el('tr', null,
+      el('td', { class: 'num', text: rec.row }),
+      el('td', { text: rec.rubriek }),
+      el('td', { class: 'num', text: rec.persNr }),
+      el('td', { class: 'num', text: rec.dienstv }),
+      el('td', { text: rec.indicator }),
+      DPIA100.isBlank(rec.waarde) ? valueCell('') : el('td', { class: 'value' }, rec.waarde,
+        rec.waarde !== rec.waardeIn ? el('span', { class: 'changed', text: `was: ${rec.waardeIn}` }) : null),
+      el('td', { text: formatDate(rec.ingang) }),
+      el('td', { text: rec.productie })));
+    const more = r.records.length > PREVIEW_MAX ? el('p', { class: 'help', text: `De eerste ${PREVIEW_MAX} van ${r.records.length} mutaties worden getoond.` }) : null;
+    return el('details', { class: 'preview' },
+      el('summary', { text: `Bekijk de ${plural(r.records.length, 'mutatie', 'mutaties')} zoals ze in het bestand komen` }),
+      table('tbl-preview', ['Regel', 'Rubriek', 'Pers. Nr', 'Dv', 'S/V', 'Mutatiewaarde', 'Ingangsdatum', 'Prod.'], rows),
+      more);
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Step 3: the prompt values and saving (decisions 3, 12, 14)
+  // ---------------------------------------------------------------------------------------------
+
+  function prepareMakeStep(r) {
+    $('step-make').hidden = false;
+    const n = r.warnings.length;
+    $('confirm-box').hidden = n === 0;
+    $('f-confirm').checked = false;
+    $('confirm-text').textContent = `Ik heb de ${n === 1 ? 'waarschuwing' : `${n} waarschuwingen`} bij stap 2 gelezen en wil het bestand toch maken.`;
+    $('btn-make').textContent = `Maak ${DPIA100.outputFileName(state.name)}`;
+    clearFieldErrors();
+  }
+
+  function setFieldError(id, message) {
+    const input = $(id);
+    const box = $(`${id}-err`);
+    box.textContent = message || '';
+    box.hidden = !message;
+    if (input.type !== 'checkbox') input.setAttribute('aria-invalid', message ? 'true' : 'false');
+  }
+
+  function clearFieldErrors() {
+    for (const id of ['f-proces', 'f-datum', 'f-gebruiker', 'f-confirm']) setFieldError(id, '');
+  }
+
+  async function make() {
+    if (!state || state.result.fatal) return;
+    const r = state.result;
+    clearFieldErrors();
+    $('make-result').replaceChildren();
+    const proces = DPIA100.checkProcescode($('f-proces').value);
+    const datum = $('f-datum').value ? DPIA100.checkCreatiedatum($('f-datum').value) : { error: 'creatiedatum' };
+    const gebruiker = DPIA100.checkGebruiker($('f-gebruiker').value);
+    const invalid = [];
+    if (proces.error) { setFieldError('f-proces', PROMPT_ERRORS[proces.error](proces)); invalid.push('f-proces'); }
+    if (datum.error) { setFieldError('f-datum', PROMPT_ERRORS[datum.error](datum)); invalid.push('f-datum'); }
+    if (gebruiker.error) { setFieldError('f-gebruiker', PROMPT_ERRORS[gebruiker.error](gebruiker)); invalid.push('f-gebruiker'); }
+    // With warnings the file is only made after explicit confirmation (decision 3).
+    if (r.warnings.length > 0 && !$('f-confirm').checked) {
+      setFieldError('f-confirm', 'Vink dit aan om het bestand met de waarschuwingen te maken.');
+      invalid.push('f-confirm');
+    }
+    if (invalid.length > 0) { $(invalid[0]).focus(); return; }
+
+    // The file is built from the checked content; refuse if the CSV changed on disk since then.
+    if (state.handle) {
+      try {
+        const current = await state.handle.getFile();
+        if (current.lastModified !== state.lastModified) {
+          $('make-result').replaceChildren(banner('warn', 'Het CSV-bestand is gewijzigd sinds de controle.', el('p', { text: 'Klik op Opnieuw controleren en maak het bestand daarna opnieuw.' })));
+          return;
+        }
+      } catch (e) { /* not readable now: use the checked content */ }
+    }
+
+    const lines = DPIA100.buildLines(r.records, { procescode: proces.value, creatiedatum: datum.value, gebruiker: gebruiker.value });
+    const bytes = DPIA100.encodeOutput(lines);
+    const saved = await saveBytes(bytes, DPIA100.outputFileName(state.name));
+    if (!saved) return;
+    rememberSettings(proces.value, gebruiker.value);
+    showSaved(saved, lines.length);
+  }
+
+  // Edge and Chrome: a save dialog, so the user picks the folder (for example the Bestandsuitwisseling)
+  // and overwrites an old file knowingly. Otherwise, or when a policy blocks the dialog: a download.
+  async function saveBytes(bytes, suggestedName) {
+    if (typeof window.showSaveFilePicker === 'function') {
+      const openedAt = Date.now();
+      let handle = null;
+      try {
+        handle = await window.showSaveFilePicker({
+          suggestedName,
+          types: [{ description: 'DPIA100-importbestand', accept: { 'text/plain': ['.txt'] } }]
+        });
+      } catch (e) {
+        if (e && e.name === 'AbortError') return null;
+      }
+      if (handle) {
+        if (!DPIA100.isValidOutputName(handle.name)) {
+          await removeIfJustCreated(handle, openedAt);
+          $('make-result').replaceChildren(banner('error', `De naam ${handle.name} begint niet met DPIA100.`,
+            el('p', { text: 'HR Core vindt het bestand dan niet. Er is niets opgeslagen. Klik opnieuw op de knop en laat de naam met DPIA100 beginnen.' })));
+          return null;
+        }
+        try {
+          const writable = await handle.createWritable();
+          await writable.write(bytes);
+          await writable.close();
+          return { name: handle.name, method: 'dialog' };
+        } catch (e) {
+          $('make-result').replaceChildren(banner('error', 'Opslaan is mislukt.',
+            el('p', { text: `Is het bestand geopend in een ander programma? (${e.message})` })));
+          return null;
+        }
+      }
+    }
+    downloadBytes(bytes, suggestedName);
+    return { name: suggestedName, method: 'download' };
+  }
+
+  // A rejected name must leave no trace: remove the file only if the dialog just created it empty.
+  async function removeIfJustCreated(handle, since) {
+    try {
+      const f = await handle.getFile();
+      if (f.size === 0 && f.lastModified >= since - 2000 && typeof handle.remove === 'function') await handle.remove();
+    } catch (e) { /* nothing was written */ }
+  }
+
+  function downloadBytes(bytes, name) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
+    a.download = name;
+    a.hidden = true;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+  }
+
+  function showSaved(saved, count) {
+    const steps = el('ol', { class: 'next-steps' },
+      el('li', { text: 'Zet het bestand in de Bestandsuitwisseling van HR Core.' }),
+      el('li', { text: 'Importeer het met functie 100254 (Import externe indirecte mutaties).' }),
+      el('li', { text: 'Beoordeel de mutaties met 100251 en verwerk ze met 100252.' }));
+    const keep = el('p', { text: 'Open of bewaar het bestand niet in Kladblok of Excel: dat kan tekens of regeleinden veranderen. Wil je het hernoemen, laat de naam dan met DPIA100 beginnen.' });
+    const nodes = [banner('ok', saved.method === 'dialog' ? `Opgeslagen als ${saved.name}` : `Gedownload als ${saved.name}`,
+      el('p', { text: `${plural(count, 'mutatie', 'mutaties')}. Wat nu:` }), steps, keep)];
+    if (saved.method === 'download') {
+      const base = saved.name.replace(/\.txt$/i, '');
+      nodes.push(banner('warn', 'Let op bij een tweede download',
+        el('p', { text: `Het bestand staat in je map Downloads. Stond daar al een bestand met deze naam, dan heet het nieuwe bestand misschien ${base} (1).txt. Gebruik dan dat nieuwste bestand en verwijder het oude, zodat je het niet per ongeluk importeert.` })));
+    }
+    $('make-result').replaceChildren(...nodes);
+    nodes[0].scrollIntoView({ block: 'nearest' });
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Remembered settings (only procescode and user name, only when ticked)
+  // ---------------------------------------------------------------------------------------------
+
+  function loadSettings() {
+    try {
+      const s = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+      if (s && typeof s === 'object') {
+        if (typeof s.procescode === 'string') $('f-proces').value = s.procescode;
+        if (typeof s.gebruiker === 'string') $('f-gebruiker').value = s.gebruiker;
+        $('f-remember').checked = true;
+      }
+    } catch (e) { /* storage unavailable: nothing remembered */ }
+  }
+
+  function rememberSettings(procescode, gebruiker) {
+    try {
+      if ($('f-remember').checked) localStorage.setItem(STORE_KEY, JSON.stringify({ procescode, gebruiker }));
+      else localStorage.removeItem(STORE_KEY);
+    } catch (e) { /* storage unavailable */ }
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Start
+  // ---------------------------------------------------------------------------------------------
+
+  function todayIso() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  async function onDrop(e) {
+    e.preventDefault();
+    $('drop').classList.remove('dragging');
+    const dt = e.dataTransfer;
+    if (!dt) return;
+    // Items must be read before the first await.
+    const item = Array.from(dt.items || []).find(i => i.kind === 'file');
+    const file = dt.files && dt.files[0];
+    const pending = item && typeof item.getAsFileSystemHandle === 'function' ? item.getAsFileSystemHandle().catch(() => null) : null;
+    const handle = pending ? await pending : null;
+    if (handle && handle.kind === 'file') await loadHandle(handle);
+    else if (file) await loadFile(file, null);
+  }
+
+  $('startup-error').remove();
+  $('version').textContent = `v${DPIA100.VERSION}`;
+  $('f-datum').value = todayIso();
+  loadSettings();
+
+  const drop = $('drop');
+  drop.addEventListener('click', pickFile);
+  drop.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickFile(); }
+  });
+  // A file dropped anywhere on the page is loaded, instead of the browser opening it.
+  document.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('dragging'); });
+  document.addEventListener('dragleave', e => { if (!e.relatedTarget) drop.classList.remove('dragging'); });
+  document.addEventListener('drop', onDrop);
+  $('file-input').addEventListener('change', e => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (file) loadFile(file, null);
+  });
+  $('btn-recheck').addEventListener('click', recheck);
+  $('btn-other').addEventListener('click', pickFile);
+  $('f-remember').addEventListener('change', e => {
+    if (!e.target.checked) {
+      try { localStorage.removeItem(STORE_KEY); } catch (err) { /* storage unavailable */ }
+    }
+  });
+  $('make-form').addEventListener('submit', e => { e.preventDefault(); make(); });
+  // The privacy section is collapsed; the link in the header opens it before jumping there.
+  document.querySelector('.privacy-pill').addEventListener('click', () => { $('privacy').open = true; });
+
+  document.documentElement.dataset.ready = '1';
+  console.info(`DPIA100 converter ${DPIA100.VERSION} gestart`);
+})();
+</script>
+</body>
+</html>
