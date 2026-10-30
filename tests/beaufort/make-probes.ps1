@@ -11,24 +11,37 @@
     File names start with DPIA100, otherwise Beaufort does not find them.
     Every text Waarde starts with the probe ID (P02-0x80 = group P02, character 0x80), so each record can
     be recognised in the import report and in 100251. probes\index.txt lists every ID with its content.
+
+    With -Web the probes test the web version instead (round 4): the script writes one probe CSV of
+    valid input and lets the page's own core (dpia100.html, in headless Edge, as tests/run-tests.ps1 does)
+    turn it into the import file. Everything is in one file:
+      web-probes.csv          the input, UTF-8 with BOM and ';' as Dutch Excel saves it
+      DPIA100_web-probes.txt  the import file, with the name the page suggests
+      index-web.txt           every W-ID with its CSV row
+    To also cover the real interface, open web-probes.csv in dpia100.html, make the file with the same
+    procescode, creatiedatum and user, and compare: fc /b DPIA100_web-probes.txt <your file>.
 .PARAMETER Only
-    Probe IDs (prefixes) to include, e.g. P04-5,P04-6,P08. Use it to repeat a few probes without
-    re-importing everything. Without it, all probes are written.
+    Probe IDs (prefixes) to include, e.g. P04-5,P04-6,P08 (or W05 with -Web). Use it to repeat a few
+    probes without re-importing everything. Without it, all probes are written.
+.PARAMETER Web
+    Build the web-app probes (W01-W06) through dpia100.html instead of the raw probes.
 .EXAMPLE
     pwsh tests\beaufort\make-probes.ps1
 .EXAMPLE
     pwsh tests\beaufort\make-probes.ps1 -Only P04-5,P04-6,P08
+.EXAMPLE
+    pwsh tests\beaufort\make-probes.ps1 -Web
 #>
-param([string[]]$Only)
+param([string[]]$Only, [switch]$Web)
 # With -File, "P04-5,P04-6,P08" arrives as one string.
 $Only = @($Only | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 
 # ---- Settings: fill in for the test environment -------------------------------------------
 $Proces  = 'CMT'        # procescode of the aanleverend proces
-$User    = 'TSTUSER'    # creatiegebruiker that exists in Beaufort (fill in)
+$User    = 'JvdBerg'    # creatiegebruiker that exists in Beaufort (fill in)
 $Cdate   = '01012020'   # creatiedatum ddMMyyyy
 $Ingang  = '01102020'   # ingangsdatum ddMMyyyy (today or earlier, so it can be processed)
-$PersNr  = '123'        # test person (fill in)
+$PersNr  = '10000'        # test person (fill in)
 $Dv      = '1'          # dienstverband of the test person
 $RubTxt  = 'TST003'     # PS, stam, type S (tekst), length 50
 $RubDv   = 'TST002'     # DV, stam, type S (tekst), length 50
@@ -38,9 +51,99 @@ $RubNum  = 'TST004'     # DV, stam, type N (numeriek), 2 decimals (variabel rubr
 $ErrorActionPreference = 'Stop'
 $outDir = Join-Path $PSScriptRoot 'probes'
 New-Item -ItemType Directory -Force $outDir | Out-Null
-Get-ChildItem $outDir -File | Remove-Item
 $ansi  = [System.Text.Encoding]::GetEncoding(1252, [System.Text.EncoderExceptionFallback]::new(), [System.Text.DecoderExceptionFallback]::new())
 $index = [System.Collections.Generic.List[string]]::new()
+
+# ---- Round 4: probes for the web version (-Web) ---------------------------------------------
+if ($Web) {
+    . (Join-Path $PSScriptRoot '..\web\WebTest.ps1')
+    Get-ChildItem $outDir -File -Filter '*web-probes*' | Remove-Item
+    Remove-Item (Join-Path $outDir 'index-web.txt') -ErrorAction SilentlyContinue
+    $inv  = [System.Globalization.CultureInfo]::InvariantCulture
+    $date = [DateTime]::ParseExact($Ingang, 'ddMMyyyy', $inv)
+    $rows = [System.Collections.Generic.List[string]]::new()
+    $script:day = 0
+
+    # One CSV row. Cells are given as a user would type them; the page validates and converts them.
+    # Every row gets its own ingangsdatum ($Ingang, then one day later per row): processing would otherwise
+    # let rows on the same rubriek and key overwrite each other, so stored values could not be checked
+    # (rounds 3 and 4). The dates stay the same with -Only. The test person must be in service on them.
+    function Row {
+        param($Id, $Waarde, $Rub = $RubTxt, $Pers = $PersNr, $DvCell = '', $SV = 'S', $Format = 'dd-MM-yyyy', $Prod = 'NOR')
+        $Datum = $date.AddDays($script:day++).ToString($Format, $inv)
+        if ($Only -and -not ($Only | Where-Object { $Id -like "$_*" })) { return }
+        $cells = foreach ($c in @($Rub, $Pers, $DvCell, $SV, $Waarde, $Datum, $Prod)) {
+            if ($c -match '[;"\r\n]') { '"' + $c.Replace('"', '""') + '"' } else { $c }
+        }
+        $script:rows.Add($cells -join ';')
+        $script:index.Add("$Id  $($cells -join ';')")
+    }
+
+    # W01: keys. Leading zeros and spaces are removed; dv 0 makes a PS key (decision 4).
+    Row 'W01-1' 'W01-1 PS sleutel'
+    Row 'W01-2' 'W01-2 DV sleutel' -Rub $RubDv -DvCell $Dv
+    Row 'W01-3' 'W01-3 voorloopnullen persnr en dv' -Rub $RubDv -Pers "00$PersNr" -DvCell "00$Dv"
+    Row 'W01-4' 'W01-4 dv 0 wordt PS sleutel' -DvCell '0'
+    Row 'W01-5' 'W01-5 spaties rond sleutels' -Rub $RubDv -Pers " $PersNr " -DvCell " $Dv "
+    # W02: codes are uppercased; STAM means S; empty productiesoort means NOR. All test rubrieken are stam.
+    Row 'W02-1' 'W02-1 rubriek kleine letters' -Rub $RubTxt.ToLower()
+    Row 'W02-2' 'W02-2 S of V als STAM' -SV 'STAM'
+    Row 'W02-3' 'W02-3 S of V als s' -SV 's'
+    Row 'W02-4' 'W02-4 productiesoort leeg' -Prod ''
+    Row 'W02-5' 'W02-5 productiesoort nor' -Prod 'nor'
+    # W03: every defined Windows-1252 character above 0x7F, typed in UTF-8 and converted by the page.
+    foreach ($b in 0x80..0xFF) {
+        if ($b -in 0x81, 0x8D, 0x8F, 0x90, 0x9D) { continue }
+        $id = 'W03-0x{0:X2}' -f $b
+        Row $id ('{0} a{1}b' -f $id, $ansi.GetString([byte[]]@($b)))
+    }
+    Row 'W03-d' "W03-d Gebiedscoo$([char]0x308)rdinator (losse trema)"
+    Row 'W03-q' "W03-q d$([char]0x2019)Ancona $([char]0x201C)citaat$([char]0x201D)"
+    Row 'W03-s' 'W03-s puntkomma; en "aanhalingstekens"'
+    # W04: the ingangsdatum in every input format the page accepts.
+    $formats = 'd M yyyy', 'dd-MM-yyyy', 'd/M/yyyy', 'yyyy-MM-dd', 'ddMMyyyy', 'd.M.yyyy'
+    for ($i = 0; $i -lt $formats.Count; $i++) {
+        Row ('W04-{0}' -f ($i + 1)) ('W04-{0} datum als {1}' -f ($i + 1), $formats[$i]) -Format $formats[$i]
+    }
+    # W05: amounts in the numeric rubriek. A numeric Waarde cannot hold the ID; index-web.txt maps the date.
+    $amounts = '12,50', '-12,50', '3250,5', '0,25', '12.50', '3250'
+    for ($i = 0; $i -lt $amounts.Count; $i++) {
+        Row ('W05-{0}' -f ($i + 1)) $amounts[$i] -Rub $RubNum -DvCell $Dv
+    }
+    # W06: length and empty value. 60 characters are cut to 50 with a warning (decision 3).
+    Row 'W06-1' 'W06-1 precies 50 tekens '.PadRight(50, 'x')
+    Row 'W06-2' 'W06-2 zestig tekens, wordt afgekapt na vijftig '.PadRight(60, 'y')
+    Row 'W06-3' ''
+
+    if ($rows.Count -eq 0) { throw "No probes match -Only $($Only -join ',')." }
+    $csvText  = "Rubriek;Pers. Nr;Dienstv;S of V;Mutatiewaarde;Ingangsdatum;Productiesoort`r`n" + ($rows -join "`r`n") + "`r`n"
+    $csvBytes = [byte[]](0xEF, 0xBB, 0xBF) + [System.Text.UTF8Encoding]::new($false).GetBytes($csvText)
+    [System.IO.File]::WriteAllBytes((Join-Path $outDir 'web-probes.csv'), $csvBytes)
+
+    # The page's core makes the file, answering the prompts like a user (Y confirms the warnings).
+    $case = [PSCustomObject]@{
+        name = 'web-probes'; input = [Convert]::ToBase64String($csvBytes); fileName = 'web-probes.csv'
+        answers = @($Proces, $Cdate, $User, 'Y'); outputName = $null
+    }
+    $result = (Invoke-WebHarness -Cases @($case) -OutDir (Join-Path ([IO.Path]::GetTempPath()) 'dpia100-probes')).cases[0]
+    if ($result.exitCode -ne 0 -or -not $result.output) {
+        Write-Host "The page did not make a file:`n$($result.transcript)" -ForegroundColor Red
+        exit 1
+    }
+    $bytes = [Convert]::FromBase64String($result.output)
+    $file  = Join-Path $outDir $result.suggestedName
+    [System.IO.File]::WriteAllBytes($file, $bytes)
+    if ($bytes.Length -ne $rows.Count * 189) { throw "Expected $($rows.Count) records of 187 bytes + CRLF, got $($bytes.Length) bytes." }
+    [System.IO.File]::WriteAllLines((Join-Path $outDir 'index-web.txt'), $index, [System.Text.UTF8Encoding]::new($true))
+    $warnings = @($result.transcript -split '\n' | Where-Object { $_ -like '  - *' }).Count
+    $sha = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash
+    Write-Host ("{0,-24} {1,3} records {2,6} bytes, {3} warning(s) confirmed" -f $result.suggestedName, $rows.Count, $bytes.Length, $warnings)
+    Write-Host "SHA-256 $sha"
+    Write-Host "Input: $(Join-Path $outDir 'web-probes.csv')`nIndex: $(Join-Path $outDir 'index-web.txt')"
+    exit 0
+}
+
+Get-ChildItem $outDir -File | Where-Object Name -notlike '*web-probes*' | Where-Object Name -ne 'index-web.txt' | Remove-Item
 
 # Formatted keys. Not named $ps/$dv: PowerShell variable names ignore case, so $dv would overwrite $Dv.
 $psKey = '{0,6}' -f $PersNr

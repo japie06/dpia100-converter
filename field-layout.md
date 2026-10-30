@@ -1,6 +1,7 @@
 # DPIA100 field layout
 
-Technical reference for the DPIA100 import file as produced by `dpia100.ps1`.
+Technical reference for the DPIA100 import file as produced by `dpia100.ps1` and by the web version
+`dpia100.html` (same rules, byte-identical output; both are tested on every case in `tests/cases`).
 
 **Sources** (the PDFs are copyrighted and not included in the repo)
 - `docs/DPIA100 record indeling.pdf`: Beaufort help, "Mutatiebestand maken (importeren)", Visma 2024-08.
@@ -12,7 +13,7 @@ Technical reference for the DPIA100 import file as produced by `dpia100.ps1`.
 
 | Property | Value |
 |---|---|
-| File name | Must start with `DPIA100`, otherwise Beaufort does not find it (owner; case does not matter, `dpia100.txt` works). The script rejects other names (decision 12) and by default writes `DPIA100_<csv name>.txt` next to the input CSV (decision 13). Location settings: `IMP_FILE` / `IMP_PAD`, or `Beaufort.asn` |
+| File name | Must start with `DPIA100`, otherwise Beaufort does not find it (owner; case does not matter, `dpia100.txt` works). The script rejects other names (decision 12) and by default writes `DPIA100_<csv name>.txt` next to the input CSV (decision 13). The web version suggests the same name in its save dialog and refuses a chosen name that does not start with `DPIA100`. Location settings: `IMP_FILE` / `IMP_PAD`, or `Beaufort.asn` |
 | Location | Beaufort *files* folder, default `...\Raet\Beaufort <versie>\files\` |
 | Encoding | Windows-1252, single byte per character. UTF-8 shifts columns after `ö`, `é` etc. |
 | Record length | Exactly 187 characters = 187 bytes |
@@ -118,7 +119,8 @@ aanleverend proces, only this user can review and process the mutations.
 
 Beaufort behaviour (probes P08, `tests/beaufort/findings.md`): the import (100254) accepts any value.
 Processing (100252) rejects a comma in a numeric rubriek (PI_2229) and reads a dot as decimal point,
-so `3.250` is processed silently as 3,25. Extra decimals are rounded (owner, seen with manual entry).
+so `3.250` is processed silently as 3,25. Extra decimals are not rounded up: `12.345` became 12,34
+in a 2-decimal rubriek (probe round 4).
 
 Script handling (decision 8). The script can't tell a numeric rubriek from a text rubriek, so it warns
 instead of rejecting. With warnings, the file is only written after the user types `Y`. The CSV
@@ -144,8 +146,10 @@ Special characters (tested in `tests/cases/ok-chars-*` for every input encoding)
 - Rejected with an error: characters outside Windows-1252, for example the `ĳ`/`Ĳ` ligature, Polish
   `Ł ł ę`, Turkish `Ş ş`, `ő`, `Ć`, Vietnamese `ễ`, Greek, `₂`, `→`, zero-width space and emoji.
   Write `ij` as two letters.
-- How Beaufort itself handles each Windows-1252 character is being probed; see
-  `tests/beaufort/findings.md`.
+- **Beaufort drops 0x80-0x9F and 0xFF** (`€ ‚ ƒ „ … † ‡ ˆ ‰ Š ‹ Œ Ž ‘ ’ “ ” • – — ˜ ™ š › œ ž Ÿ ÿ`)
+  without a message: `d’Ancona` becomes `dAncona`, `a€b` becomes `ab` (probe round 4, processing report;
+  the stored value is being verified). 0xA0-0xFE, so all accented letters except `ÿ`, arrive unchanged.
+  The script still accepts these characters; issue #20 decides whether to reject them.
 - Values over 50 characters are truncated with a warning.
 - Dates, times and uppercase-only values are written as typed. The owner chose not to force a format
   on Waarde; Beaufort validates it against the rubriek.

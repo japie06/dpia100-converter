@@ -81,8 +81,8 @@
        Comma conversions are listed together (one line or one warning). 'Reported' means printed without
        asking for confirmation. Beaufort processes '3.250' silently as 3,25, which is right in an English
        file and probably a formatted 3250 in a Dutch one. Dates with dots ('1.11.2026') are not amounts.
-       Extra decimals are rounded to the rubriek's decimals by Beaufort (owner: seen with manual entry,
-       assumed for import).
+       Extra decimals are not rounded up by Beaufort: '12.345' became 12,34 in a 2-decimal rubriek
+       (probe round 4, tests/beaufort/findings.md).
     9. HEADER ROW PARSED BY THE SCRIPT:
        Excel often adds empty header cells (header ending in ';;'). Windows PowerShell 5.1 aborts on
        duplicate/empty column names, PowerShell 7 renames them. The header row is parsed here and empty
@@ -108,6 +108,12 @@
        are asked (owner, issue #11). On errors the script stops without asking anything. Without errors it
        prints '[OK] N row(s) checked', lists any warnings, asks the three prompts, and only then asks the
        Y confirmation for warnings. The prompt values are only needed to build the records.
+    15. WEB VERSION (dpia100.html, owner):
+       The browser page implements the same rules in JavaScript for users who should not need a console.
+       Every rule change goes into both files; tests/run-tests.ps1 runs every case on PowerShell 5.1,
+       PowerShell 7 and the page (headless Edge), and tests/web/differential.ps1 compares both on random
+       input. By design the page cannot rename an old output file (decision 10); it writes nothing until
+       the user saves, and refuses a file name that does not start with DPIA100 (decision 12).
 
 .NOT_IN_CURRENT_SPEC
     Supported by Beaufort / the official Excel tool, not by this script. Candidates for a later version.
@@ -150,7 +156,7 @@ param (
 )
 
 # NOTE: Bump together with a new section in docs/CHANGELOG.md and a git tag vX.Y.Z (see CLAUDE.md).
-$ScriptVersion = '1.1.0'
+$ScriptVersion = '1.2.0'
 
 
 # -------------------------------------------------------------------------
@@ -301,6 +307,8 @@ $script:fullOutputPath = $resolvedOutputPath
 
 # DECISION: Inspects the first non-empty line of the file and calculates the frequency
 # of common delimiters (;, ,, \t). This eliminates dependency on Regional Settings / Excel locale.
+# DECISION: On a tie the first candidate in the order ';', tab, ',' wins. This is the order Windows
+# PowerShell 5.1 happened to use; PowerShell 7 picked at random (hashtable order changes per run).
 function Detect-CsvDelimiter([string]$text) {
     $firstLine = $text -split '\r?\n' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1
     if ([string]::IsNullOrWhiteSpace($firstLine)) {
@@ -308,17 +316,16 @@ function Detect-CsvDelimiter([string]$text) {
     }
     $firstLine = $firstLine.Trim([char]0xFEFF).Trim()
 
-    $candidates = @(';', ',', "`t")
-    $counts = @{}
-    foreach ($c in $candidates) {
-        $counts[$c] = ($firstLine -split [regex]::Escape($c)).Count - 1
+    $best = ';' # Default fallback
+    $bestCount = 0
+    foreach ($c in @(';', "`t", ',')) {
+        $count = ($firstLine -split [regex]::Escape($c)).Count - 1
+        if ($count -gt $bestCount) {
+            $best = $c
+            $bestCount = $count
+        }
     }
-
-    $best = $counts.GetEnumerator() | Sort-Object -Property Value -Descending | Select-Object -First 1
-    if ($best.Value -gt 0) {
-        return $best.Key
-    }
-    return ';' # Default fallback
+    return $best
 }
 
 # DECISION: Parses only the header record (decision 9). Handles quoted names, "" inside quotes and
@@ -470,7 +477,10 @@ $header      = Split-CsvHeader -text $csvText -delimiter $detectedDelimiter
 # A tab-separated file says nothing about the notation.
 $numberNotation = switch ($detectedDelimiter) { ';' { 'nl' } ',' { 'en' } default { $null } }
 $headerNames = Get-UniqueHeaderNames $header.Fields
-$rows = @($header.Rest | ConvertFrom-Csv -Delimiter $detectedDelimiter -Header $headerNames)
+# DECISION: ConvertFrom-Csv reads a first line starting with '#' as a '#TYPE' line and drops it without
+# a message, so an Excel '#N/B' in the first column of the first data row would vanish. A leading line
+# break prevents that; ConvertFrom-Csv skips the blank line, so the row numbers do not change.
+$rows = @(("`r`n" + $header.Rest) | ConvertFrom-Csv -Delimiter $detectedDelimiter -Header $headerNames)
 
 if ($rows.Count -eq 0) {
     Stop-WithError "No data records could be parsed from '$InputCsvPath'. Aborting."

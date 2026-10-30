@@ -96,17 +96,89 @@ Processing (100252): 10 processed, 4 rejected.**
     import.
   - For a future amount probe: give each value its own ingangsdatum, or check in 100251 before 100252.
 
+## Round 4 (web app): files made by dpia100.html
+A happy-flow file made with the web page imported fine in the sandbox (owner, 2026-10-30). Round 4
+checks the web app more widely. The page is tested byte-identical to the script, so this is an
+acceptance run of the whole chain: CSV → page → Beaufort.
+
+How to run:
+1. Same settings at the top of `make-probes.ps1` as round 3. Rubrieken `$RubTxt` (PS),
+   `$RubDv` (DV) and `$RubNum` (DV, numeric, 2 decimals), all stam.
+2. Run `pwsh tests\beaufort\make-probes.ps1 -Web`. It writes `probes\web-probes.csv` (the input) and lets
+   the page's core make `probes\DPIA100_web-probes.txt` (one file, about 150 records). The script prints
+   the SHA-256 of that file.
+3. Optional, to cover the real interface: open `web-probes.csv` in `dpia100.html` with the same
+   procescode, creatiedatum and user, confirm the warning, and compare the saved file with
+   `fc /b` (or its SHA-256). It must be identical.
+4. Import `DPIA100_web-probes.txt` (100254), check in 100251, and process W05 (100252). `probes\index-web.txt`
+   lists each W-ID with its CSV row.
+
+### Round 4 run 1 (2026-10-30)
+Reports: `Findings 20261030/` (not in git). Real test person; settings as round 3.
+
+- **`DPIA100_web-probes.txt`: 151 of 151 created at import and 151 of 151 processed (100252), none
+  rejected.** All keys (W01, including leading zeros and dv `0`), codes (W02), date formats (W04) and the
+  converted amounts (W05: no PI_2229) were accepted end to end. This confirms the web app's output.
+- **New: Beaufort drops the characters 0x80-0x9F and 0xFF** (`€ ’ “ ” – — … Š ™ ÿ`, ...) without any
+  message. Seen in the processing report of the raw P02/P03 probes (see the Results table): `a€b`
+  became `ab`, `d’Ancona` became `dAncona`; 0xA0-0xFE arrive unchanged. The web probes were all
+  processed, but in run 1 their W rows shared a rubriek, key and date, so each value overwrote the
+  previous one and the stored characters cannot be checked. Issue **#20**.
+- **New: extra decimals are not rounded up.** In the report `12.345` became `12,34` (2-decimal
+  rubriek): cut off, or rounded on a binary value, but not `12,35`. The report also shows how Beaufort
+  read each amount: `3.250` → `3,25`, `3250` → `3.250,00`, `0012.50` → `12,50`, `12` → `12,00`.
+- Report details, not data: the *Uitgebreid foutverslag* shows at most 46 characters of a Waarde (so
+  P03-5 and P03-6 cannot be checked there), shows leading spaces trimmed (P03-7), a tab as a space
+  (P07j), the key zero-padded (`PS 000123`), and only one of two identical records (P07k).
+- A comma amount on a non-existing person gives PI_2229, not PI_0802: the value check comes before the
+  object check.
+- Not a finding: `DPIA100_probes.txt` and `DPIA100_P07a-lf.txt` in this run were old files with the
+  placeholder person `123`, so processing failed with PI_0802 (*bovenliggend object niet aanwezig*).
+
+### Round 4 run 2 (2026-10-30)
+Reports: `Findings 20261030/Round 2 - webprobes*.txt`. Each W row has its own ingangsdatum.
+**151 of 151 created and 151 of 151 processed**, none rejected. Only `TST004` (numeric, W05) keeps
+history in the test environment; `TST002` and `TST003` were set up without history, so the stored
+values of W01-W04 and W06 (including the characters of #20) cannot be checked. Retest: issue **#21**.
+W05 stored values (TST004, person 10000, dv 1; `Findings 20261030/TST004 history.txt`): **all six as
+intended.** The page's comma → dot conversion gives the right amount in Beaufort, a negative amount
+included. The history shows trailing zeros dropped (`12,5`), with thousand separators in the display.
+
+| W05 | Sent (CSV) | Written by the page | Ingangsdatum | Expected | Stored (history) |
+|---|---|---|---|---|---|
+| W05-1 | `12,50` | `12.50` | 20-02-2021 | 12,50 | 12,5 ✔ |
+| W05-2 | `-12,50` | `-12.50` | 21-02-2021 | -12,50 | -12,5 ✔ |
+| W05-3 | `3250,5` | `3250.5` | 22-02-2021 | 3.250,50 | 3.250,50 ✔ |
+| W05-4 | `0,25` | `0.25` | 23-02-2021 | 0,25 | 0,25 ✔ |
+| W05-5 | `12.50` | `12.50` | 24-02-2021 | 12,50 | 12,5 ✔ |
+| W05-6 | `3250` | `3250` | 25-02-2021 | 3.250,00 | 3.250,00 ✔ |
+
+The history also has a record of 25-09-2020 (3.250,00) from an earlier round; not part of this run.
+
+The W rows each have their own ingangsdatum (`$Ingang`, then one day later per row, up to
+about five months), so after processing every value stays in the history and can be checked. The test
+person must be in service on those dates.
+
+| ID | Probe (CSV input → page) | Import (run 1) | Check stored value (run 2) | Processing (run 1) |
+|---|---|---|---|---|
+| W01 | Keys: PS, DV, leading zeros, dv `0` (PS key), spaces around keys | created | Right person and dienstverband? | processed |
+| W02 | Lowercase rubriek, `STAM` / `s`, productiesoort empty / `nor` | created | | processed |
+| W03 | Every Windows-1252 character 0x80-0xFF typed in UTF-8; decomposed accent; curly quotes; `;` and `"` in a value | created | 0x80-0x9F and 0xFF lost? (#20) | processed |
+| W04 | Ingangsdatum in 6 input formats | created | Right dates? | processed |
+| W05 | Amounts `12,50` `-12,50` `3250,5` `0,25` `12.50` `3250` (numeric rubriek) | created | **run 2: all six stored as intended** | processed, no PI_2229 |
+| W06 | Exactly 50 characters; 60 cut to 50 (warning); empty Waarde | created | Complete / cut / empty? | processed |
+
 ## Results
 
 | ID | Probe | Import (round 2) | Check in 100251 | Consequence for script |
 |---|---|---|---|---|
 | P01 | ASCII punctuation, one character per record | all 33 created | Are `" ' ; \ < > &` shown as sent? | None if stored correctly |
-| P02 | Every Windows-1252 character 0x80-0xFF | all 123 created | Which IDs show a different character? 0x80-0x9F (`€ ’ “ ” – …`) are most at risk | Decision 7 allows all of Windows-1252 |
-| P02-0xA0 | Non-breaking space | created | Stored as a space? | |
-| P03-1..4 | Realistic Dutch text | created | Shown correctly? | Decision 1, 7 |
+| P02 | Every Windows-1252 character 0x80-0xFF | all 123 created | **Round 4 report: 0x80-0x9F and 0xFF dropped, 0xA0-0xFE kept** | Decision 7 allows all of Windows-1252: to be decided in #20 |
+| P02-0xA0 | Non-breaking space | created | Round 4 report: kept | |
+| P03-1..4 | Realistic Dutch text | created | Round 4 report: accents kept; `’ “ ” € –` dropped (P03-3, P03-4) | Decision 1, 7; #20 |
 | P03-5 | Accented character in the last Waarde position | created | Is the `é` at the end still there? | |
 | P03-6 | Waarde exactly 50 characters | created | Complete? | Decision 3 |
-| P03-7 | Leading spaces | created | Kept or trimmed? | Script trims Waarde |
+| P03-7 | Leading spaces | created | Round 4 report: trimmed | None: script trims Waarde |
 | P03-8 | Mixed case | created | | |
 | P04-1 | PS key right-aligned (Excel tool) | created | | |
 | P04-2 | PS key left-aligned | **created** | Same person? | None: script keeps the Excel-tool layout (owner: docs leading) |
@@ -123,11 +195,11 @@ Processing (100252): 10 processed, 4 rejected.**
 | P06-2 | Ingangsdatum `ddmmjj` (`011020`) | created | **2020 or 1920?** | |
 | P06-3 | Ingangsdatum left-aligned | created | Date correct? | |
 | P06-4 | Creatiedatum `dd-mm-eejj` | created | Date correct? | |
-| P08-1..12 | Amounts on TST004 | all 12 **created** (round 3) | 100252: commas rejected (PI_2229, one message for 4 records); `3.250` and `12.345` processed silently | Owner: warn, don't block (decision 8). Comma -> dot kept, listed as a warning; thousand-separator shapes get a warning |
+| P08-1..12 | Amounts on TST004 | all 12 **created** (round 3) | 100252: commas rejected (PI_2229, one message for 4 records); `3.250` and `12.345` processed silently; round 4 report: `12.345` → `12,34` (not rounded up) | Owner: warn, don't block (decision 8). Comma -> dot kept, listed as a warning; thousand-separator shapes get a warning |
 | P07f | Line of 186 bytes | **created** | | None: script keeps exactly 187 (docs) |
 | P07g | Line of 188 bytes | **created** | | idem |
 | P07h | Trailing spaces removed (181 bytes) | **created** | | Editors that trim spaces do no harm |
-| P07j | Tab inside Waarde | **created** | How is the tab stored? | None: script keeps rejecting control characters |
+| P07j | Tab inside Waarde | **created** | Round 4 report: shown as a space | None: script keeps rejecting control characters |
 | P07k | Same record twice | **both created** | | None: up to the user (owner) |
 | P07i | Blank line | PI_1537, rest ok | | Harmless, but shows up as an error |
 | P07c | No line break after the last line | **created** | | Last record is read |

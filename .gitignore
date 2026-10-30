@@ -7,3 +7,5 @@ tests/beaufort/probes/
 tests/beaufort/Findings */
 # Visma/Raet documentation: copyrighted, local reference only
 docs/*.pdf
+# Node.js test tooling (npm test)
+node_modules/

@@ -1,8 +1,16 @@
 <#
 .SYNOPSIS
-    Regression tests for dpia100.ps1. Runs every case in tests\cases on Windows PowerShell 5.1 and,
-    when installed, PowerShell 7.
+    Regression tests for dpia100.ps1 and dpia100.html. Runs every case in tests\cases on Windows
+    PowerShell 5.1, PowerShell 7 (when installed) and the web page in headless Edge.
 .DESCRIPTION
+    Engines: 'powershell' and 'pwsh' run dpia100.ps1 with the answers piped in. 'edge' runs all cases in
+    one headless Edge page with the core script of dpia100.html (tests\web\harness.js), which returns
+    the exit code, the output bytes and the same console lines as PowerShell. For 'edge' the console
+    lines about file paths (Input file, Output file, the path after [SUCCESS], Encoding) are not checked,
+    and there is no stale file to rename: the page never touches existing files. With 'edge' the page
+    checks also run (page-*: CSP hashes, forbidden APIs, version, 1252 table, smoke test). The UI is tested
+    with Playwright (npm test, tests/web/ui.spec.mjs).
+
     Each folder in tests\cases is one case:
       input.csv            The CSV to convert (exact bytes, any encoding).
       expected.txt         Success case: the exact expected output bytes.
@@ -26,15 +34,24 @@
 .EXAMPLE
     pwsh tests\run-tests.ps1
     pwsh tests\run-tests.ps1 -Filter err-*
+    pwsh tests\run-tests.ps1 -Engine edge
 #>
-param([string]$Filter = '*')
+param(
+    [string]$Filter = '*',
+    # Default: powershell, pwsh (when installed) and edge.
+    [ValidateSet('powershell', 'pwsh', 'edge')][string[]]$Engine
+)
+
+. (Join-Path $PSScriptRoot 'web\WebTest.ps1')
 
 $script  = Join-Path $PSScriptRoot '..\dpia100.ps1'
 $outDir  = Join-Path $PSScriptRoot 'out'
 $cases   = Get-ChildItem (Join-Path $PSScriptRoot 'cases') -Directory -Filter $Filter | Sort-Object Name
-$engines = @('powershell') + @(Get-Command pwsh -ErrorAction SilentlyContinue | ForEach-Object { 'pwsh' })
+$engines = if ($Engine) { $Engine } else { @('powershell') + @(Get-Command pwsh -ErrorAction SilentlyContinue | ForEach-Object { 'pwsh' }) + 'edge' }
 $ansi    = [System.Text.Encoding]::GetEncoding(1252)
 $defaultAnswers = @('CMT', '07 10 2026', 'TSTUSER', 'Y')
+# Console lines that only exist on the console (paths, banner), not checked for the web page.
+$consoleOnly = '^(=== |Input file|Output file|Encoding\s+:|\\)'
 
 # Record layout (start position, field), used to name the field where a byte mismatch occurs.
 $layout = @(
@@ -61,6 +78,48 @@ New-Item -ItemType Directory -Force $outDir | Out-Null
 $failed = 0
 $total  = 0
 
+function Write-Result([string]$Name, [string]$EngineName, [string[]]$Problems, [string]$Console) {
+    if ($Problems.Count -eq 0) {
+        Write-Host ("PASS  {0,-32} {1}" -f $Name, $EngineName) -ForegroundColor Green
+        return $true
+    }
+    Write-Host ("FAIL  {0,-32} {1}" -f $Name, $EngineName) -ForegroundColor Red
+    foreach ($p in $Problems) { Write-Host "    - $p" -ForegroundColor Red }
+    if ($Console) {
+        Write-Host "    Console output:" -ForegroundColor DarkGray
+        Write-Host (($Console.TrimEnd() -split '\r?\n' | ForEach-Object { "      $_" }) -join "`n") -ForegroundColor DarkGray
+    }
+    return $false
+}
+
+# The web page runs all cases in one Edge launch; the results are checked per case in the loop below.
+$webResults = @{}
+$webPayload = $null
+if ($engines -contains 'edge') {
+    if (-not (Find-Edge)) {
+        Write-Host "Microsoft Edge was not found; run with -Engine powershell,pwsh to skip the web page." -ForegroundColor Red
+        exit 1
+    }
+    $webCases = foreach ($case in $cases) {
+        $answersPath = Join-Path $case.FullName 'answers.txt'
+        $namePath    = Join-Path $case.FullName 'output-name.txt'
+        [PSCustomObject]@{
+            name       = $case.Name
+            input      = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $case.FullName 'input.csv')))
+            fileName   = if (Test-Path (Join-Path $case.FullName 'default-output')) { "$($case.Name).edge.csv" } else { 'input.csv' }
+            answers    = if (Test-Path $answersPath) { @(Get-Content $answersPath) } else { $defaultAnswers }
+            outputName = if (Test-Path $namePath) { (Get-Content $namePath -TotalCount 1).Trim() } else { $null }
+        }
+    }
+    try {
+        $webPayload = Invoke-WebHarness -Cases @($webCases) -OutDir $outDir
+        foreach ($r in $webPayload.cases) { $webResults[$r.name] = $r }
+    } catch {
+        Write-Host "FAIL  web harness: $($_.Exception.Message)" -ForegroundColor Red
+        exit 1
+    }
+}
+
 foreach ($case in $cases) {
     $expectedPath = Join-Path $case.FullName 'expected.txt'
     $mustSucceed  = Test-Path $expectedPath
@@ -78,42 +137,65 @@ foreach ($case in $cases) {
 
     foreach ($engine in $engines) {
         $total++
-        $outFile = Join-Path $outDir $(if ($outName) { $outName } else { "DPIA100_$($case.Name).$engine.txt" })
-        Remove-Item "$outFile*" -Force -ErrorAction SilentlyContinue
-        if (-not $mustSucceed) { Set-Content $outFile 'stale output from an earlier run' }
-
-        $inputCsv = Join-Path $case.FullName 'input.csv'
-        $outArgs  = @('-OutputTxtPath', $outFile)
-        if ($useDefault) {
-            # The default output name is derived from the CSV name, so the copy is named to match $outFile.
-            $copy = Join-Path $outDir "$($case.Name).$engine.csv"
-            Copy-Item -LiteralPath $inputCsv -Destination $copy -Force
-            $inputCsv = $copy
-            $outArgs  = @()
-        }
-        $console  = $answers | & $engine -NoProfile -ExecutionPolicy Bypass -File $script -InputCsvPath $inputCsv @outArgs -NoPause 2>&1 | Out-String
-        $exitCode = $LASTEXITCODE
-
         $problems = [System.Collections.Generic.List[string]]::new()
-        if ($mustSucceed) {
-            if ($exitCode -ne 0) { $problems.Add("exit code $exitCode, expected 0") }
-            if (-not (Test-Path $outFile)) {
-                $problems.Add('no output file written')
+        if ($engine -eq 'edge') {
+            # The page writes nothing until the user saves, so there is no stale file to check (decision 15).
+            $web     = $webResults[$case.Name]
+            $console = "$($web.transcript)"
+            if ($mustSucceed) {
+                if ($web.exitCode -ne 0) { $problems.Add("exit code $($web.exitCode), expected 0") }
+                if (-not $web.output) {
+                    $problems.Add('no output file made')
+                } else {
+                    $diff = Get-ByteDiff ([IO.File]::ReadAllBytes($expectedPath)) ([Convert]::FromBase64String($web.output))
+                    if ($diff) { $problems.Add($diff) }
+                }
             } else {
-                $diff = Get-ByteDiff ([IO.File]::ReadAllBytes($expectedPath)) ([IO.File]::ReadAllBytes($outFile))
-                if ($diff) { $problems.Add($diff) }
+                if ($web.exitCode -ne 1) { $problems.Add("exit code $($web.exitCode), expected 1") }
+                if ($web.output) { $problems.Add('an output file was made although the run failed') }
             }
-        } elseif ($foreignName) {
-            if ($exitCode -ne 1) { $problems.Add("exit code $exitCode, expected 1") }
-            if (-not (Test-Path $outFile) -or (Test-Path "$outFile.old")) { $problems.Add('an existing file with a non-DPIA100 name was touched') }
+            if ($useDefault -and $web.suggestedName -ne "DPIA100_$($case.Name).edge.txt") {
+                $problems.Add("suggested file name '$($web.suggestedName)', expected 'DPIA100_$($case.Name).edge.txt'")
+            }
+            $expectLines = @($mustContain | Where-Object { $_ -notmatch $consoleOnly })
         } else {
-            if ($exitCode -ne 1) { $problems.Add("exit code $exitCode, expected 1") }
-            if (Test-Path $outFile) { $problems.Add('an output file exists after a failed run') }
-            if (-not (Test-Path "$outFile.old")) { $problems.Add('the stale output file was not renamed to .old') }
+            $outFile = Join-Path $outDir $(if ($outName) { $outName } else { "DPIA100_$($case.Name).$engine.txt" })
+            Remove-Item "$outFile*" -Force -ErrorAction SilentlyContinue
+            if (-not $mustSucceed) { Set-Content $outFile 'stale output from an earlier run' }
+
+            $inputCsv = Join-Path $case.FullName 'input.csv'
+            $outArgs  = @('-OutputTxtPath', $outFile)
+            if ($useDefault) {
+                # The default output name is derived from the CSV name, so the copy is named to match $outFile.
+                $copy = Join-Path $outDir "$($case.Name).$engine.csv"
+                Copy-Item -LiteralPath $inputCsv -Destination $copy -Force
+                $inputCsv = $copy
+                $outArgs  = @()
+            }
+            $console  = $answers | & $engine -NoProfile -ExecutionPolicy Bypass -File $script -InputCsvPath $inputCsv @outArgs -NoPause 2>&1 | Out-String
+            $exitCode = $LASTEXITCODE
+
+            if ($mustSucceed) {
+                if ($exitCode -ne 0) { $problems.Add("exit code $exitCode, expected 0") }
+                if (-not (Test-Path $outFile)) {
+                    $problems.Add('no output file written')
+                } else {
+                    $diff = Get-ByteDiff ([IO.File]::ReadAllBytes($expectedPath)) ([IO.File]::ReadAllBytes($outFile))
+                    if ($diff) { $problems.Add($diff) }
+                }
+            } elseif ($foreignName) {
+                if ($exitCode -ne 1) { $problems.Add("exit code $exitCode, expected 1") }
+                if (-not (Test-Path $outFile) -or (Test-Path "$outFile.old")) { $problems.Add('an existing file with a non-DPIA100 name was touched') }
+            } else {
+                if ($exitCode -ne 1) { $problems.Add("exit code $exitCode, expected 1") }
+                if (Test-Path $outFile) { $problems.Add('an output file exists after a failed run') }
+                if (-not (Test-Path "$outFile.old")) { $problems.Add('the stale output file was not renamed to .old') }
+            }
+            $expectLines = $mustContain
         }
         # The lines must appear in this order, so the files also check the order of operations (decision 14).
         $searchFrom = 0
-        foreach ($text in $mustContain) {
+        foreach ($text in $expectLines) {
             $at = $console.IndexOf($text, $searchFrom, [StringComparison]::Ordinal)
             if ($at -lt 0) {
                 $why = if ($console.Contains($text)) { 'appears, but too early' } else { 'does not appear' }
@@ -135,15 +217,46 @@ foreach ($case in $cases) {
             if ($console.Contains('[OK]')) { $problems.Add('[OK] was shown although the run failed') }
         }
 
-        if ($problems.Count -eq 0) {
-            Write-Host ("PASS  {0,-32} {1}" -f $case.Name, $engine) -ForegroundColor Green
-        } else {
-            $failed++
-            Write-Host ("FAIL  {0,-32} {1}" -f $case.Name, $engine) -ForegroundColor Red
-            foreach ($p in $problems) { Write-Host "    - $p" -ForegroundColor Red }
-            Write-Host "    Console output:" -ForegroundColor DarkGray
-            Write-Host (($console.TrimEnd() -split '\r?\n' | ForEach-Object { "      $_" }) -join "`n") -ForegroundColor DarkGray
+        if (-not (Write-Result $case.Name $engine $problems $console)) { $failed++ }
+    }
+}
+
+# Checks of the page itself (only with the edge engine; -Filter page-* runs only these).
+if ($engines -contains 'edge') {
+    $pageChecks = [ordered]@{
+        # CSP equals the canonical policy with the current hashes; no external resources; no network,
+        # navigation or code-from-string APIs in the scripts (docs/privacy-en-beveiliging.md).
+        'page-security' = { Test-PageSecurity }
+        'page-version' = {
+            $ps = [regex]::Match([IO.File]::ReadAllText($script), "\`$ScriptVersion = '([^']+)'").Groups[1].Value
+            if ($webPayload.version -ne $ps) { "dpia100.html has version '$($webPayload.version)', dpia100.ps1 has '$ps'" }
         }
+        # The strict encoder of the page accepts exactly the characters the strict .NET encoder accepts.
+        'page-1252-table' = {
+            $strict = [Text.Encoding]::GetEncoding(1252, [Text.EncoderExceptionFallback]::new(), [Text.DecoderExceptionFallback]::new())
+            $net = foreach ($ch in [Text.Encoding]::GetEncoding(1252).GetString([byte[]](0..255)).ToCharArray()) {
+                try { [void]$strict.GetBytes([string]$ch); [int]$ch } catch { }
+            }
+            $diff = Compare-Object @($net | Sort-Object) @($webPayload.encodable)
+            if ($diff) { "encodable characters differ: " + (($diff | ForEach-Object { 'U+{0:X4} ({1})' -f $_.InputObject, $(if ($_.SideIndicator -eq '<=') { 'only .NET' } else { 'only page' }) }) -join ', ') }
+        }
+        # The real page starts under its own CSP, with CRLF and with LF line endings.
+        'page-smoke-crlf' = {
+            $copy = Join-Path $outDir 'dpia100-crlf.html'
+            [IO.File]::WriteAllText($copy, ([IO.File]::ReadAllText($script:PagePath) -replace "`r?`n", "`r`n"), (New-Object Text.UTF8Encoding($false)))
+            Test-PageStarts $copy
+        }
+        'page-smoke-lf' = {
+            $copy = Join-Path $outDir 'dpia100-lf.html'
+            [IO.File]::WriteAllText($copy, ([IO.File]::ReadAllText($script:PagePath) -replace "`r`n", "`n"), (New-Object Text.UTF8Encoding($false)))
+            Test-PageStarts $copy
+        }
+    }
+    foreach ($name in $pageChecks.Keys) {
+        if ($name -notlike $Filter) { continue }
+        $total++
+        $problems = @(try { & $pageChecks[$name] } catch { "check failed: $($_.Exception.Message)" }) | Where-Object { $_ }
+        if (-not (Write-Result $name 'edge' $problems $null)) { $failed++ }
     }
 }
 

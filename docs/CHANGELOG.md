@@ -1,8 +1,57 @@
 # Changelog
 
-All notable changes to `dpia100.ps1` and `dpia100.bat`. Newest first. Format based on
+All notable changes to `dpia100.ps1`, `dpia100.bat` and `dpia100.html`. Newest first. Format based on
 [Keep a Changelog](https://keepachangelog.com/). Releases are numbered from v1.0.0 (tag `vX.Y.Z`,
 zip on the GitHub Releases page); older entries are dated.
+
+## v1.2.0 (2026-10-30)
+
+### Added
+- **Web version `dpia100.html`** (decision 15): one self-contained page that does what the script does,
+  without a console and without installing anything. It works offline from the release zip or a network
+  share, and is published on GitHub Pages (<https://japie06.github.io/dpia100-converter/>) for every
+  release. The interface is Dutch:
+  - Step 1: drop or choose the CSV.
+  - Step 2: the check, with the column mapping, every error with a fix hint, warnings, and a preview of
+    the records.
+  - Step 3: procescode, creatiedatum and creatiegebruiker. With warnings, a checkbox replaces typing `Y`.
+  - In Edge and Chrome, *Opnieuw controleren* re-reads the CSV after it was fixed in Excel.
+  - The file is saved through a save dialog where available, or as a download otherwise. After a
+    download the page warns that Edge may name a second copy `… (1).txt`.
+  - *Onthoud* stores the procescode and user name in the browser; nothing from the CSV is ever stored.
+  - Same rules and byte-identical output as the script. The page cannot rename an old output file
+    (decision 10); it writes nothing until the user saves, and refuses a file name that does not start
+    with `DPIA100` (decision 12).
+- Privacy guardrails for the page:
+  - A Content Security Policy that allows no network access and only the page's own hashed inline blocks.
+  - Trusted Types.
+  - No external resources.
+  - A test (`page-security`) that rejects network, navigation and code-from-string APIs in its scripts.
+  - Explained for IT and privacy officers in `docs/privacy-en-beveiliging.md`.
+- Tests: `tests/run-tests.ps1` runs every case also on the page, in headless Edge (`-Engine edge`), plus
+  checks of the CSP, the version, the Windows-1252 table and a smoke test of the real page (CRLF and LF).
+  `tests/web/differential.ps1` compares the script and the page on random CSV files.
+  `tests/web/update-csp.ps1` rewrites the CSP hashes after a change.
+- Developer test tooling for the page, with Node.js (#19): `npm test` runs unit tests of the core
+  (`node:test`) and UI tests with Playwright in the installed Edge, with the file input and Blob download
+  as the primary route and the open and save dialogs stubbed. CI runs it in a separate `web` job.
+- The *Privacy en veiligheid* section of the page is collapsed by default; the link in the header opens it.
+- Beaufort probe round 4 for the web app: `tests/beaufort/make-probes.ps1 -Web` writes one probe CSV and
+  lets the page make one import file from it (`DPIA100_web-probes.txt`). Run 1: all 151 records imported
+  and processed. Each row now has its own ingangsdatum, so stored values can be checked.
+- Documented from probe round 4: Beaufort drops the characters 0x80-0x9F and 0xFF (`€`, curly quotes,
+  dashes, `…`, `ÿ`) without a message. The README now advises plain characters; what the converter
+  should do is open in #20. Extra decimals are not rounded up (`12.345` became 12,34).
+- CI runs the web tests and the differential test, checks the page version on a release tag, adds
+  `dpia100.html` to the zip and deploys it to GitHub Pages.
+
+### Fixed
+- A first data row starting with `#` (for example an Excel `#N/B` in the first column) was dropped
+  without a message: `ConvertFrom-Csv` read it as a `#TYPE` line. It is now validated like any row. Test
+  `err-hash-first-row`.
+- When the header had as many of two delimiters (for example 6 `;` and 6 `,`), PowerShell 7 chose one at
+  random on each run. Ties now go in the fixed order `;`, tab, `,` (what Windows PowerShell 5.1 already
+  did). Test `ok-delimiter-tie`.
 
 ## v1.1.0 (2026-10-29)
 
