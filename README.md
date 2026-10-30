@@ -54,7 +54,8 @@ Het versienummer staat onderaan de webpagina en bovenaan in het venster van het 
      **Opnieuw controleren**. Je hoeft het bestand niet opnieuw te kiezen.
    - Onder *Welke kolom is gebruikt?* zie je welke kolom uit je CSV bij welk veld hoort. Let vooral op
      *Mutatiewaarde*: die kolom kan niet worden gecontroleerd.
-   - **Waarschuwingen** (zie [Bedragen](#bedragen)) blokkeren niet, maar je moet ze bij stap 3 bevestigen.
+   - **Waarschuwingen** (zie [Bedragen](#bedragen) en [Lege waarden, datums en tijden](#lege-waarden-datums-en-tijden))
+     blokkeren niet, maar je moet ze bij stap 3 bevestigen.
    - Met *Bekijk de mutaties* zie je precies wat er in het bestand komt.
 5. **Stap 3, Bestand maken** (alleen als er geen fouten zijn): vul de **procescode** (meestal `CMT`), de
    **creatiedatum** (standaard vandaag) en je **gebruikersnaam in Beaufort** in. Vink *Onthoud* aan, dan
@@ -93,7 +94,8 @@ de pagina werkt ook zonder internetverbinding. Gebruik op de pagina geen vertaal
    - **Creatiedatum**: druk op Enter voor vandaag, of typ een datum (`dd mm jjjj`).
    - **Creatiegebruiker**: je Beaufort-gebruikersnaam (verplicht, max. 16 tekens).
 
-   Waren er waarschuwingen (zie [Bedragen](#bedragen)), dan vraagt het script daarna nog of het
+   Waren er waarschuwingen (zie [Bedragen](#bedragen) en
+   [Lege waarden, datums en tijden](#lege-waarden-datums-en-tijden)), dan vraagt het script daarna nog of het
    bestand toch gemaakt moet worden.
 6. Het bestand komt in **dezelfde map als je CSV-bestand**, met de naam van de CSV erin:
    `mutaties oktober.csv` wordt `DPIA100_mutaties oktober.txt`. Het volledige pad staat in het venster
@@ -149,13 +151,13 @@ dienstverbandmutaties. De volgorde van de kolommen maakt niet uit. Extra kolomme
 
 | Kolom (voorbeeldkop) | Verplicht | Toelichting |
 |---|---|---|
-| Rubriek | ja | Max. 6 letters/cijfers, bijvoorbeeld `E00101`. |
+| Rubriek | ja | Precies 6 letters/cijfers, bijvoorbeeld `E00101`. |
 | Pers. Nr | ja | Alleen cijfers, max. 6. Voorloopnullen worden weggehaald. |
 | Dienstv | nee | Alleen cijfers, max. 3. **Leeg = persoonsmutatie**, gevuld = dienstverbandmutatie. |
 | S of V | ja | `S` (stam) of `V` (variabel). |
-| Mutatiewaarde | nee | Max. 50 tekens; langer wordt afgekapt met een waarschuwing. Bedragen met een komma of punt als decimaalteken (`-12,50`), zonder scheidingsteken voor duizendtallen. Verder vrij in te vullen; Beaufort controleert de waarde. |
+| Mutatiewaarde | nee | Max. 50 tekens; langer wordt afgekapt met een waarschuwing. Bedragen met een komma of punt als decimaalteken (`-12,50`), zonder scheidingsteken voor duizendtallen. Datums als `01-11-2026`, tijden als `08:30`. **Leeg = de huidige waarde verwijderen** (met een waarschuwing). Verder vrij in te vullen; Beaufort controleert de waarde. |
 | Ingangsdatum | ja | Bijvoorbeeld `1 11 2026`, `01-11-2026`, `01/11/2026`, `2026-11-01` of `01112026`. |
-| Productiesoort | nee | Alleen `NOR`. Leeg wordt `NOR`. |
+| Productiesoort | nee | `NOR` of `COR`. Leeg wordt `NOR`. |
 
 ### Bedragen
 
@@ -178,16 +180,28 @@ wordt altijd gemeld.
 > met Engelse instellingen) gebruikt de punt: daar is `3.250` gewoon 3,25 en geeft `1,234` een
 > waarschuwing.
 
+### Lege waarden, datums en tijden
+
+Een **lege mutatiewaarde verwijdert** de huidige waarde van de rubriek in Beaufort. Dat kan de bedoeling
+zijn, maar ook een vergeten cel. Daarom krijg je een waarschuwing met de regels waar de waarde leeg is.
+
+Schrijf een **datum** in de mutatiewaarde als `dd-mm-jjjj` (`01-11-2026`) en een **tijd** als `uu:mm`
+(`08:30`), zoals de officiële Excel-tool dat deed. Een andere vorm, zoals `1-11-2026`, `2026-11-01` of
+`8:30`, wordt geschreven zoals je hem typt, met een waarschuwing: in een datum- of tijdrubriek kan
+Beaufort die anders lezen. Tip: geef de kolom in Excel de aangepaste opmaak `dd-mm-jjjj`.
+
+Ook deze waarschuwingen moet je bevestigen voordat het bestand wordt gemaakt.
+
 ### Bijzondere tekens
 
 Letters met accenten (`é ë ö ç à ü` enz.) zijn geen probleem.
 
-**Let op:** uit een test blijkt dat Beaufort `€`, krullende aanhalingstekens (`’ “ ”`),
-gedachtestreepjes (`– —`), het weglatingsteken `…` en een paar zeldzame tekens (zoals `Š ž ™ ÿ`)
-**zonder melding weglaat**: `d’Ancona` wordt `dAncona`. Gebruik daarom gewone tekens: `'`, `"`, `-`,
-`...` en `EUR`. Word en Excel maken van `'` en `-` vaak automatisch een krullend aanhalingsteken of een
-gedachtestreepje; let daar op. Dit wordt nog nagekeken
-([#20](https://github.com/japie06/dpia100-converter/issues/20)).
+**Nog niet zeker:** `€`, krullende aanhalingstekens (`’ “ ”`), gedachtestreepjes (`– —`), het
+weglatingsteken `…` en een paar zeldzame tekens (zoals `Š ž ™ ÿ`) worden geaccepteerd en in het bestand
+gezet. In één test ontbraken ze in het verwerkingsverslag van Beaufort (`d’Ancona` stond er als
+`dAncona`), terwijl Beaufort ze accepteert als je ze daar zelf intypt. Dit wordt opnieuw getest
+([#20](https://github.com/japie06/dpia100-converter/issues/20)). Wil je zeker zijn, controleer de
+waarde dan na het verwerken in Beaufort.
 
 Tekens die Beaufort helemaal niet kent, worden door het script geweigerd met een foutmelding. Bijvoorbeeld een pijl `→` (Word maakt die soms automatisch van `->`),
 een vinkje `✓`, Poolse of Turkse letters (`ł`, `ş`) en emoji.
@@ -214,7 +228,7 @@ een vinkje `✓`, Poolse of Turkse letters (`ł`, `ş`) en emoji.
 
 ## Wat het (nog) niet doet
 
-Alleen persoons- en dienstverbandmutaties (PS en DV) met productiesoort NOR. Bankgiro, inzet,
+Alleen persoons- en dienstverbandmutaties (PS en DV) met productiesoort NOR of COR. Bankgiro, inzet,
 loonverdeling, speciale doorbelasting, ziektegevallen, JWP en de verrekenperiode worden niet
 ondersteund. Rubrieken worden niet gecontroleerd aan de hand van een lijst; Beaufort keurt een onjuiste
 rubriek af bij het importeren. Zie `field-layout.md` voor de technische details.

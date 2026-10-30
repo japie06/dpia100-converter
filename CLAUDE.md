@@ -41,6 +41,7 @@ JavaScript port of the script, not a wrapper: a browser cannot run PowerShell. T
 | `tests/beaufort/` | Probe files for what Beaufort accepts (`make-probes.ps1`), results in `findings.md`. |
 | `docs/DPIA100 record indeling.pdf` | Beaufort help (2024): record layout. Primary spec. Local only, not in the repo (copyrighted). |
 | `docs/Microsoft Word - Handboek DPIA100 via Excel.doc.pdf` | Raet handbook (2005): Excel tool and Beaufort setup. Local only, not in the repo (copyrighted). |
+| `docs/DPIA100-Excel-tool/` | Source of the official Excel tool (`DPIA100.xlsm` V 06.12.6, VBA exports). Local only, git-ignored: copyrighted, contains the sheet password and the municipality's rubriek list. Summary in `field-layout.md` (*Excel tool*). |
 
 ## Hard constraints (do not break)
 
@@ -51,7 +52,8 @@ JavaScript port of the script, not a wrapper: a browser cannot run PowerShell. T
   Excel tool output, not taken from the docs.
 - **Fail fast, report everything.** Any validation error aborts with no output file. All errors are
   collected into one table first. The only non-fatal cases are Waarde warnings: truncation over 50
-  characters and amounts Beaufort may misread (decisions 3 and 8). With warnings, the file is only
+  characters, amounts Beaufort may misread, empty values (a delete in Beaufort) and dates or times not
+  in the Excel-tool shape (decisions 3, 8 and 16). With warnings, the file is only
   written after the user types `Y`; anything else (also end of input) cancels like an error.
 - **Nothing changes silently.** Do not "clean" input into a different valid-looking value (for
   example stripping non-digits, or writing `?` for characters that can't be encoded). Reject instead.
@@ -111,7 +113,8 @@ Top to bottom:
 8. Header mapping. The mapping is printed; the script aborts on a missing field or on one column
    mapped to two fields.
 9. Per-row validation into `$validationErrors` and `$preparedRecords`. Completely empty rows are
-   skipped. Abort on errors, otherwise print `[OK]` and list the warnings.
+   skipped. Empty, date-like and time-like values are collected for one grouped warning each
+   (`Join-Examples`). Abort on errors, otherwise print `[OK]` and list the warnings.
 10. Prompts: procescode, creatiedatum, creatiegebruiker. They come after the validation, so a broken
     CSV never asks anything (decision 14). Then the `Y` confirmation, only with warnings.
 11. Build the 187-character lines with a length check, then write with the strict encoder.
@@ -149,7 +152,8 @@ Top to bottom:
 
 ## Scope decisions by the owner
 
-- **In scope:** PS and DV only, productiesoort NOR only, verrekenperiode always blank.
+- **In scope:** PS and DV only, productiesoort NOR or COR, verrekenperiode always blank. Rubriek exactly
+  6 characters.
 - **No rubriek lookup list.** Rubrieken are created freely in Beaufort, so a list would go out of
   date. PS or DV is derived from whether Dienstverband is filled. Beaufort rejects a DV rubriek with
   a PS key at import (PI_1650), but in probe round 1 a PS rubriek with a DV key was **accepted**; see
@@ -157,8 +161,13 @@ Top to bottom:
 - **Header matching stays flexible.** Users rename headers, and the data validation acts as a safety
   net. The printed mapping covers Mutatiewaarde, which can't be validated.
 - **Row numbers are not mapped to physical CSV lines.** Users check the CSV or the Excel source.
-- **Waarde is free.** An empty Waarde is allowed, and no format is forced (dates, times, text are
-  passed through as typed). Beaufort validates the value against the rubriek.
+- **Waarde is free.** No format is forced (dates, times, text are passed through as typed). Beaufort
+  validates the value against the rubriek. An empty Waarde is allowed but means a deliberate delete of the
+  current value, so it gets a warning; dates not as `dd-mm-yyyy` and times not as `hh:mm` (what the Excel
+  tool wrote) get a warning too (decision 16). Each kind is one warning listing the rows.
+- **The Excel tool source is a reference, not the truth.** It is from 2005 and has bugs (encoding by save
+  path, quoting, Dutch-locale formulas); see `field-layout.md`. Use it to understand layout choices and
+  unbuilt features (BG, LV, SD, IZ widths; verrekenperiode), then probe in Beaufort.
 - **Amounts: warn, don't block (decision 8).** Probes P08 showed that Beaufort reads the dot as the
   decimal point (`3.250` is silently 3,25) and rejects a comma in a numeric rubriek at processing
   (PI_2229), not at import. The script can't tell a numeric rubriek from a text rubriek, so it converts
@@ -252,7 +261,9 @@ Top to bottom:
   `web-probes.csv`, and lets the page's core make `DPIA100_web-probes.txt` through the `edge` harness.
   The owner can recreate that file in the real page and compare. Every W row gets its own ingangsdatum, so
   processing does not overwrite values and each stored value can be checked. Round 4 found that Beaufort
-  drops the bytes 0x80-0x9F and 0xFF (`€`, curly quotes, dashes; #20).
+  reported the bytes 0x80-0x9F and 0xFF (`€`, curly quotes, dashes) as missing in the processing report.
+  That is **unverified**: the Beaufort GUI accepts these characters when typed. Retest in #20; the
+  script keeps accepting them (owner).
 - **Headless runs.** Pipe the prompt answers in (add `Y` to confirm warnings) and pass `-NoPause`
   (works on 5.1 and 7): `printf 'CMT\n07 10 2026\nTSTUSER\nY\n' | pwsh -NoProfile -File dpia100.ps1 -InputCsvPath t.csv -OutputTxtPath out.txt -NoPause`
 - **pwsh on Linux.** It writes LF line endings, so convert to CRLF before comparing.

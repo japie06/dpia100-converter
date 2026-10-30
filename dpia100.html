@@ -11,7 +11,7 @@
 <html lang="nl" translate="no">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-uZWV6lCR76LkQHdpwgJIs3obwAny2udVH3tE1tXEprc=' 'sha256-ZkSbkC87xIYIQLkAhF/AwWidupYSOdm73GsEAcloao8='; style-src 'sha256-V22O4laejLQ2OPxcAoI9UKPHbjw2czl6+bDs9TiZzhc='; connect-src 'none'; form-action 'none'; base-uri 'none'; require-trusted-types-for 'script'; trusted-types 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-hq+orNn6LDypJy3SyL/pFlHOyzXFveNxjjCH35UlvXo=' 'sha256-S4fJJo07S/ORfaEi90HkzSfvMevKQ8h0a1RMHDwEwBY='; style-src 'sha256-V22O4laejLQ2OPxcAoI9UKPHbjw2czl6+bDs9TiZzhc='; connect-src 'none'; form-action 'none'; base-uri 'none'; require-trusted-types-for 'script'; trusted-types 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
@@ -614,6 +614,11 @@ const DPIA100 = (() => {
   const reThousandWhole = new RegExp(`^[1-9]${D}{0,2}$`, 'u');
   const reDotThousand = new RegExp(`^-?${S}*[1-9]${D}{0,2}\\.${D}{3}$`, 'u');
   const reTwoSeparators = /\..*,|,.*\.|\..*\.|,.*,/;
+  // Dates and times in another shape than the Excel tool wrote (dd-mm-yyyy, hh:mm; decision 16).
+  const reDateLike = /^[0-9]{1,2}([-/. ])[0-9]{1,2}\1[0-9]{4}$|^[0-9]{1,2}([-/])[0-9]{1,2}\2[0-9]{2}$|^[0-9]{4}([-/.])[0-9]{1,2}\3[0-9]{1,2}$/;
+  const reDateExcel = /^[0-9]{2}-[0-9]{2}-[0-9]{4}$/;
+  const reTimeLike = /^[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?$/;
+  const reTimeExcel = /^[0-9]{2}:[0-9]{2}$/;
 
   // ---------------------------------------------------------------------------------------------
   // analyze: everything up to and including the row validation (decision 14: before the prompts)
@@ -622,7 +627,8 @@ const DPIA100 = (() => {
   // Returns the outcome of reading, mapping and validating the CSV. fatal is null when a file can be
   // made; otherwise { code, ... } with code read, empty, headerOnly, noRecords, missingHeaders,
   // doubleMapped, validation (see errors) or allEmpty. Errors are { row, field, code, value, ... } with
-  // the raw cell value; warnings are { code, row, persNr, ... }. Renderers turn codes into text.
+  // the raw cell value; warnings are { code, row, persNr, ... }, or for a group (commaChanged, emptyValue,
+  // dateShape, timeShape) { code, conversions | rows | values }. Renderers turn codes into text.
   function analyze(bytes, fileName) {
     const r = {
       fileName, encodingName: null, delimiter: null, notation: null, headerNames: [], mapping: [], fatal: null,
@@ -663,10 +669,14 @@ const DPIA100 = (() => {
     const doubles = groups.filter(g => g.fields.length > 1);
     if (doubles.length > 0) { r.fatal = { code: 'doubleMapped', groups: doubles }; return r; }
 
-    validateRows(r, rows);
+    const grouped = validateRows(r, rows);
 
     if (r.errors.length > 0) { r.fatal = { code: 'validation', count: r.errors.length }; return r; }
     if (r.records.length === 0) { r.fatal = { code: 'allEmpty', count: r.skippedEmptyRows }; return r; }
+    // Empty values, dates and times: one warning per kind, after the row warnings (decision 16).
+    if (grouped.empty.length > 0) r.warnings.push({ code: 'emptyValue', rows: grouped.empty });
+    if (grouped.dates.length > 0) r.warnings.push({ code: 'dateShape', values: grouped.dates });
+    if (grouped.times.length > 0) r.warnings.push({ code: 'timeShape', values: grouped.times });
     // Comma conversions are listed together; in a ';' file only reported, otherwise the first warning.
     if (r.commaConversions.length > 0) {
       if (r.notation === 'nl') r.commaReported = true;
@@ -676,7 +686,9 @@ const DPIA100 = (() => {
   }
 
   // PS: the per-row validation loop. Row 1 is the header; every parsed record counts, also empty ones.
+  // Returns the rows for the grouped warnings (PS: $emptyWaardes, $dateWaardes, $timeWaardes).
   function validateRows(r, rows) {
+    const grouped = { empty: [], dates: [], times: [] };
     const col = {};
     for (const m of r.mapping) col[m.field] = r.headerNames.indexOf(m.column);
     const err = (row, field, code, value, extra) => r.errors.push(Object.assign({ row, field, code, value }, extra));
@@ -696,11 +708,11 @@ const DPIA100 = (() => {
       const rawIngang = raw('Ingangsdatum');
       const rawProductie = raw('Productiesoort');
 
-      // 1. Rubriek: max 6 uppercase letters and digits.
+      // 1. Rubriek: exactly 6 uppercase letters and digits (owner); characters first, for '#N/B'.
       const cleanRubriek = toUpper(trim(rawRubriek));
       if (isBlank(cleanRubriek)) err(rowNumber, 'Rubriek', 'empty', rawRubriek);
-      else if (cleanRubriek.length > 6) err(rowNumber, 'Rubriek', 'tooLong', rawRubriek);
       else if (!/^[A-Z0-9]+$/i.test(cleanRubriek)) err(rowNumber, 'Rubriek', 'chars', rawRubriek);
+      else if (cleanRubriek.length !== 6) err(rowNumber, 'Rubriek', 'length', rawRubriek);
 
       // 2. Pers. Nr: digits only (decision 5), no leading zeros (decision 4), max 6.
       let cleanPersNr = '';
@@ -733,10 +745,10 @@ const DPIA100 = (() => {
       const ingang = parseDate(rawIngang);
       if (ingang === null) err(rowNumber, 'Ingangsdatum', 'invalid', rawIngang);
 
-      // 6. Productiesoort: NOR only, empty means NOR (decision 11).
+      // 6. Productiesoort: NOR or COR, empty means NOR (decision 11).
       const cleanProductie = isBlank(rawProductie) ? 'NOR' : toUpper(trim(rawProductie));
       if (cleanProductie === 'JWP') err(rowNumber, 'Productiesoort', 'jwp', rawProductie);
-      else if (cleanProductie !== 'NOR') err(rowNumber, 'Productiesoort', 'invalid', rawProductie);
+      else if (cleanProductie !== 'NOR' && cleanProductie !== 'COR') err(rowNumber, 'Productiesoort', 'invalid', rawProductie);
 
       // 7. Waarde: no control characters, NFC, Windows-1252 only (decision 7); amounts (decision 8);
       //    truncated over 50 characters with a warning (decision 3).
@@ -777,6 +789,10 @@ const DPIA100 = (() => {
       } else if (isNumberLike && reTwoSeparators.test(cleanWaarde)) {
         warn('separator', { value: cleanWaarde });
       }
+      // Empty = a deliberate delete in Beaufort; dates and times not as the Excel tool wrote them (decision 16).
+      if (cleanWaarde.length === 0) grouped.empty.push({ row: rowNumber, persNr: cleanPersNr });
+      else if (reDateLike.test(cleanWaarde) && !reDateExcel.test(cleanWaarde)) grouped.dates.push({ row: rowNumber, value: cleanWaarde });
+      else if (reTimeLike.test(cleanWaarde) && !reTimeExcel.test(cleanWaarde)) grouped.times.push({ row: rowNumber, value: cleanWaarde });
       if (cleanWaarde.length > 50) {
         const original = cleanWaarde;
         cleanWaarde = cleanWaarde.substring(0, 50);
@@ -788,6 +804,7 @@ const DPIA100 = (() => {
         waarde: cleanWaarde, waardeIn, ingang: ingang || '01010001', productie: cleanProductie
       });
     }
+    return grouped;
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -879,7 +896,7 @@ const DPIA100 = (() => {
   const DIGITS_HINT = 'Staat er bijvoorbeeld 1234,0 of 1.234? Geef de kolom in Excel de opmaak Getal zonder decimalen, of Tekst.';
   const ISSUES = {
     'Rubriek/empty': ['Leeg.', 'Vul de rubriekcode in, bijvoorbeeld E00101.'],
-    'Rubriek/tooLong': ['Langer dan 6 tekens.', 'Een rubriekcode heeft maximaal 6 letters en cijfers.'],
+    'Rubriek/length': ['Moet precies 6 tekens zijn.', 'Een rubriekcode heeft 6 letters en cijfers, bijvoorbeeld E00101.'],
     'Rubriek/chars': ['Alleen letters en cijfers zijn toegestaan.', 'Geen spaties of andere tekens. #N/B uit Excel betekent dat een formule niets vond.'],
     'Pers. Nr/empty': ['Leeg.', 'Vul het persoonsnummer in.'],
     'Pers. Nr/digits': ['Alleen cijfers toegestaan (geen decimalen, spaties of letters).', DIGITS_HINT],
@@ -889,8 +906,8 @@ const DPIA100 = (() => {
     'Dienstverband/tooLong': ['Langer dan 3 cijfers.', 'Laat het veld leeg voor een persoonsmutatie.'],
     'S of V/invalid': ['Moet S (stam) of V (variabel) zijn.', ''],
     'Ingangsdatum/invalid': ['Geen geldige datum.', 'Bijvoorbeeld 1-11-2026, 01112026 of 2026-11-01. Bestaat de datum (geen 31 februari)?'],
-    'Productiesoort/jwp': ['JWP wordt niet ondersteund: daarvoor is een verrekenperiode nodig.', 'Gebruik NOR of laat het veld leeg.'],
-    'Productiesoort/invalid': ['Alleen NOR is toegestaan.', 'Laat het veld leeg voor NOR.'],
+    'Productiesoort/jwp': ['JWP wordt niet ondersteund: daarvoor is een verrekenperiode nodig.', 'Gebruik NOR of COR, of laat het veld leeg.'],
+    'Productiesoort/invalid': ['Alleen NOR en COR zijn toegestaan.', 'Laat het veld leeg voor NOR.'],
     'Mutatiewaarde/control': ['Bevat een regeleinde, tab of ander stuurteken.', 'Haal de Enter (Alt+Enter) of tab uit de cel.'],
     'Mutatiewaarde/unicode': ['Bevat ongeldige tekens.', ''],
     'Mutatiewaarde/encoding': [e => `Bevat tekens die Beaufort niet kent: ${e.chars}.`, 'Vervang ze, bijvoorbeeld ĳ door ij en → door ->.']
@@ -918,14 +935,21 @@ const DPIA100 = (() => {
     const shown = list.slice(0, 5).map(c => `regel ${c.row}: ${c.from} → ${c.to}`).join(', ');
     return list.length > 5 ? `${shown} en nog ${list.length - 5}` : shown;
   };
-  const commaText = list => `Komma veranderd in punt bij ${plural(list.length, 'waarde', 'waarden')}, want een numerieke rubriek in Beaufort accepteert alleen een punt (een tekstrubriek krijgt de punt ook): ${conversionList(list)}.`;
+  const exampleList = (list, item) => {
+    const shown = list.slice(0, 5).map(item).join(', ');
+    return list.length > 5 ? `${shown} en nog ${list.length - 5}` : shown;
+  };
+  const commaText = list =>`Komma veranderd in punt bij ${plural(list.length, 'waarde', 'waarden')}, want een numerieke rubriek in Beaufort accepteert alleen een punt (een tekstrubriek krijgt de punt ook): ${conversionList(list)}.`;
   const WARNINGS = {
     commaChanged: w => commaText(w.conversions),
     thousandEn: w => `${rowLabel(w)}: '${w.value}' heeft een scheidingsteken voor duizendtallen (Engelse notatie). Zo geschreven; een numerieke rubriek keurt dit af bij verwerken (PI_2229). Bedoel je ${w.whole}${w.fraction}, schrijf dan ${w.whole}${w.fraction}.`,
     commaAsDecimal: w => `${rowLabel(w)}: '${w.value}' is geschreven als '${w.converted}' (de komma gelezen als decimaalteken). Is de komma een scheidingsteken voor duizendtallen, schrijf dan ${w.whole}${w.fraction}.`,
     dotDecimal: w => `${rowLabel(w)}: Beaufort leest '${w.value}' als ${w.asComma} in een numerieke rubriek. Is de punt een scheidingsteken voor duizendtallen, schrijf het dan zonder punt.`,
     separator: w => `${rowLabel(w)}: '${w.value}' lijkt een bedrag met een scheidingsteken voor duizendtallen. Een numerieke rubriek keurt dit af bij verwerken (PI_2229); schrijf het zonder, bijvoorbeeld 1234.56.`,
-    truncated: w => `${rowLabel(w)}: de waarde is ingekort van ${w.length} naar 50 tekens. Was: '${w.original}'. Wordt: '${w.truncated}'.`
+    truncated: w => `${rowLabel(w)}: de waarde is ingekort van ${w.length} naar 50 tekens. Was: '${w.original}'. Wordt: '${w.truncated}'.`,
+    emptyValue: w => `Lege waarde in ${plural(w.rows.length, 'regel', 'regels')}: ${exampleList(w.rows, x => rowLabel(x).toLowerCase())}. Een lege waarde verwijdert de huidige waarde van de rubriek in Beaufort. Vul de waarde in als dat niet de bedoeling is.`,
+    dateShape: w => `${plural(w.values.length, 'waarde lijkt', 'waarden lijken')} een datum, maar ${w.values.length === 1 ? 'staat' : 'staan'} niet als dd-mm-jjjj: ${exampleList(w.values, x => `regel ${x.row}: ${x.value}`)}. De officiële Excel-tool schreef datums als dd-mm-jjjj; in een datumrubriek kan Beaufort een andere vorm anders lezen. Schrijf bijvoorbeeld 01-11-2026.`,
+    timeShape: w => `${plural(w.values.length, 'waarde lijkt', 'waarden lijken')} een tijd, maar ${w.values.length === 1 ? 'staat' : 'staan'} niet als uu:mm: ${exampleList(w.values, x => `regel ${x.row}: ${x.value}`)}. De officiële Excel-tool schreef tijden als uu:mm; in een tijdrubriek kan Beaufort een andere vorm anders lezen. Schrijf bijvoorbeeld 08:30.`
   };
 
   const PROMPT_ERRORS = {

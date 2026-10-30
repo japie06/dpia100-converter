@@ -1,5 +1,6 @@
-6 warning(s)
+7 warning(s)
 Waarde '3.250' is read by Beaufort as 3,250
 Waarde '1.234,56' looks like an amount with a thousand separator
 Waarde '12.345' is read
 Waarde '1.234.567' looks like
+1 Waarde value(s) look like a date but are not written as dd-mm-yyyy: row 8 '1.11.2026'.

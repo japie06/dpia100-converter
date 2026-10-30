@@ -1,4 +1,5 @@
-3 validation error(s)
-Exceeds max length of 6 chars
+4 validation error(s)
+Must be exactly 6 chars
 alphanumeric only
 Field is empty
+Must be exactly 6 chars

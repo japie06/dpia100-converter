@@ -1,4 +1,4 @@
 CMTE00101     1   1                                        S   07102026         TSTUSERx                                                    01112026                              NOR      
-CMTP1         2   1                                        V   07102026         TSTUSERx                                                    01112026                              NOR      
+CMTP00001     2   1                                        V   07102026         TSTUSERx                                                    01112026                              NOR      
 CMTE00101     3   1                                        S   07102026         TSTUSERx                                                    01112026                              NOR      
-CMTE00101     4   1                                        V   07102026         TSTUSERx                                                    01112026                              NOR      
+CMTE00101     4   1                                        V   07102026         TSTUSERx                                                    01112026                              COR      

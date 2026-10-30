@@ -39,18 +39,19 @@ function Chance([double]$P) { return $rng.NextDouble() -lt $P }
 # --- value pools (valid ones are used for clean files; the full pools for broken files) -------------
 $long = 'Senior beleidsmedewerker ruimtelijke ordening en milieu'
 $pools = @{
-    Rubriek    = @{ ok = @('E00101', 'E00205', 'e00310', ' P1 ', 'ABC123', 'P00332'); bad = @('E001011', 'E00-01', '', '#N/B', 'E0010ß', 'E 001') }
+    Rubriek    = @{ ok = @('E00101', 'E00205', 'e00310', ' p00001 ', 'ABC123', 'P00332'); bad = @('E001011', 'E00-01', '', '#N/B', 'E0010ß', 'E 001', ' P1 ', 'E0010') }
     PersNr     = @{ ok = @('123456', '10', '000123', ' 77 ', '2345', "12$([char]0xA0)", '999999'); bad = @('1234.0', '1 234', '', '0', '1234567', '12abc', "$([char]0xFF11)2") }
     Dienstv    = @{ ok = @('', '1', '001', '0', '999', ' 2 '); bad = @('1234', '1a', '1.0', '-1') }
     SofV       = @{ ok = @('S', 'V', 's', ' v ', 'STAM', 'Variabel'); bad = @('X', '', 'Stamm', 'SV') }
     Waarde     = @{ ok = @('Tekst', 'Café de Brug', '12,50', '-12,50', '1,234', '3.250', '1.234,56', '1,234.56', '1.234.567', '12.50',
                            '0.250', '- 7,5', '- 7', '007', '', ' 15 ', '1.11.2026', 'Gebiedscoördinator', '€ 250', "d$([char]0x2019)Ancona", 'a;b',
                            'He said "hi"', $long, "o$([char]0x308)k", "$([char]0xA0)x$([char]0xA0)", '100.000', '12.345', '3250,50', '12,0', 'a,b',
-                           '-0.5', "$([char]0x201C)quote$([char]0x201D)", 'Ünïcödé façade')
+                           '-0.5', "$([char]0x201C)quote$([char]0x201D)", 'Ünïcödé façade', '01-11-2026', '1/11/26', '2026-11-01', '8:30',
+                           '08:30', '08:30:00', '8.30')
                      bad = @("$([char]0x133)sbaan", "ok $([char]::ConvertFromUtf32(0x1F600))", "regel1`nregel2", "a`tb", "$([char]0x661)$([char]0x662)", "x$([char]0x2192)y") }
     Ingang     = @{ ok = @('1-11-2026', '1 11 2026', '01112026', '2026-11-01', '1/11/2026', '1.11.2026', '29-02-2028', ' 1 11 2026 ', '1  11 2026', '1-11-0001', '31-12-9999')
                      bad = @('31-02-2026', '', '1-11-26', '2026-1-01', '00-00-0000', '29-02-2027', '1-13-2026', '1-11-2026x') }
-    Productie  = @{ ok = @('NOR', 'nor', '', ' NOR '); bad = @('JWP', 'ABC', 'NO') }
+    Productie  = @{ ok = @('NOR', 'nor', '', ' NOR ', 'COR', ' cor '); bad = @('JWP', 'ABC', 'NO') }
 }
 $headerVariants = @{
     Rubriek   = @('Rubriek', 'rubriek', ' Rubriek ', 'Rubriekcode')

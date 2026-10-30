@@ -119,8 +119,9 @@ Reports: `Findings 20261030/` (not in git). Real test person; settings as round 
 - **`DPIA100_web-probes.txt`: 151 of 151 created at import and 151 of 151 processed (100252), none
   rejected.** All keys (W01, including leading zeros and dv `0`), codes (W02), date formats (W04) and the
   converted amounts (W05: no PI_2229) were accepted end to end. This confirms the web app's output.
-- **New: Beaufort drops the characters 0x80-0x9F and 0xFF** (`€ ’ “ ” – — … Š ™ ÿ`, ...) without any
-  message. Seen in the processing report of the raw P02/P03 probes (see the Results table): `a€b`
+- **Unverified (owner, 2026-10-30): the characters 0x80-0x9F and 0xFF** (`€ ’ “ ” – — … Š ™ ÿ`, ...)
+  were missing in the processing report, but the Beaufort GUI accepts `€ ’ “ ” – — …` when typed, so the
+  loss may be in the report only. Retest in #20. Seen in the processing report of the raw P02/P03 probes (see the Results table): `a€b`
   became `ab`, `d’Ancona` became `dAncona`; 0xA0-0xFE arrive unchanged. The web probes were all
   processed, but in run 1 their W rows shared a rubriek, key and date, so each value overwrote the
   previous one and the stored characters cannot be checked. Issue **#20**.
@@ -173,9 +174,9 @@ person must be in service on those dates.
 | ID | Probe | Import (round 2) | Check in 100251 | Consequence for script |
 |---|---|---|---|---|
 | P01 | ASCII punctuation, one character per record | all 33 created | Are `" ' ; \ < > &` shown as sent? | None if stored correctly |
-| P02 | Every Windows-1252 character 0x80-0xFF | all 123 created | **Round 4 report: 0x80-0x9F and 0xFF dropped, 0xA0-0xFE kept** | Decision 7 allows all of Windows-1252: to be decided in #20 |
+| P02 | Every Windows-1252 character 0x80-0xFF | all 123 created | **Round 4 report: 0x80-0x9F and 0xFF missing, 0xA0-0xFE kept** (unverified: the GUI accepts them) | Decision 7 allows all of Windows-1252; kept (owner), retest in #20 |
 | P02-0xA0 | Non-breaking space | created | Round 4 report: kept | |
-| P03-1..4 | Realistic Dutch text | created | Round 4 report: accents kept; `’ “ ” € –` dropped (P03-3, P03-4) | Decision 1, 7; #20 |
+| P03-1..4 | Realistic Dutch text | created | Round 4 report: accents kept; `’ “ ” € –` missing (P03-3, P03-4; unverified) | Decision 1, 7; #20 |
 | P03-5 | Accented character in the last Waarde position | created | Is the `é` at the end still there? | |
 | P03-6 | Waarde exactly 50 characters | created | Complete? | Decision 3 |
 | P03-7 | Leading spaces | created | Round 4 report: trimmed | None: script trims Waarde |

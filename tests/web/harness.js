@@ -13,7 +13,7 @@
 
   const ISSUES = {
     'Rubriek/empty': () => 'Field is empty',
-    'Rubriek/tooLong': () => 'Exceeds max length of 6 chars',
+    'Rubriek/length': () => 'Must be exactly 6 chars (e.g. E00101)',
     'Rubriek/chars': () => 'Contains invalid characters (alphanumeric only)',
     'Pers. Nr/empty': () => 'Field is empty',
     'Pers. Nr/digits': () => 'Must contain digits only (no decimals, spaces or letters)',
@@ -24,7 +24,7 @@
     'S of V/invalid': () => "Must strictly be 'S' (Stam) or 'V' (Variabel)",
     'Ingangsdatum/invalid': () => 'Invalid or unparseable date',
     'Productiesoort/jwp': () => 'JWP is not supported by this script (requires a verrekenperiode). Use NOR',
-    'Productiesoort/invalid': () => 'Must be one of: NOR',
+    'Productiesoort/invalid': () => 'Must be one of: NOR, COR',
     'Mutatiewaarde/control': () => 'Contains line break, tab or control character',
     'Mutatiewaarde/unicode': () => 'Contains invalid Unicode characters',
     'Mutatiewaarde/encoding': e => `Characters not available in Windows-1252: ${e.chars}`
@@ -37,8 +37,17 @@
     commaAsDecimal: w => `${label(w)}: Waarde '${w.value}' was written as '${w.converted}' (comma read as decimal). If the comma is a thousand separator, write ${w.whole}${w.fraction}.`,
     dotDecimal: w => `${label(w)}: Waarde '${w.value}' is read by Beaufort as ${w.asComma} in a numeric rubriek. If the dot is a thousand separator, write it without the dot.`,
     separator: w => `${label(w)}: Waarde '${w.value}' looks like an amount with a thousand separator. A numeric rubriek rejects it at processing (PI_2229); write it without, e.g. 1234.56.`,
-    truncated: w => `${label(w)}: Waarde was truncated from ${w.length} to 50 chars:\n    Original : '${w.original}'\n    Truncated: '${w.truncated}'`
+    truncated: w => `${label(w)}: Waarde was truncated from ${w.length} to 50 chars:\n    Original : '${w.original}'\n    Truncated: '${w.truncated}'`,
+    emptyValue: w => `Waarde is empty in ${w.rows.length} row(s): ${examples(w.rows.map(x => `row ${x.row} (Pers. Nr: ${x.persNr})`))}. An empty Waarde deletes the current value of the rubriek in Beaufort. Fill in the value if that is not intended.`,
+    dateShape: w => `${w.values.length} Waarde value(s) look like a date but are not written as dd-mm-yyyy: ${examples(w.values.map(x => `row ${x.row} '${x.value}'`))}. The official Excel tool wrote dates as dd-mm-yyyy; in a date rubriek Beaufort may read another shape differently. Write e.g. 01-11-2026.`,
+    timeShape: w => `${w.values.length} Waarde value(s) look like a time but are not written as hh:mm: ${examples(w.values.map(x => `row ${x.row} '${x.value}'`))}. The official Excel tool wrote times as hh:mm; in a time rubriek Beaufort may read another shape differently. Write e.g. 08:30.`
   };
+
+  // PS: Join-Examples.
+  function examples(list) {
+    const more = list.length > 5 ? `, and ${list.length - 5} more` : '';
+    return list.slice(0, 5).join(', ') + more;
+  }
 
   function commaMessage(conversions) {
     const shown = conversions.slice(0, 5).map(c => `row ${c.row} '${c.from}' -> '${c.to}'`).join(', ');
