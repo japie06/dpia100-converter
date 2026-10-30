@@ -140,16 +140,20 @@ Reports: `Findings 20261030/Round 2 - webprobes*.txt`. Each W row has its own in
 **151 of 151 created and 151 of 151 processed**, none rejected. Only `TST004` (numeric, W05) keeps
 history in the test environment; `TST002` and `TST003` were set up without history, so the stored
 values of W01-W04 and W06 (including the characters of #20) cannot be checked. Retest: issue **#21**.
-W05 stored values (TST004, person 10000, dv 1): _to be filled in from the history_.
+W05 stored values (TST004, person 10000, dv 1; `Findings 20261030/TST004 history.txt`): **all six as
+intended.** The page's comma → dot conversion gives the right amount in Beaufort, a negative amount
+included. The history shows trailing zeros dropped (`12,5`), with thousand separators in the display.
 
-| W05 | Sent (CSV) | Written by the page | Ingangsdatum | Expected in history | Stored |
+| W05 | Sent (CSV) | Written by the page | Ingangsdatum | Expected | Stored (history) |
 |---|---|---|---|---|---|
-| W05-1 | `12,50` | `12.50` | 20-02-2021 | 12,50 | |
-| W05-2 | `-12,50` | `-12.50` | 21-02-2021 | -12,50 | |
-| W05-3 | `3250,5` | `3250.5` | 22-02-2021 | 3.250,50 | |
-| W05-4 | `0,25` | `0.25` | 23-02-2021 | 0,25 | |
-| W05-5 | `12.50` | `12.50` | 24-02-2021 | 12,50 | |
-| W05-6 | `3250` | `3250` | 25-02-2021 | 3.250,00 | |
+| W05-1 | `12,50` | `12.50` | 20-02-2021 | 12,50 | 12,5 ✔ |
+| W05-2 | `-12,50` | `-12.50` | 21-02-2021 | -12,50 | -12,5 ✔ |
+| W05-3 | `3250,5` | `3250.5` | 22-02-2021 | 3.250,50 | 3.250,50 ✔ |
+| W05-4 | `0,25` | `0.25` | 23-02-2021 | 0,25 | 0,25 ✔ |
+| W05-5 | `12.50` | `12.50` | 24-02-2021 | 12,50 | 12,5 ✔ |
+| W05-6 | `3250` | `3250` | 25-02-2021 | 3.250,00 | 3.250,00 ✔ |
+
+The history also has a record of 25-09-2020 (3.250,00) from an earlier round; not part of this run.
 
 The W rows each have their own ingangsdatum (`$Ingang`, then one day later per row, up to
 about five months), so after processing every value stays in the history and can be checked. The test
@@ -161,7 +165,7 @@ person must be in service on those dates.
 | W02 | Lowercase rubriek, `STAM` / `s`, productiesoort empty / `nor` | created | | processed |
 | W03 | Every Windows-1252 character 0x80-0xFF typed in UTF-8; decomposed accent; curly quotes; `;` and `"` in a value | created | 0x80-0x9F and 0xFF lost? (#20) | processed |
 | W04 | Ingangsdatum in 6 input formats | created | Right dates? | processed |
-| W05 | Amounts `12,50` `-12,50` `3250,5` `0,25` `12.50` `3250` (numeric rubriek) | created | 12,50 / -12,50 / 3250,50 / 0,25 / 12,50 / 3250,00? | processed, no PI_2229 |
+| W05 | Amounts `12,50` `-12,50` `3250,5` `0,25` `12.50` `3250` (numeric rubriek) | created | **run 2: all six stored as intended** | processed, no PI_2229 |
 | W06 | Exactly 50 characters; 60 cut to 50 (warning); empty Waarde | created | Complete / cut / empty? | processed |
 
 ## Results
