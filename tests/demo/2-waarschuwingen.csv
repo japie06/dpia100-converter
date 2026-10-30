@@ -1,0 +1,13 @@
+Rubriek;Pers. Nr;Dienstv;S of V;Mutatiewaarde;Ingangsdatum;Productiesoort;Opmerking
+E00101;123456;;S;Café de Brug;1-11-2026;NOR;Gewone tekst: geen melding
+E00101;123456;1;V;125,50;1-11-2026;NOR;Komma wordt punt: alleen gemeld
+P00001;123456;1;V;12,50;1-11-2026;NOR;Standaard numerieke rubriek: komma wordt punt, alleen gemeld
+P00332;123456;1;S;1,5;1-11-2026;NOR;Standaard tekstrubriek: komma blijft staan, geen melding
+P00321;123456;;S;1-11-2026;1-11-2026;NOR;Standaard datumrubriek: datum wordt dd-mm-jjjj, alleen gemeld
+E00101;123456;1;V;3.250;1-11-2026;NOR;Punt als duizendtal? Beaufort leest 3,25
+E00101;123456;1;V;1.234,56;1-11-2026;NOR;Bedrag met punt en komma
+E00101;123456;1;V;Deze omschrijving is langer dan vijftig tekens en wordt afgekapt;1-11-2026;NOR;Waarde langer dan 50 tekens: wordt afgekapt
+P00100;123456;1;V;12;1-11-2026;NOR;Standaardrubriek geblokkeerd voor indirecte mutatie
+E00101;123456;1;V;;1-11-2026;NOR;Lege waarde: verwijdert de huidige waarde in Beaufort
+E00101;123456;1;V;1/11/2026;1-11-2026;NOR;Datum niet als dd-mm-jjjj
+E00101;123456;1;V;8:30;1-11-2026;NOR;Tijd niet als uu:mm of uu:mm:ss

@@ -11,5 +11,7 @@ voorbeeld.csv -text
 *.html text eol=crlf
 *.js   text eol=crlf
 *.mjs  text eol=crlf
+# Demo CSVs (every message, tests/demo): exact bytes.
+tests/demo/*.csv -text
 # Synthetic rubriek export and expected CSVs: exact bytes.
 tests/rubrieken/** -text

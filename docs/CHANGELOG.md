@@ -48,6 +48,9 @@ decisions). Script and page alike.
   T and U rubrieken). New page check `page-rubrieken`: the table is the same in script and page.
 - The differential test mixes in standard rubrieken with fitting and unfitting keys and values.
 - `tests/rubrieken/run-tests.ps1` (cleaner and generator on a synthetic export) runs in CI.
+- New `tests/demo`: CSV files that show every error, warning and report line, with a remark column, for a
+  visible check and to show users. Made by `make-demo.ps1`; `check-demo.mjs` lists any message of the page
+  core that no demo file shows. Not in CI.
 
 ### Documentation
 - `field-layout.md`: new *Excel tool* section (how it built each field, its bugs); positions 149-178 are
@@ -59,7 +62,8 @@ decisions). Script and page alike.
 - `docs/rubrieken-export.md`: the rubrieken export, what is taken from it and how to refresh the list.
   README: new section *Standaardrubrieken*. `field-layout.md`: *Standard rubrieken* and the Waarde rules
   per type. `docs/privacy-en-beveiliging.md`: the page contains the standard rubriek codes, no personal
-  data. `tests/beaufort/findings.md`: P02748 (round 1-2, PI_2250) is gegevenssoort V1, not DV.
+  data. `tests/beaufort/findings.md`: P02748 (round 1-2, PI_2250) is gegevenssoort V1, not DV; the length of
+  a numeric rubriek includes the decimal point and the decimals (Beaufort GUI: N 4,2 rejects `12,34`).
 
 ## v1.2.0 (2026-10-30)
 

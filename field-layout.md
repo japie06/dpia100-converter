@@ -196,7 +196,7 @@ apply as for any rubriek; then:
 
 | Type | Handling | Error when |
 |---|---|---|
-| `N` numeric | The amount table above (comma conversion, warnings) | Not a number after the conversion (`abc`, `NULL`, `1.234,56`, English `1,234`, a date); more significant decimals than the rubriek has (`12.345` in a 2-decimal rubriek: Beaufort would store 12,34); more digits before the point than the length allows (the length includes the point and the decimals, so N 9,2 allows 6) |
+| `N` numeric | The amount table above (comma conversion, warnings) | Not a number after the conversion (`abc`, `NULL`, `1.234,56`, English `1,234`, a date); more significant decimals than the rubriek has (`12.345` in a 2-decimal rubriek: Beaufort would store 12,34); more digits before the point than the length allows (the length includes the point and the decimals, so N 9,2 allows 6; confirmed in the Beaufort GUI, where N 4,2 rejects `12,34`) |
 | `D` date | Written as `dd-mm-yyyy`, reported in one line (no `Y` needed). Accepts the Ingangsdatum shapes (`1-11-2026`, `2026-11-01`, `01112026`, `1.11.2026`, ...) | Not a date: `1/11/26` (2-digit year), `46327`, text |
 | `T` time | Written as `hh:mm` (`8:30` becomes `08:30`), reported | Not a time; seconds other than `00` |
 | `U` time | Written as `hh:mm:ss` (`8:30` becomes `08:30:00`), reported | Not a time |

@@ -38,6 +38,7 @@ JavaScript port of the script, not a wrapper: a browser cannot run PowerShell. T
 | `LICENSE` | MIT. |
 | `.github/workflows/ci.yml` | Runs the tests on every push/PR; a `v*` tag publishes a release zip and deploys the page to GitHub Pages. |
 | `tests/run-tests.ps1` | Regression suite: every case in `tests/cases` on PowerShell 5.1, 7 and the page in Edge, plus page checks. |
+| `tests/demo/` | Demo CSVs that show every error, warning and report line, with a Dutch remark column (`make-demo.ps1` writes them, `check-demo.mjs` checks coverage). Not in CI. |
 | `tests/beaufort/` | Probe files for what Beaufort accepts (`make-probes.ps1`), results in `findings.md`. |
 | `docs/DPIA100 record indeling.pdf` | Beaufort help (2024): record layout. Primary spec. Local only, not in the repo (copyrighted). |
 | `docs/Microsoft Word - Handboek DPIA100 via Excel.doc.pdf` | Raet handbook (2005): Excel tool and Beaufort setup. Local only, not in the repo (copyrighted). |
@@ -164,6 +165,8 @@ Top to bottom:
   `Ingangsdatum`, `Productiesoort`.
 - Validation errors are `[PSCustomObject]@{ Row; Column; Value; Issue }`. Row 1 is the header.
 - Update `docs/CHANGELOG.md` with every behavioural change, and run the test suite.
+- Update the demo files with every new or changed message: a row in `tests/demo/make-demo.ps1`, then run it
+  and `node tests\demo\check-demo.mjs` (see *Testing*).
 - Keep `dpia100.ps1` ending in CRLF; a missing LF at the end makes git treat it as binary.
 - Don't edit `.ps1` files with Git Bash `sed -i`: it silently converts CRLF to LF. Use the Edit tool or
   PowerShell.
@@ -265,6 +268,15 @@ Top to bottom:
     violation or script error. Failure traces and screenshots go to `tests/out/playwright`.
   - No linters for now (ESLint, html-validate): `page-security` and the CSP hashes cover the risks.
   - Keep `@playwright/test` pinned exactly in `package.json` and commit `package-lock.json`.
+- **Demo files (`tests/demo`, by hand, not in CI).** For the owner's visible check and to show users every
+  message. `make-demo.ps1` writes them as raw bytes: `1-fouten.csv` (every row error, exactly one per row,
+  UTF-8 BOM), `2-waarschuwingen.csv` (every warning and report of a `;` file, Windows-1252), `3-`/`4-`
+  for the `,` and tab amount warnings, and one `bestand-*.csv` per file-level error. The extra column
+  `Opmerking` (Dutch) matches no header pattern, so the converter ignores it. `check-demo.mjs` takes every
+  `err(...)`, `warn(...)`, grouped warning and fatal code from the page core, runs the files through it, and
+  fails on a code no file shows (exempt: `noRecords`, `unicode`, and `notTime` while the list has no T/U
+  rubriek) or on a row of `1-fouten.csv` without exactly one error. Add a row there whenever a message is
+  added or changed.
 - **Differential test.** `pwsh tests\web\differential.ps1 [-Count N] [-Seed S] [-Engine powershell]`
   generates random CSVs (encodings, delimiters, quoting quirks, broken values) into `tests/out/diff`,
   runs each through the script and all through the page, and compares exit codes, bytes, key console

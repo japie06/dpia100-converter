@@ -161,7 +161,8 @@
        - N (numeric): decision 8 as for an eigen rubriek. Errors for what Beaufort rejects or changes: not a
          number after the comma conversion (text, NULL, 1.234,56, an English 1,234), more significant
          decimals than the rubriek has (Beaufort cuts 12.345 to 12.34, probe round 4), more digits before the
-         decimal point than the length allows (length includes the decimal point and the decimals).
+         decimal point than the length allows (length includes the decimal point and the decimals; confirmed
+         in the Beaufort GUI, tests/beaufort/findings.md).
        - D (date): must be a date as accepted for Ingangsdatum; written as dd-mm-yyyy, as the Excel tool did.
          The rewrite is reported, not a warning. Not a date (1/11/26, 46327, text) is an error.
        - T (time hh:mm) and U (time hh:mm:ss): must be a time; written in the type's shape (8:30 -> 08:30),

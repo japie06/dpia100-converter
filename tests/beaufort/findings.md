@@ -171,6 +171,13 @@ person must be in service on those dates.
 | W05 | Amounts `12,50` `-12,50` `3250,5` `0,25` `12.50` `3250` (numeric rubriek) | created | **run 2: all six stored as intended** | processed, no PI_2229 |
 | W06 | Exactly 50 characters; 60 cut to 50 (warning); empty Waarde | created | Complete / cut / empty? | processed |
 
+## GUI checks (owner, 2026-10-30)
+- **Lengte of a numeric rubriek includes the decimal point and the decimals.** A numeric rubriek with
+  Lengte 4 and 2 decimals rejects `12,34` in the Beaufort GUI, so it holds 1 digit before the point
+  (`9,99`). Digits before the point = Lengte − Decimalen − 1 (− 0 without decimals). Decision 20 uses this
+  rule (`digits` error).
+- **Time types:** T = time `hh:mm`, U = time `hh:mm:ss` (decision 20).
+
 ## Results
 
 | ID | Probe | Import (round 2) | Check in 100251 | Consequence for script |

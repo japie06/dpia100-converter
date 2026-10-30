@@ -280,6 +280,8 @@ Beaufort. Zie `field-layout.md` voor de technische details.
 - Na een wijziging in een script- of stijlblok van `dpia100.html`: `pwsh tests\web\update-csp.ps1`.
   Anders weigert de browser de gewijzigde code (zie
   [docs/privacy-en-beveiliging.md](docs/privacy-en-beveiliging.md)).
+- `tests\demo\` bevat CSV-bestanden die elke fout, waarschuwing en melding laten zien, met per regel een
+  opmerking. Handig om de converter te bekijken of te laten zien; uitleg in `tests\demo\README.md`.
 - `tests\beaufort\` bevat testbestanden om na te gaan wat Beaufort zelf accepteert (bijzondere tekens,
   regeleinden), met de resultaten in `findings.md`.
 - De lijst met standaardrubrieken bijwerken (bijvoorbeeld na een nieuwe Beaufort-versie): maak het
