@@ -38,7 +38,7 @@ What Beaufort does with deviating files (probe rounds 1-2, `tests/beaufort/findi
 | Pos | Len | Field | Format in this script | Source |
 |---|---|---|---|---|
 | 1-3 | 3 | Procescode | Uppercase alphanumeric, 1-3 characters, left-aligned (`CMT`) | docs (length 3) |
-| 4-9 | 6 | Rubriekcode | Uppercase alphanumeric, exactly 6 characters (`E00101`) | docs (length 6) |
+| 4-9 | 6 | Rubriekcode | Uppercase alphanumeric, 1-6 characters, left-aligned (`E00101`) | docs (length 6) + owner |
 | 10-59 | 50 | Object_id | See [Object_id](#object_id), left part fixed width, padded to 50 | docs + Excel tool |
 | 60 | 1 | Indicator stam/variabel | `S` or `V` | docs |
 | 61-71 | 11 | Creatiedatum | 3 spaces + `ddMMyyyy` | docs + Excel tool |
@@ -62,10 +62,29 @@ characters and left-aligns a shorter one; the Excel tool right-aligned it. All k
 the difference has not mattered.
 
 ### Rubriekcode
-Standard or custom rubriek, length 6 (the PDF gives no alignment). The 2024 help says uppercase only,
-while the 2005 handbook allows both. The script uppercases and requires exactly 6 characters (owner): a
-shorter code has no known layout (the Excel tool right-aligned it), and all 1023 rubrieken in the Excel
-tool's list have 6.
+Standard or eigen (custom) rubriek, length 6 (the PDF gives no alignment). The 2024 help says uppercase
+only, while the 2005 handbook allows both. The script uppercases and accepts 1-6 characters. Most codes
+have 6, but the rubrieken export has shorter ones: the standard DV rubriek `SETKB` and eigen codes such
+as `E0010`, `M01` and `WS100`. A shorter code is **left-aligned** (owner; what v1.2.0 did). The Excel tool
+right-aligned it, and Beaufort has not been probed with one yet (#25).
+
+### Standard rubrieken
+The script and the page contain the standard PS/DV rubrieken of Beaufort (decision 17): the rubrieken
+with *Fix* = `J` in the report *Overzicht rubrieken* (function 210006), about 4,200 of them. A
+customer cannot change their gegevenssoort, type, length, decimals, stam/variabel or *Blok ind mut*
+(Beaufort help *Rubrieken wijzigen of verwijderen*), so the list holds only these. Min/max and the values
+of referentietabellen can be changed per customer and are left out. How the list is made and refreshed:
+`docs/rubrieken-export.md`.
+
+| Check | Standard rubriek | Any other code (eigen rubriek) |
+|---|---|---|
+| Dienstverband | DV rubriek: required (empty or `0` is an error, Beaufort PI_1650). PS rubriek: must be empty (decision 18) | Empty = PS key, filled = DV key |
+| S of V | Must be allowed by the rubriek: stam only, variabel only, or both (decision 18) | `S` or `V` |
+| Blok ind mut = `J` | Warning: cannot be imported through DPIA100 (decision 19). Blank counts as not blocked | - |
+| Waarde | By type, see [Waarde](#waarde) (decision 20) | Decisions 8 and 16 |
+
+A code that is not in the list is allowed without any message. Eigen rubrieken cannot be supplied yet
+(#24).
 
 ### Object_id
 Compound key; parts separated by **one space**, **no leading zeros**. Which parts are required
@@ -114,8 +133,9 @@ adding). Each part is right-aligned in a fixed width that includes the separatin
 - The tool had no IP, ZG or ZT: there is no reference layout for those.
 
 ### Indicator stam/variabel
-`S` (stamgegeven) or `V` (variabel gegeven). It must match the rubriek in the Beaufort rubriektabel.
-The script also accepts `STAM` / `VARIABEL` as input.
+`S` (stamgegeven) or `V` (variabel gegeven). It must match the rubriek in the Beaufort rubriektabel; a
+rubriek can allow both. The script also accepts `STAM` / `VARIABEL` as input, and checks a standard
+rubriek against the list (decision 18).
 
 ### Creatiedatum and Ingangsdatum
 Beaufort accepts `ddmmeejj` (`01011996`), `dd-mm-eejj` (`01-01-1996`) and `ddmmjj` (`010196`). The
@@ -143,10 +163,11 @@ Processing (100252) rejects a comma in a numeric rubriek (PI_2229) and reads a d
 so `3.250` is processed silently as 3,25. Extra decimals are not rounded up: `12.345` became 12,34
 in a 2-decimal rubriek (probe round 4).
 
-Script handling (decision 8). The script can't tell a numeric rubriek from a text rubriek, so it warns
-instead of rejecting. With warnings, the file is only written after the user types `Y`. The CSV
-delimiter hints at the notation: Dutch Excel saves with `;` and a decimal comma, English Excel with `,`
-and a decimal dot; a tab gives no hint.
+Script handling of amounts (decision 8), for an eigen rubriek and a standard numeric rubriek. For an
+eigen rubriek the script can't tell a numeric rubriek from a text rubriek, so it warns instead of
+rejecting. With warnings, the file is only written after the user types `Y`. The CSV delimiter hints at
+the notation: Dutch Excel saves with `;` and a decimal comma, English Excel with `,` and a decimal dot; a
+tab gives no hint.
 
 | Value | `;` file (Dutch) | `,` file (English) | Tab file |
 |---|---|---|---|
@@ -160,13 +181,31 @@ as-is without a warning. A date with dots (`1.11.2026`) is not an amount, but ge
 
 Empty values, dates and times (decision 16, owner):
 - An **empty Waarde deletes** the current value of the rubriek in Beaufort. It is written, with one
-  warning listing the rows. The Excel tool only allowed an empty value through the keyword `NULL`.
+  warning listing the rows (every rubriek). The Excel tool only allowed an empty value through the
+  keyword `NULL`.
 - `NULL` is written as typed, like any other text (owner). The Excel tool turned it into an empty value.
 - The Excel tool wrote a date in a date rubriek as `dd-mm-yyyy` and a time in a time rubriek as `hh:mm`.
-  A value that looks like a date in another shape (`1-11-2026`, `1/11/26`, `2026-11-01`, `1 11 2026`,
-  `1.11.2026`) or a time in another shape (`8:30`, `08:30:00`) is written as typed, with a warning. The
-  script cannot tell a date rubriek from a text rubriek, so it never converts. `01112026` and `8.30` are
-  not recognized, because they may be numbers.
+  Beaufort also has time rubrieken of type `U` with `hh:mm:ss` (owner, confirmed in Beaufort). For an
+  eigen rubriek, a value that looks like a date in another shape (`1-11-2026`, `1/11/26`, `2026-11-01`,
+  `1 11 2026`, `1.11.2026`) or a time in neither shape (`8:30`, `8:30:00`) is written as typed, with a
+  warning. The script cannot tell a date rubriek of an eigen rubriek from a text rubriek, so it never
+  converts there. `01112026` and `8.30` are not recognized, because they may be numbers.
+
+Standard rubriek, by type (decision 20, owner). The checks of decision 7 and the empty-value warning
+apply as for any rubriek; then:
+
+| Type | Handling | Error when |
+|---|---|---|
+| `N` numeric | The amount table above (comma conversion, warnings) | Not a number after the conversion (`abc`, `NULL`, `1.234,56`, English `1,234`, a date); more significant decimals than the rubriek has (`12.345` in a 2-decimal rubriek: Beaufort would store 12,34); more digits before the point than the length allows (the length includes the point and the decimals, so N 9,2 allows 6) |
+| `D` date | Written as `dd-mm-yyyy`, reported in one line (no `Y` needed). Accepts the Ingangsdatum shapes (`1-11-2026`, `2026-11-01`, `01112026`, `1.11.2026`, ...) | Not a date: `1/11/26` (2-digit year), `46327`, text |
+| `T` time | Written as `hh:mm` (`8:30` becomes `08:30`), reported | Not a time; seconds other than `00` |
+| `U` time | Written as `hh:mm:ss` (`8:30` becomes `08:30:00`), reported | Not a time |
+| `S`, `H`, `I` and others | Written as typed: no comma conversion, no amount, date or time warnings | Longer than the length of the rubriek (when that is under 50; over 50 is the truncation warning) |
+
+The current list has no standard PS/DV rubriek of type `T` or `U`; the eigen rubrieken of the
+municipality do (type `T`).
+
+Further:
 - The value is normalized to NFC.
 - Control characters (line breaks, tabs) and characters outside Windows-1252 are rejected.
 
@@ -183,14 +222,15 @@ Special characters (tested in `tests/cases/ok-chars-*` for every input encoding)
   is not known: it may be the report only. Retest in #20. The script accepts them and keeps doing so
   (owner). 0xA0-0xFE, so all accented letters except `ÿ`, arrived unchanged.
 - Values over 50 characters are truncated with a warning.
-- Dates, times and uppercase-only values are written as typed. The owner chose not to force a format
-  on Waarde; Beaufort validates it against the rubriek.
+- For an eigen rubriek, dates, times and uppercase-only values are written as typed. The owner chose
+  not to force a format there; Beaufort validates it against the rubriek.
 
 The Excel tool's *Rubriek* tab assigns each rubriek a gegevenssoort and a type. The type drives the
 value check: `N` numeriek (default; must be numeric), `S` tekst (free), `D` datum (rewritten as
 `dd-mm-yyyy`), `T` tijd (rewritten as `hh:mm`). `H` hoofdletters is listed but has had no effect since
 2005. In `N`, `D` and `T` an empty cell was an error; `NULL` wrote an empty value. The list has 1023
-rubrieken: 846 `N`, 133 `S`, 42 `D`, 1 `H`. The script has no rubriek lookup.
+rubrieken: 846 `N`, 133 `S`, 42 `D`, 1 `H`. The script's own list comes from the Beaufort export instead
+(see [Standard rubrieken](#standard-rubrieken)) and treats `H` as text.
 
 ### Productiesoort
 The docs list `NOR` and `JWP`; the Excel tool also names `COR`, which is valid in Beaufort (owner). The
@@ -210,14 +250,16 @@ rest are formulas on a hidden sheet, concatenated into one 187-character cell an
 | Field | Excel tool | This script |
 |---|---|---|
 | Procescode | uppercase, right-aligned in 3 | uppercase, left-aligned (same for 3 characters) |
-| Rubriek | uppercase, right-aligned in 6 | uppercase, exactly 6 |
+| Rubriek | uppercase, right-aligned in 6 | uppercase, 1-6, left-aligned (#25) |
 | Object_id | parts right-aligned, leading zeros kept | same layout, leading zeros stripped (decision 4) |
 | Creatiedatum, ingangsdatum | 3 spaces + `ddmmyyyy`; an empty date gave 11 spaces | same; empty is an error |
 | Creatiegebruiker | right-aligned in 16, not uppercased | same |
 | Waarde | left-aligned; over 50 characters the record became `#WAARDE!` | left-aligned; truncated with a warning |
 | Comma in an amount | every comma in any numeric-looking value, silently (`1.234,56` became `1.234.56`) | simple decimals only, other shapes warned (decision 8) |
 | Productiesoort | right-aligned in 33, empty gave spaces | 30 spaces + `NOR`/`COR` |
-| PS or DV key | from the rubriek list (a PS rubriek ignored a filled dv) | from Dienstverband being filled |
+| PS or DV key | from the rubriek list (a PS rubriek ignored a filled dv) | from Dienstverband being filled; for a standard rubriek a mismatch is an error |
+| Unknown rubriek | flagged (not in its list) | allowed without a message (eigen rubriek) |
+| Value by type | `N` numeric, `D` rewritten `dd-mm-yyyy`, `T` rewritten `hh:mm` | the same for a standard rubriek (also `U` `hh:mm:ss`), checked against its length and decimals; an eigen rubriek as typed with warnings |
 
 Bugs that make its output unfit as a reference beyond the plain cases:
 - **Encoding depends on the save path.** Accepting the suggested folder saved as `xlText` (ANSI, Windows-1252);

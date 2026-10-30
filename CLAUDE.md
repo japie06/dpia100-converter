@@ -41,8 +41,10 @@ JavaScript port of the script, not a wrapper: a browser cannot run PowerShell. T
 | `tests/beaufort/` | Probe files for what Beaufort accepts (`make-probes.ps1`), results in `findings.md`. |
 | `docs/DPIA100 record indeling.pdf` | Beaufort help (2024): record layout. Primary spec. Local only, not in the repo (copyrighted). |
 | `docs/Microsoft Word - Handboek DPIA100 via Excel.doc.pdf` | Raet handbook (2005): Excel tool and Beaufort setup. Local only, not in the repo (copyrighted). |
-| `tools/convert-rubrieken.ps1`, `tests/rubrieken/` | Cleans the Beaufort report *Overzicht rubrieken* (210006) into a CSV; tests on a synthetic export (`pwsh tests\rubrieken\run-tests.ps1`). Not used by the converter yet; see `docs/rubrieken-export.md`. The real export and its CSV are git-ignored. |
-| `docs/rubrieken-export.md` | Dutch: the rubrieken report format, what it holds, and the planned use (standard rubrieken hard-coded, Blok ind mut = J not importable). |
+| `tools/convert-rubrieken.ps1` | Cleans the Beaufort report *Overzicht rubrieken* (210006) into a CSV. The real export and its CSV are git-ignored. |
+| `tools/update-standard-rubrieken.ps1` | Writes the standard PS/DV rubrieken of an export into the generated region of `dpia100.ps1` and the core of `dpia100.html` (decision 17), then updates the CSP. |
+| `tests/rubrieken/` | Tests of both tools on a synthetic export (`pwsh tests\rubrieken\run-tests.ps1`, also in CI). |
+| `docs/rubrieken-export.md` | Dutch: the rubrieken report format, what it holds, and how the standard rubrieken get into the converter. |
 | `docs/DPIA100-Excel-tool/` | Source of the official Excel tool (`DPIA100.xlsm` V 06.12.6, VBA exports). Local only, git-ignored: copyrighted, contains the sheet password and the municipality's rubriek list. Summary in `field-layout.md` (*Excel tool*). |
 
 ## Hard constraints (do not break)
@@ -53,14 +55,16 @@ JavaScript port of the script, not a wrapper: a browser cannot run PowerShell. T
   right-aligned in 16. Both dates are written as 3 spaces + `ddMMyyyy`. This was confirmed against
   Excel tool output, not taken from the docs.
 - **Fail fast, report everything.** Any validation error aborts with no output file. All errors are
-  collected into one table first. The only non-fatal cases are Waarde warnings: truncation over 50
-  characters, amounts Beaufort may misread, empty values (a delete in Beaufort) and dates or times not
-  in the Excel-tool shape (decisions 3, 8 and 16). With warnings, the file is only
-  written after the user types `Y`; anything else (also end of input) cancels like an error.
+  collected into one table first. The only non-fatal cases are warnings: truncation over 50
+  characters, amounts Beaufort may misread, empty values (a delete in Beaufort), dates or times not
+  in the Excel-tool shape (decisions 3, 8 and 16), and a standard rubriek blocked for indirect mutation
+  (decision 19). With warnings, the file is only written after the user types `Y`; anything else (also
+  end of input) cancels like an error.
 - **Nothing changes silently.** Do not "clean" input into a different valid-looking value (for
   example stripping non-digits, or writing `?` for characters that can't be encoded). Reject instead.
-  The comma -> dot conversion of amounts is the one deliberate change, and it is always listed: as a
-  report line in a `;` file (Dutch notation), otherwise as a warning.
+  The deliberate changes are always listed: the comma -> dot conversion of amounts (a report line in a
+  `;` file, otherwise a warning) and a date or time written in the shape of a standard date or time
+  rubriek (a report line, decision 20).
 - **Windows PowerShell 5.1 compatible.** `dpia100.bat` calls `powershell.exe`, which is always 5.1.
   Also keep it working on PowerShell 7.
 - **Script file encoding.** Save `dpia100.ps1` as UTF-8 **with BOM** and CRLF. Without a BOM, 5.1
@@ -81,6 +85,13 @@ JavaScript port of the script, not a wrapper: a browser cannot run PowerShell. T
   style, core or UI block run `pwsh tests\web\update-csp.ps1`; otherwise the browser refuses the block.
   Hashes are over LF-normalized text, so line endings do not matter. Keep the three blocks (ids
   `dpia100-style`, `dpia100-core`, `dpia100-ui`) and no others; no inline event handlers or `style=`.
+  The standard rubrieken table therefore lives inside the core block, not in a data block of its own.
+- **Standard rubrieken table: generated, never edited by hand.** The region between `BEGIN/END STANDARD
+  RUBRIEKEN` in `dpia100.ps1` and in the core of `dpia100.html` is written by
+  `tools/update-standard-rubrieken.ps1` from a 210006 export; `page-rubrieken` checks that both are equal.
+  It holds only codes and the attributes a customer cannot change (gegevenssoort, type, length,
+  decimals, stam/variabel, Blok ind mut): never descriptions, values, min/max, or the municipality or
+  user of the export. The raw export never enters the repo.
 - **The core has no DOM access.** It takes bytes and returns plain objects with codes; the UI and the
   harness turn codes into Dutch and English text. Emulate .NET where it differs from JS (whitespace set
   of `Trim`/`\s`, `ToUpper` per character, `\d` = any Unicode digit); the comments name each case.
@@ -110,13 +121,17 @@ Top to bottom:
    - `Get-UniqueHeaderNames`
    - `Test-And-ParseDate`
    - `Find-PropertyByPattern` (patterns of 2 characters or fewer must match the whole header)
+   - The generated standard rubrieken table (about 4,200 lines, decision 17), parsed into
+     `$standardRubrieken`, and `Get-StandardRubriek` (attributes of a code, or `$null` for an eigen rubriek).
 7. CSV parsing: the header via `Split-CsvHeader`, the data rows via `ConvertFrom-Csv -Header`, with a
    line break prefixed so a first row starting with `#` is not taken for a `#TYPE` line.
 8. Header mapping. The mapping is printed; the script aborts on a missing field or on one column
    mapped to two fields.
 9. Per-row validation into `$validationErrors` and `$preparedRecords`. Completely empty rows are
-   skipped. Empty, date-like and time-like values are collected for one grouped warning each
-   (`Join-Examples`). Abort on errors, otherwise print `[OK]` and list the warnings.
+   skipped. For a standard rubriek: key, S of V and Blok ind mut (step 4b) and the Waarde by type
+   (decision 20). Blocked rubrieken and empty, date-like and time-like values are collected for one
+   grouped warning each (`Join-Examples`). Abort on errors, otherwise print `[OK]`, the comma and
+   date/time report lines and the warnings.
 10. Prompts: procescode, creatiedatum, creatiegebruiker. They come after the validation, so a broken
     CSV never asks anything (decision 14). Then the `Y` confirmation, only with warnings.
 11. Build the 187-character lines with a length check, then write with the strict encoder.
@@ -129,13 +144,16 @@ Top to bottom:
    footer. A `#startup-error` banner shows until the UI script removes it (JavaScript off or blocked).
 4. `<script id="dpia100-core">`: `const DPIA100`, the port. `analyze(bytes, fileName)` covers everything up
    to the row validation (decision 14) and returns `{ fatal, errors, warnings, commaConversions,
-   records, mapping, ... }`. Also `checkProcescode`, `checkCreatiedatum`, `checkGebruiker`, `buildLines`,
-   `encodeOutput`, `outputFileName`, `isValidOutputName`. Each function names its PowerShell counterpart.
+   formatConversions, records, mapping, ... }`. Also `checkProcescode`, `checkCreatiedatum`,
+   `checkGebruiker`, `buildLines`, `encodeOutput`, `outputFileName`, `isValidOutputName`,
+   `standardRubriek`, `standardRubriekCount` and `STANDARD_RUBRIEKEN_DATE`. Each function names its
+   PowerShell counterpart. The generated standard rubrieken table is at the end of the core.
    The data rows are parsed by a port of PowerShell's `ImportCsvHelper` (`CsvCommands.cs`), quirks
    included; a lone CR is data, as in 5.1.
 5. `<script id="dpia100-ui">`: Dutch texts per code, rendering, file choice (open dialog with a handle
    for *Opnieuw controleren*, plain file input otherwise), save (save dialog, otherwise Blob download),
-   remembered settings. Logs `DPIA100 converter <version> gestart` (the smoke test waits for it).
+   remembered settings. Shows the count and export date of the standard rubrieken in step 2 and the
+   footer. Logs `DPIA100 converter <version> gestart` (the smoke test waits for it).
 
 ## Conventions
 
@@ -154,36 +172,46 @@ Top to bottom:
 
 ## Scope decisions by the owner
 
-- **In scope:** PS and DV only, productiesoort NOR or COR, verrekenperiode always blank. Rubriek exactly
-  6 characters.
-- **No rubriek lookup list.** Rubrieken are created freely in Beaufort, so a list would go out of
-  date. PS or DV is derived from whether Dienstverband is filled. Beaufort rejects a DV rubriek with
-  a PS key at import (PI_1650), but in probe round 1 a PS rubriek with a DV key was **accepted**; see
-  probe P04-7 in `tests/beaufort/findings.md`.
+- **In scope:** PS and DV only, productiesoort NOR or COR, verrekenperiode always blank. Rubriek 1-6
+  characters; a shorter code is left-aligned (unprobed, #25).
+- **Standard rubrieken are known, eigen rubrieken are not (decisions 17-20).** The standard PS/DV
+  rubrieken (Fix = J, about 4,200) are hard-coded from the 210006 export; their gegevenssoort, type,
+  length, decimals, stam/variabel and Blok ind mut cannot be changed by a customer. A code that is not in
+  the list is an eigen rubriek (or a newer standard one): **allowed without any message** and checked as
+  before. For a standard rubriek: a Dienstverband or S of V that does not fit is an error; Blok ind mut =
+  J is a warning (blank = not blocked); the Waarde is checked by type (decision 20). Supplying eigen
+  rubrieken is #24 (ideas only). Do not guess from the code: eigen codes can start with R, and an old list
+  only means newer standard rubrieken are treated as eigen.
 - **Header matching stays flexible.** Users rename headers, and the data validation acts as a safety
-  net. The printed mapping covers Mutatiewaarde, which can't be validated.
+  net. The printed mapping covers Mutatiewaarde, which can't be validated for an eigen rubriek.
 - **Row numbers are not mapped to physical CSV lines.** Users check the CSV or the Excel source.
-- **Waarde is free.** No format is forced (dates, times, text are passed through as typed). Beaufort
-  validates the value against the rubriek. An empty Waarde is allowed but means a deliberate delete of the
-  current value, so it gets a warning; dates not as `dd-mm-yyyy` and times not as `hh:mm` (what the Excel
-  tool wrote) get a warning too (decision 16). Each kind is one warning listing the rows.
+- **Waarde of an eigen rubriek is free.** No format is forced (dates, times, text are passed through as
+  typed); Beaufort validates the value against the rubriek. An empty Waarde is allowed but means a
+  deliberate delete of the current value, so it gets a warning (every rubriek); for an eigen rubriek,
+  dates not as `dd-mm-yyyy` and times neither `hh:mm` nor `hh:mm:ss` get a warning too (decision 16). Each
+  kind is one warning listing the rows. A standard rubriek is checked by type instead (decision 20):
+  numeric must be a number that fits its length and decimals, a date or time (T `hh:mm`, U `hh:mm:ss`)
+  is rewritten to that shape and reported, text is written as typed and may not exceed its length.
 - **The Excel tool source is a reference, not the truth.** It is from 2005 and has bugs (encoding by save
   path, quoting, Dutch-locale formulas); see `field-layout.md`. Use it to understand layout choices and
   unbuilt features (BG, LV, SD, IZ widths; verrekenperiode), then probe in Beaufort.
 - **Amounts: warn, don't block (decision 8).** Probes P08 showed that Beaufort reads the dot as the
   decimal point (`3.250` is silently 3,25) and rejects a comma in a numeric rubriek at processing
-  (PI_2229), not at import. The script can't tell a numeric rubriek from a text rubriek, so it converts
+  (PI_2229), not at import. For an eigen rubriek the script can't tell numeric from text, so it converts
   `12,50` to `12.50` and warns about thousand-separator shapes, but never rejects them. The delimiter
   hints at the notation: `;` = Dutch Excel (decimal comma), `,` = English Excel (decimal dot), tab = no
-  hint. The full table is in decision 8; cases `ok-amounts*` cover each delimiter.
+  hint. The full table is in decision 8; cases `ok-amounts*` cover each delimiter. A standard numeric
+  rubriek gets the same table plus errors for what is not a number (decision 20); a standard text
+  rubriek gets none of it.
 - **The official PDF docs stay leading.** Beaufort accepts more at import than the docs allow
   (lowercase codes, other alignments, leading zeros, tabs, 186/188-byte lines; see
   `tests/beaufort/findings.md`). Don't relax the script because of that.
 - **Duplicate rows are up to the user.** Beaufort creates both; the script does not check.
-- **Beaufort is the safety net for rubriek-level errors.** It rejects only the records with errors and
-  reports them clearly, including S/V mismatches. Don't duplicate those checks.
+- **Beaufort is the safety net for eigen rubrieken.** It rejects only the records with errors and
+  reports them clearly, including S/V mismatches. For standard rubrieken the script catches the key, S/V
+  and value errors itself (decisions 18 and 20); min/max and referentietabel values stay with Beaufort.
 - **Candidates for later** are listed in `.NOT_IN_CURRENT_SPEC`: other object types, verrekenperiode
-  plus JWP, and the rubriek lookup.
+  plus JWP, and eigen rubrieken with the rest of the rubriek data (C, #24).
 
 ## Testing
 
@@ -195,7 +223,14 @@ Top to bottom:
   (prompt answers; default `CMT` / `07 10 2026` / `TSTUSER` / `Y`, the last one confirms warnings) and `output-name.txt` (output file name;
   default `DPIA100_<case>.<engine>.txt`). An empty `default-output` marker runs the case without
   `-OutputTxtPath` on a copy `out\<case>.<engine>.csv`, so the script's default name lands on that same
-  output path. Run it after every script change.
+  output path. `extra-rubrieken.txt` adds lines to the standard rubrieken table for that case only (a
+  copy of the script, a separate Edge page), for types the real list lacks: the time rubrieken T and U
+  (`*-standard-time`). Run it after every script change.
+- **Rubriek codes in fixtures.** A code in the standard list gets the checks of decisions 18-20, so a
+  fixture that is not about those uses an eigen code (`E00101`, `TST...`). The `*-standard-*` cases use
+  real standard codes (P00001 DV N 6,2, P00301 PS S 50, P00321 PS D, P00100 blocked, SETKB short, ...);
+  check a code's line in the table before using it. `npm run test:unit` can do the same with
+  `loadCore({ extraRubrieken })`.
 - **Order of operations (decision 14).** Prompt text is not captured when stdin is piped, but each answer
   read is echoed on its own line. The runner uses that: a failure case without `answers.txt` must not
   show `TSTUSER` or `[OK]`. The `ok-order-*` cases expect the echo, so they fail if it ever disappears
@@ -210,8 +245,12 @@ Top to bottom:
   throwaway profile. Never let a test page start a real download: it hangs headless Edge.
 - **Page checks** (with `edge`, `-Filter page-*` for only these): `page-security` (CSP equals the
   canonical policy, no external resources, forbidden-API scan), `page-version` (equals `$ScriptVersion`),
-  `page-1252-table` (the page's encoder equals .NET's strict 1252), `page-smoke-crlf`/`-lf` (the real
-  page starts under its CSP without violations).
+  `page-rubrieken` (the standard rubrieken table and its date are the same in script and page, and the
+  page parsed every line), `page-1252-table` (the page's encoder equals .NET's strict 1252),
+  `page-smoke-crlf`/`-lf` (the real page starts under its CSP without violations).
+- **Rubriek tools.** `pwsh tests\rubrieken\run-tests.ps1` runs the cleaner and the generator on the
+  synthetic `sample-export.txt` (two pages, a wrapped description, stam/variabel variants, a short code,
+  a blank flag) on 5.1 and 7; the generator writes into stub files. Never put rows of a real export there.
 - **Unit and UI tests of the page (`npm test`, Node.js LTS).** The roles are separate: `run-tests.ps1` is
   the authoritative parity runner; `npm test` runs the fast unit tests and the UI interactions.
   - `npm run test:unit`: `node:test`, no dependencies. `tests/web/core.test.mjs` tests the core
@@ -283,6 +322,9 @@ Top to bottom:
 
 - Open work is tracked in GitHub Issues (labels `beaufort-probe`, `enhancement`, `later`, `docs`, `bug`),
   not in a markdown checklist.
+- To refresh the standard rubrieken (a new Beaufort version): export 210006 without selection criteria,
+  run `pwsh tools\update-standard-rubrieken.ps1 -InputPath <export>`, check the counts it prints against
+  `docs/rubrieken-export.md`, run the tests, and add a changelog line (patch release).
 - To release: bump `$ScriptVersion` in `dpia100.ps1` and `VERSION` in the core of `dpia100.html` (then
   `update-csp.ps1`), add a `## vX.Y.Z (date)` section to `docs/CHANGELOG.md`, merge to main, then
   `git tag vX.Y.Z` and push the tag. CI runs the tests, checks that the tag matches both versions,

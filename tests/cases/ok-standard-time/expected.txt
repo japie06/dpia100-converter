@@ -1,0 +1,5 @@
+CMTZZT001     1   1                                        V   07102026         TSTUSER08:30                                                01112026                              NOR      
+CMTZZT001     1   1                                        V   07102026         TSTUSER08:30                                                01112026                              NOR      
+CMTZZT001     1   1                                        V   07102026         TSTUSER23:59                                                01112026                              NOR      
+CMTZZU001     1   1                                        V   07102026         TSTUSER08:30:00                                             01112026                              NOR      
+CMTZZU001     1   1                                        V   07102026         TSTUSER08:30:15                                             01112026                              NOR      

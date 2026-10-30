@@ -204,16 +204,24 @@ function Test-PageSecurity([string]$Path = $script:PagePath) {
 
 # Builds a page with the core script of dpia100.html (copied byte for byte), harness.js and the cases,
 # runs it in Edge and returns the harness payload (version, encodable code points, case results).
-function Invoke-WebHarness([object[]]$Cases, [string]$OutDir) {
+# -ExtraRubrieken adds lines to the core's standard rubrieken table, for test rubrieken the real list
+# lacks (tests\cases\*\extra-rubrieken.txt); the core is otherwise unchanged.
+function Invoke-WebHarness([object[]]$Cases, [string]$OutDir, [string[]]$ExtraRubrieken = @(), [string]$PageName = 'web-harness.html') {
     $core = (Get-PageParts).Blocks | Where-Object { $_.Id -eq 'dpia100-core' }
     if (-not $core) { throw 'No <script id="dpia100-core"> in dpia100.html.' }
+    $coreText = $core.Text
+    if ($ExtraRubrieken.Count -gt 0) {
+        $marker = 'const STANDARD_RUBRIEKEN_TABLE = String.raw`' + "`n"
+        if (-not $coreText.Contains($marker)) { throw 'No STANDARD_RUBRIEKEN_TABLE in the core of dpia100.html.' }
+        $coreText = $coreText.Replace($marker, $marker + (($ExtraRubrieken | ForEach-Object { "$_`n" }) -join ''))
+    }
     $harness = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'harness.js'), [Text.Encoding]::UTF8)
     # '<' is escaped so no case text can close the script element.
     $json = (ConvertTo-Json -InputObject @($Cases) -Depth 5 -Compress).Replace('<', '<')
     $page = "<!doctype html>`n<html><head><meta charset=`"utf-8`"><title>DPIA100 harness</title></head><body>`n" +
-            "<script>$($core.Text)</script>`n<script>$harness</script>`n<script>runHarness($json);</script>`n</body></html>`n"
+            "<script>$coreText</script>`n<script>$harness</script>`n<script>runHarness($json);</script>`n</body></html>`n"
     New-Item -ItemType Directory -Force $OutDir | Out-Null
-    $path = Join-Path $OutDir 'web-harness.html'
+    $path = Join-Path $OutDir $PageName
     [IO.File]::WriteAllText($path, $page, (New-Object Text.UTF8Encoding($false)))
     $result = Invoke-EdgePage $path
     if ($result.error) { throw "Harness error: $($result.error)" }

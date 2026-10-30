@@ -1,0 +1,5 @@
+Standard rubrieken: 
+[OK] 15 row(s) checked, no errors found.
+Comma changed to dot in 1 Waarde value(s), because a numeric rubriek in Beaufort only accepts a dot (a text rubriek that is not a standard rubriek gets the dot too): row 2 '12,50' -> '12.50'.
+Date or time written in the shape of the rubriek in 3 Waarde value(s): row 6 '1-11-2026' -> '01-11-2026', row 7 '2026-11-01' -> '01-11-2026', row 8 '01112026' -> '01-11-2026'.
+[SUCCESS]

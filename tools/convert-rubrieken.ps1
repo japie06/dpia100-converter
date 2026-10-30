@@ -7,13 +7,15 @@
     detail block of six lines. This script drops the page furniture and everything customer-specific
     (municipality, user name, print date), and writes the attributes that matter for dpia100:
 
-      Code Omschrijving Fix Prompt Gegsoort Typ Len Dec BlokIndMut Referentie RefTabel Minimum Maximum Bereik
+      Code Omschrijving Fix Prompt Gegsoort Typ Len Dec Stam Var BlokIndMut Referentie RefTabel Minimum Maximum Bereik
 
     Fix = J is a standard rubriek (shipped with Beaufort), Fix = N an "eigen rubriek" made by the customer.
     Gegsoort is the object level (PS, DV, RG, ...). BlokIndMut = J means the rubriek is blocked for indirect
-    mutation, so it cannot be imported with function 100254. Typ is N (numeric), S (text), D (date), ...;
-    Len includes the comma and decimals; Dec is the number of decimals (numeric only).
-    See docs/rubrieken-export.md.
+    mutation, so it cannot be imported with function 100254. Typ is N (numeric), S (text), D (date),
+    T (time hh:mm), U (time hh:mm:ss), ...; Len includes the comma and decimals; Dec is the number of
+    decimals (numeric only). Stam and Var say whether the rubriek is a stamgegeven and/or a variabel gegeven.
+    See docs/rubrieken-export.md. tools/update-standard-rubrieken.ps1 uses this script to embed the standard
+    PS/DV rubrieken in dpia100.ps1 and dpia100.html.
 
     The column positions are read from the column header line of the report, not hard-coded. The script
     aborts (exit 1, no output file) on anything it does not recognise: no column header, a header that
@@ -21,7 +23,8 @@
     that differs from the number of records.
 
     The export holds the rubriek set of one customer and a user name. Keep it, and the CSV made from it,
-    out of the repository (both are git-ignored).
+    out of the repository (both are git-ignored). Only the generated table of standard PS/DV codes and their
+    fixed attributes is committed, inside dpia100.ps1 and dpia100.html.
 .PARAMETER InputPath
     The exported report (.txt, UTF-8).
 .PARAMETER OutputPath
@@ -89,7 +92,7 @@ function Get-Column([string]$Line, [int]$Index) {
     return $Line.Substring($start, $len).Trim()
 }
 # Column indexes
-$cCode = 0; $cOmsch = 1; $cFix = 2; $cPrompt = 3; $cRsoort = 4; $cGsoort = 5; $cTyp = 6; $cLen = 7; $cDec = 8; $cBlokInd = 16
+$cCode = 0; $cOmsch = 1; $cFix = 2; $cPrompt = 3; $cRsoort = 4; $cGsoort = 5; $cTyp = 6; $cLen = 7; $cDec = 8; $cStam = 10; $cVar = 11; $cBlokInd = 16
 
 # --- Records and detail blocks ------------------------------------------------------------------------
 function Test-RecordLine([string]$Line) {
@@ -109,6 +112,7 @@ for ($n = 0; $n -lt $lines.Count; $n++) {
             Code = Get-Column $line $cCode; Omschrijving = Get-Column $line $cOmsch; Fix = Get-Column $line $cFix
             Prompt = Get-Column $line $cPrompt; Gegsoort = Get-Column $line $cGsoort; Typ = Get-Column $line $cTyp
             Len = Get-Column $line $cLen; Dec = Get-Column $line $cDec
+            Stam = Get-Column $line $cStam; Var = Get-Column $line $cVar
             BlokIndMut = ''; Referentie = ''; RefTabel = ''; Minimum = ''; Maximum = ''; Bereik = ''
             Line = $n + 1; Blocks = 0; Wrapped = $false
         }
@@ -117,6 +121,9 @@ for ($n = 0; $n -lt $lines.Count; $n++) {
         # kept blank, not turned into N: the report does not say what it means.
         if ($flag -notmatch '^[JN]?$') { $problems.Add("line $($n + 1): $($current.Code): Blok ind mut is '$flag', expected J, N or blank") }
         $current.BlokIndMut = $flag
+        if ($current.Stam -notmatch '^[JN]?$' -or $current.Var -notmatch '^[JN]?$') {
+            $problems.Add("line $($n + 1): $($current.Code): Stam '$($current.Stam)' or Var '$($current.Var)' is not J, N or blank")
+        }
         if ($current.Code -notmatch '^\S{1,7}$') { $problems.Add("line $($n + 1): unreadable code '$($current.Code)'") }
         if ($current.Len -notmatch '^\d*$' -or $current.Dec -notmatch '^\d*$') {
             $problems.Add("line $($n + 1): $($current.Code): Len '$($current.Len)' or Dec '$($current.Dec)' is not a number")
@@ -173,7 +180,7 @@ function ConvertTo-CsvField([string]$Value) {
     if ($Value -match '[;"\r\n]') { return '"' + $Value.Replace('"', '""') + '"' }
     return $Value
 }
-$fields = 'Code', 'Omschrijving', 'Fix', 'Prompt', 'Gegsoort', 'Typ', 'Len', 'Dec', 'BlokIndMut', 'Referentie', 'RefTabel', 'Minimum', 'Maximum', 'Bereik'
+$fields = 'Code', 'Omschrijving', 'Fix', 'Prompt', 'Gegsoort', 'Typ', 'Len', 'Dec', 'Stam', 'Var', 'BlokIndMut', 'Referentie', 'RefTabel', 'Minimum', 'Maximum', 'Bereik'
 $sb = New-Object Text.StringBuilder
 [void]$sb.Append(($fields -join ';') + "`r`n")
 foreach ($r in ($out | Sort-Object Code)) {

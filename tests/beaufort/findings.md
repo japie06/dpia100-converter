@@ -72,7 +72,9 @@ The 16 rejections, all explained:
 - P04-8 (PI_1650): DV rubriek with a PS key, rejected as expected.
 - P08-1..12 (PI_2250 *object_id P 1 is ongeldig*): P04-4 used exactly the same key on DV rubriek
   TST002 and was created, so dv 1 is valid. **P02748 is not a plain DV rubriek** (or not usable for this
-  person). The amount probes are still untested: pick another numeric DV rubriek.
+  person). The amount probes are still untested: pick another numeric DV rubriek. Later explained by the
+  rubrieken export (210006, 2026-10-30): P02748 *Saldo* has gegevenssoort **V1**, not DV, so it needs
+  another object_id.
 - The blank line (PI_1537), as in round 1.
 
 **Created means "accepted at import", not "stored correctly".** Whether characters, dates and keys
@@ -187,8 +189,8 @@ person must be in service on those dates.
 | P04-4 | DV key `P   1` (Excel tool) | created | | |
 | P04-5 | DV key `P 1` | **created** (round 3) | Same dienstverband? | None: script keeps the Excel-tool layout |
 | P04-6 | DV key `P 001` | **created** (round 3) | Same dienstverband? | None: script strips leading zeros (decision 4) |
-| P04-7 | PS rubriek with DV key | **created** (again) | What happens to the dv part? Does 100252 process it? | Script derives PS/DV from Dienstverband: a filled Dienstverband on a PS rubriek is not stopped at import |
-| P04-8 | DV rubriek with PS key | PI_1650 | | Expected |
+| P04-7 | PS rubriek with DV key | **created** (again) | What happens to the dv part? Does 100252 process it? | Standard PS rubriek: the script stops it (decision 18). Eigen rubriek: not stopped, PS/DV comes from Dienstverband (#2) |
+| P04-8 | DV rubriek with PS key | PI_1650 | | Expected. Standard DV rubriek: the script stops it first (decision 18) |
 | P05-1 | Procescode lowercase `cmt` | **created** | Linked to proces CMT? | None: script keeps uppercasing (docs) |
 | P05-2 | Rubriek lowercase | **created** | Linked to the right rubriek? | idem |
 | P05-3 | Creatiegebruiker left-aligned | **created** | Correct user? | None: script keeps the Excel-tool layout |

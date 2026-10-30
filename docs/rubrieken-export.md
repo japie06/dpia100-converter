@@ -1,32 +1,39 @@
 # Rubrieken uit Beaufort: het overzicht (functie 210006)
 
-Dit document beschrijft hoe we de rubrieken van Beaufort als gegevens krijgen en waarvoor we ze willen
-gebruiken. Het is de basis voor een latere wijziging van `dpia100.ps1` en `dpia100.html`. **Die wijziging is
-nog niet gemaakt.** Wat er nu is: het script `tools/convert-rubrieken.ps1` dat het overzicht opschoont, met tests.
+Dit document beschrijft hoe we de rubrieken van Beaufort als gegevens krijgen en hoe de converter ze
+gebruikt. Er zijn twee scripts: `tools/convert-rubrieken.ps1` schoont het overzicht op tot een CSV, en
+`tools/update-standard-rubrieken.ps1` zet de standaardrubrieken daaruit in `dpia100.ps1` en `dpia100.html`
+(beslissing 17 in de kop van `dpia100.ps1`). Beide hebben tests in `tests/rubrieken`.
 
 ## Waarom
 
-Tot nu toe kent de converter geen rubrieken: Beaufort zelf controleert de rubriek bij het verwerken. Het
-overzicht laat zien dat dat onderscheid wel te maken is:
+Tot versie 1.2 kende de converter geen rubrieken: Beaufort zelf controleerde de rubriek bij het
+verwerken. Het overzicht laat zien dat er onderscheid te maken is:
 
 - **Standaardrubrieken** (kolom *Fix* = `J`) komen met Beaufort mee. De codes beginnen met `P`, `R` of `S`. Ze zijn
   voor elke gemeente gelijk (voor dezelfde Beaufort-versie), dus we kunnen ze in de converter opnemen, zoals de
   Excel-tool dat ook doet.
 - **Eigen rubrieken** (*Fix* = `N`) maakt de gebruiker zelf aan (E, F, K, W, C ...). Die staan niet in de
-  standaardlijst en moeten apart worden aangeleverd (zie *Vervolg*).
+  standaardlijst. Een code die niet in de lijst staat, laat de converter zonder melding toe; eigen
+  rubrieken opgeven kan nog niet (ideeën in issue #24).
 
-Wat we ermee willen controleren:
+Van een standaardrubriek kan de klant alleen de rubrieksoort, tabbladomschrijving, minimum en maximum,
+toekomstmutaties, mutatieverantwoording, opvraagtermijn en de waarden van de referentietabel wijzigen
+(Beaufort-help *Rubrieken wijzigen of verwijderen*). Gegevenssoort, datatype, lengte, decimalen, stam/variabel
+en *Blok ind mut* liggen vast. Alleen die komen in de converter:
 
-| Gegeven | Gebruik |
+| Gegeven | Gebruik in de converter |
 |---|---|
-| `Blok ind mut` = `J` | De rubriek is geblokkeerd voor indirect muteren. Dat is wat DPIA100 doet, dus **zo'n rubriek kan niet worden geimporteerd**. Eigenaar: geen Beaufort-test nodig. |
-| `Geg.soort` PS of DV | Past de rubriek bij het wel of niet invullen van Dienstverband? Nu meldt pas Beaufort het (PI_1650). |
-| `Typ`, `Len`, `Dec` | Later: lengte en aantal decimalen van Waarde controleren (nu alleen een waarschuwing boven 50 tekens). |
-| `Minimum`, `Maximum`, `Bereik` | Later: waardebereik. |
-| `Referentie` | Waarde moet in een referentietabel staan; die waarden zitten **niet** in het overzicht. |
+| `Geg.soort` PS of DV | Dienstverband moet erbij passen; anders een fout (beslissing 18). Een DV-rubriek zonder dienstverband keurt Beaufort af (PI_1650). |
+| `Stam`, `Var` | S of V moet door de rubriek zijn toegestaan; anders een fout (beslissing 18). |
+| `Blok ind mut` = `J` | De rubriek is geblokkeerd voor indirect muteren, dus **niet te importeren met DPIA100** (eigenaar: geen Beaufort-test nodig). Een waarschuwing, geen fout (beslissing 19). Leeg telt als niet geblokkeerd. |
+| `Typ`, `Len`, `Dec` | De waarde wordt per type gecontroleerd: getal (`N`), datum (`D`), tijd (`T` `uu:mm`, `U` `uu:mm:ss`) of tekst (beslissing 20). |
+| `Minimum`, `Maximum`, `Bereik` | Niet gebruikt: de klant kan ze wijzigen. |
+| `Referentie` | Niet gebruikt: de waarden van de referentietabel staan **niet** in het overzicht en zijn per klant. |
 
-Privacy: in de converter komen alleen rubriekcodes en hun eigenschappen, **nooit waarden** uit het overzicht, en
-niets over de gemeente of de gebruiker die het overzicht heeft gemaakt.
+Privacy: in de converter komen alleen rubriekcodes en hun vaste eigenschappen, **nooit waarden of
+omschrijvingen** uit het overzicht, en niets over de gemeente of de gebruiker die het overzicht heeft
+gemaakt.
 
 ## Het overzicht maken
 
@@ -81,12 +88,12 @@ pwsh tools\convert-rubrieken.ps1 -InputPath C:\Temp\OverzichtRubrieken.txt -Only
 
 - Werkt op Windows PowerShell 5.1 en 7 met dezelfde uitvoer.
 - Schrijft `;`-gescheiden UTF-8 met BOM, zodat Excel het goed opent. Kolommen: `Code;Omschrijving;Fix;Prompt;
-  Gegsoort;Typ;Len;Dec;BlokIndMut;Referentie;RefTabel;Minimum;Maximum;Bereik`, gesorteerd op code.
+  Gegsoort;Typ;Len;Dec;Stam;Var;BlokIndMut;Referentie;RefTabel;Minimum;Maximum;Bereik`, gesorteerd op code.
 - `-OnlyScope`: alleen `PS` en `DV`. `-OnlyStandard`: alleen *Fix* = `J`.
 - **Stopt zonder uitvoer** (exit 1) bij alles wat het niet herkent: geen kolomkop, een kolomkop die per pagina
   verschilt, geen geldige UTF-8, een recordregel die niet te lezen is, een onbekende waarde in `Blok ind mut`,
-  dubbele codes, of een ander aantal detailblokken dan rubrieken. Zo verandert er niets stilzwijgend als Beaufort
-  het formaat wijzigt.
+  `Stam` of `Var`, dubbele codes, of een ander aantal detailblokken dan rubrieken. Zo verandert er niets
+  stilzwijgend als Beaufort het formaat wijzigt.
 - Een lege waarde in `Blok ind mut` blijft leeg; het script maakt er geen `N` van.
 - Tests: `pwsh tests\rubrieken\run-tests.ps1`. Het voorbeeldbestand `tests/rubrieken/sample-export.txt` is
   verzonnen (gemeente *Voorbeeldstad*, gebruiker *TESTUSER*); zet er nooit regels uit een echt overzicht in.
@@ -104,29 +111,47 @@ Meetwaarden van het script, ter controle bij een volgende export:
 | PS + DV naar Typ | N 3.198, S 803, D 691, H 7, T 2, I 1 |
 | PS + DV met Referentie J / Min-Max | 679 / 801 |
 | **PS + DV met Blok ind mut J / N / leeg** | **579 / 4.113 / 10** (alle 579 en alle 10 lege zijn standaard; geen enkele eigen rubriek is geblokkeerd) |
+| Standaard PS + DV naar Stam / Var | alleen stam 2.092, alleen variabel 428, beide 1.707 |
+| Standaard PS + DV naar Typ | N 3.035, D 603, S 586, H 2, I 1 (geen `T` of `U`; de eigen rubrieken hebben wel `T`) |
 
 Opvallend:
 
-- Codes zijn niet altijd 6 tekens: 59 rubrieken hebben 3 tot 5 tekens (31 daarvan PS of DV, 1 standaard). De regel
-  "rubriek is precies 6 tekens" in `dpia100` klopt dus voor bijna alles, maar niet voor deze; kijk hiernaar voor
-  de wijziging.
+- Codes zijn niet altijd 6 tekens: 59 rubrieken hebben 3 tot 5 tekens (31 daarvan PS of DV, 1 standaard:
+  `SETKB`). Daarom accepteert de converter 1 tot 6 tekens en zet hij een kortere code links in positie 4-9
+  (eigenaar). Dat is nog niet in Beaufort getest (issue #25).
 - 10 standaardrubrieken in PS/DV (en 5 daarbuiten) hebben een lege `Blok ind mut`, bijvoorbeeld P00633. Het
-  overzicht zegt niet wat dat betekent.
-- Alle standaardcodes beginnen met `P` (4.215), `R` (11) of `S` (1) in PS/DV.
+  overzicht zegt niet wat dat betekent; de converter behandelt leeg als niet geblokkeerd (eigenaar).
+- Standaardcodes in PS/DV beginnen met `P` (4.215), `R` (11) of `S` (1), maar ook 3 eigen rubrieken beginnen
+  met `R`. De converter leidt dus niets af uit de eerste letter: alleen de lijst telt.
+- Alle datumrubrieken hebben lengte 11.
 
-## Vervolg (stap 2, nog niet gemaakt; eerst akkoord van de eigenaar)
+## In de converter
 
-1. **Tabel genereren** uit `-OnlyScope -OnlyStandard`: per rubriek code, PS/DV en `Blok ind mut`, plus bron en
-   datum van het overzicht. Zowel in `dpia100.ps1` als in `dpia100.html` ingebakken (in de pagina een datablok
-   met nieuwe CSP-hash, `update-csp.ps1`), gegenereerd door hetzelfde script zodat ze gelijk blijven.
-2. **Regels** (elk een genummerde beslissing, ook in `tests/web/harness.js`, `core.test.mjs`, `tests/cases` en de
-   differential-test):
-   - Standaardrubriek met `Blok ind mut` = J: fout, kan niet worden geimporteerd.
-   - Standaardrubriek: PS/DV volgt uit de tabel; Dienstverband dat daar niet bij past: fout.
-   - Onbekende code: toegestaan (kan een eigen rubriek zijn), geen fout.
-3. **Eigen rubrieken**: de gebruiker levert zijn eigen overzicht of een kleine CSV aan tijdens het gebruik
-   (optioneel `-RubriekenPath` en een bestandskeuze in de pagina). Niets wordt opgeslagen (zie de privacyregels in
-   `CLAUDE.md`).
-4. Open vragen: wat betekent een lege `Blok ind mut` (voorlopig: niet als geblokkeerd behandelen, en geen
-   waarschuwing)? Hoe oud mag de standaardlijst worden (versie en datum in de uitvoer van de converter tonen)?
-   `CLAUDE.md` ("No rubriek lookup list") en `.NOT_IN_CURRENT_SPEC C` aanpassen.
+`tools/update-standard-rubrieken.ps1` maakt de lijst en zet hem in beide bestanden:
+
+```
+pwsh tools\update-standard-rubrieken.ps1 -InputPath C:\Temp\OverzichtRubrieken.txt
+```
+
+- Gebruikt `convert-rubrieken.ps1 -OnlyScope -OnlyStandard` en haalt de exportdatum uit de paginavoet
+  (anders `-ExportDate dd-MM-yyyy`).
+- Schrijft per rubriek één regel met vaste kolommen, bijvoorbeeld `P00001 DV N  6 2 SV N`: code,
+  gegevenssoort, type, lengte, decimalen (`-` = leeg), toegestaan `S-` (alleen stam), `-V` (alleen
+  variabel) of `SV`, en *Blok ind mut* (`J`, `N`, `-` = leeg).
+- Vervangt het gebied tussen `BEGIN STANDARD RUBRIEKEN` en `END STANDARD RUBRIEKEN` in `dpia100.ps1` (een
+  here-string) en in het core-script van `dpia100.html` (een `String.raw`-tekst). In de pagina staat de lijst
+  in het core-script zelf, niet in een apart blok: de pagina mag maar drie inline blokken hebben (CSP).
+  Daarna werkt het de CSP-hashes bij.
+- Stopt zonder iets te wijzigen bij een onverwachte waarde of als een van de twee gebieden ontbreekt.
+- De test `page-rubrieken` (`tests/run-tests.ps1`) controleert dat de lijst en de datum in beide bestanden
+  gelijk zijn.
+
+Het script toont `Standard rubrieken: 4227 (Beaufort export 30-10-2026)`; de pagina toont hetzelfde onderaan
+en bij de controle. Er is geen waarschuwing voor een oude lijst: een nieuwere standaardrubriek wordt dan
+behandeld als eigen rubriek, dus toegestaan. Bij een nieuwe Beaufort-versie: overzicht opnieuw maken,
+script draaien, de aantallen vergelijken met de tabel hierboven, tests draaien en een regel in
+`docs/CHANGELOG.md` zetten.
+
+## Eigen rubrieken
+
+Nog niet ingebouwd. Ideeën om ze te laten aanleveren of bewaren, met de eisen, staan in issue #24.

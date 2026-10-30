@@ -233,7 +233,7 @@ $all.Add((Rec 'P06-3 ingangsdatum links' -Idate $Ingang))
 $all.Add((Rec 'P06-4 creatiedatum dd-mm-eejj' -CdateSlot " $d10"))
 
 # P08: amounts in a numeric rubriek. Confirms (or not) the script's comma -> dot conversion and the
-# thousand-separator rejection (decision 8). A numeric Waarde cannot hold the probe ID, so every value
+# thousand-separator warnings (decision 8). A numeric Waarde cannot hold the probe ID, so every value
 # is unique; index.txt maps ID -> value.
 Section 'P08 amounts (numeric rubriek)'
 $amounts = '12.50', '12,50', '-12.50', '-12,50', '3.250', '3250', '1.234,56', '1,234.56', '12.345', '0012.50', '12.5', '12'

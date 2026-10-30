@@ -1,0 +1,15 @@
+CMTP00001   123   1                                        V   07102026         TSTUSER12.50                                                01112026                              NOR      
+CMTP00001   123   1                                        S   07102026         TSTUSER-7                                                   01112026                              NOR      
+CMTP00001   123   1                                        V   07102026         TSTUSER007                                                  01112026                              NOR      
+CMTP00320   123                                            S   07102026         TSTUSER123456789                                            01112026                              NOR      
+CMTP00321   123                                            S   07102026         TSTUSER01-11-2026                                           01112026                              NOR      
+CMTP00322   123   1                                        S   07102026         TSTUSER01-11-2026                                           01112026                              NOR      
+CMTP00322   123   1                                        S   07102026         TSTUSER01-11-2026                                           01112026                              NOR      
+CMTP00322   123   1                                        S   07102026         TSTUSER01-11-2026                                           01112026                              NOR      
+CMTP00301   123                                            S   07102026         TSTUSER1-11-2026                                            01112026                              NOR      
+CMTP00301   123                                            S   07102026         TSTUSER12,50                                                01112026                              NOR      
+CMTP00332   123   1                                        S   07102026         TSTUSER1,5                                                  01112026                              NOR      
+CMTP00633   123   1                                        V   07102026         TSTUSER1                                                    01112026                              NOR      
+CMTSETKB    123   1                                        S   07102026         TSTUSERab                                                   01112026                              NOR      
+CMTE00101   123   1                                        V   07102026         TSTUSERTekst                                                01112026                              NOR      
+CMTP00001   123   1                                        V   07102026         TSTUSER12.5                                                 01112026                              NOR      
