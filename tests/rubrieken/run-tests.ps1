@@ -53,7 +53,7 @@ foreach ($e in $engines) {
         }
         elseif ($null -ne $c.Text) { [IO.File]::WriteAllText($in, $c.Text, $utf8) }
         else { Copy-Item $sample $in -Force }
-        $console = & $e.Exe -NoProfile -File $tool -InputPath $in -OutputPath $out @($c.Args) 2>&1 | Out-String
+        $console = & $e.Exe -NoProfile -ExecutionPolicy Bypass -File $tool -InputPath $in -OutputPath $out @($c.Args) 2>&1 | Out-String
         $code = $LASTEXITCODE
         $problem = $null
         if ($c.Expected) {
@@ -94,7 +94,7 @@ foreach ($e in $engines) {
         $html = Join-Path $work "stub.$($e.Name).html"
         [IO.File]::WriteAllText($ps1, $stubScript, $bom)
         [IO.File]::WriteAllText($html, $c.Page, $utf8)
-        $console = & $e.Exe -NoProfile -File $generator -InputPath $sample -ScriptPath $ps1 -PagePath $html -SkipCsp 2>&1 | Out-String
+        $console = & $e.Exe -NoProfile -ExecutionPolicy Bypass -File $generator -InputPath $sample -ScriptPath $ps1 -PagePath $html -SkipCsp 2>&1 | Out-String
         $code = $LASTEXITCODE
         $gotScript = [IO.File]::ReadAllBytes($ps1); $gotPage = [IO.File]::ReadAllBytes($html)
         $problem = $null
@@ -114,3 +114,6 @@ foreach ($e in $engines) {
 }
 if ($failed) { Write-Host "$failed failed." -ForegroundColor Red; exit 1 }
 Write-Host 'All passed.' -ForegroundColor Green
+# Explicit: the last case expects exit code 1 from its child process, and GitHub Actions ends a pwsh step
+# with 'exit $LASTEXITCODE', which would fail the step.
+exit 0
