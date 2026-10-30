@@ -21,29 +21,53 @@
     'Pers. Nr/tooLong': () => 'Exceeds max length of 6 digits',
     'Dienstverband/digits': () => 'Must contain digits only (no decimals, spaces or letters)',
     'Dienstverband/tooLong': () => 'Exceeds max length of 3 digits',
+    'Dienstverband/dvRequired': e => `Rubriek ${e.rubriek} is a DV rubriek: fill in the dienstverband (empty or 0 gives a PS key, which Beaufort rejects)`,
+    'Dienstverband/psOnly': e => `Rubriek ${e.rubriek} is a PS rubriek: leave Dienstverband empty`,
     'S of V/invalid': () => "Must strictly be 'S' (Stam) or 'V' (Variabel)",
+    'S of V/variabelOnly': e => `Rubriek ${e.rubriek} is a variabel gegeven: use V`,
+    'S of V/stamOnly': e => `Rubriek ${e.rubriek} is a stamgegeven: use S`,
     'Ingangsdatum/invalid': () => 'Invalid or unparseable date',
     'Productiesoort/jwp': () => 'JWP is not supported by this script (requires a verrekenperiode). Use NOR',
-    'Productiesoort/invalid': () => 'Must be one of: NOR',
+    'Productiesoort/invalid': () => 'Must be one of: NOR, COR',
     'Mutatiewaarde/control': () => 'Contains line break, tab or control character',
     'Mutatiewaarde/unicode': () => 'Contains invalid Unicode characters',
-    'Mutatiewaarde/encoding': e => `Characters not available in Windows-1252: ${e.chars}`
+    'Mutatiewaarde/encoding': e => `Characters not available in Windows-1252: ${e.chars}`,
+    'Mutatiewaarde/notNumber': e => `Rubriek ${e.rubriek} is numeric: write a number with a decimal point, e.g. -1234.56`,
+    'Mutatiewaarde/decimals': e => `Rubriek ${e.rubriek} allows ${e.decimals} decimal(s): Beaufort would store ${e.kept}`,
+    'Mutatiewaarde/digits': e => `Rubriek ${e.rubriek} allows at most ${e.max} digit(s) before the decimal point`,
+    'Mutatiewaarde/notDate': e => `Rubriek ${e.rubriek} is a date: write dd-mm-yyyy, e.g. 01-11-2026`,
+    'Mutatiewaarde/notTime': e => `Rubriek ${e.rubriek} is a time: write ${e.type === 'T' ? 'hh:mm, e.g. 08:30' : 'hh:mm:ss, e.g. 08:30:00'}`,
+    'Mutatiewaarde/textTooLong': e => `Rubriek ${e.rubriek} allows at most ${e.length} characters`
   };
 
   const label = w => `Row ${w.row} (Pers. Nr: ${w.persNr})`;
   const WARNINGS = {
     commaChanged: w => commaMessage(w.conversions),
+    blocked: w => `${w.rows.length} row(s) use a standard rubriek that is blocked for indirect mutation (Blok ind mut = J): ${examples(w.rows.map(x => `row ${x.row} ${x.rubriek}`))}. Beaufort does not import these mutations; enter them in Beaufort itself.`,
     thousandEn: w => `${label(w)}: Waarde '${w.value}' has a thousand separator (English notation in a comma-separated file). Written as typed; a numeric rubriek rejects it at processing (PI_2229). Write ${w.whole}${w.fraction}.`,
     commaAsDecimal: w => `${label(w)}: Waarde '${w.value}' was written as '${w.converted}' (comma read as decimal). If the comma is a thousand separator, write ${w.whole}${w.fraction}.`,
     dotDecimal: w => `${label(w)}: Waarde '${w.value}' is read by Beaufort as ${w.asComma} in a numeric rubriek. If the dot is a thousand separator, write it without the dot.`,
     separator: w => `${label(w)}: Waarde '${w.value}' looks like an amount with a thousand separator. A numeric rubriek rejects it at processing (PI_2229); write it without, e.g. 1234.56.`,
-    truncated: w => `${label(w)}: Waarde was truncated from ${w.length} to 50 chars:\n    Original : '${w.original}'\n    Truncated: '${w.truncated}'`
+    truncated: w => `${label(w)}: Waarde was truncated from ${w.length} to 50 chars:\n    Original : '${w.original}'\n    Truncated: '${w.truncated}'`,
+    emptyValue: w => `Waarde is empty in ${w.rows.length} row(s): ${examples(w.rows.map(x => `row ${x.row} (Pers. Nr: ${x.persNr})`))}. An empty Waarde deletes the current value of the rubriek in Beaufort. Fill in the value if that is not intended.`,
+    dateShape: w => `${w.values.length} Waarde value(s) look like a date but are not written as dd-mm-yyyy: ${examples(w.values.map(x => `row ${x.row} '${x.value}'`))}. The official Excel tool wrote dates as dd-mm-yyyy; in a date rubriek Beaufort may read another shape differently. Write e.g. 01-11-2026.`,
+    timeShape: w => `${w.values.length} Waarde value(s) look like a time but are not written as hh:mm or hh:mm:ss: ${examples(w.values.map(x => `row ${x.row} '${x.value}'`))}. A time rubriek in Beaufort holds hh:mm or hh:mm:ss; Beaufort may read another shape differently. Write e.g. 08:30.`
   };
 
+  // PS: Join-Examples.
+  function examples(list) {
+    const more = list.length > 5 ? `, and ${list.length - 5} more` : '';
+    return list.slice(0, 5).join(', ') + more;
+  }
+
+  const conversionExamples = list => examples(list.map(c => `row ${c.row} '${c.from}' -> '${c.to}'`));
+
   function commaMessage(conversions) {
-    const shown = conversions.slice(0, 5).map(c => `row ${c.row} '${c.from}' -> '${c.to}'`).join(', ');
-    const more = conversions.length > 5 ? `, and ${conversions.length - 5} more` : '';
-    return `Comma changed to dot in ${conversions.length} Waarde value(s), because a numeric rubriek in Beaufort only accepts a dot (a text rubriek gets the dot too): ${shown}${more}.`;
+    return `Comma changed to dot in ${conversions.length} Waarde value(s), because a numeric rubriek in Beaufort only accepts a dot (a text rubriek that is not a standard rubriek gets the dot too): ${conversionExamples(conversions)}.`;
+  }
+
+  function formatMessage(conversions) {
+    return `Date or time written in the shape of the rubriek in ${conversions.length} Waarde value(s): ${conversionExamples(conversions)}.`;
   }
 
   const PROMPT_WARNINGS = {
@@ -83,6 +107,7 @@
     const f = r.fatal;
     if (f && f.code === 'read') return fail(`Could not read '${c.fileName}': ${f.message}`);
     out.push(`Input encoding    : ${r.encodingName}`);
+    out.push(`Standard rubrieken: ${DPIA100.standardRubriekCount} (Beaufort export ${DPIA100.STANDARD_RUBRIEKEN_DATE})`);
     if (f && f.code === 'empty') return fail(`The file '${c.fileName}' is completely empty. Aborting.`);
     if (f && f.code === 'headerOnly') return fail(`The file '${c.fileName}' contains only headers and NO data rows. Aborting.`);
     out.push(`Detected delimiter: '${r.delimiter}'`);
@@ -108,6 +133,7 @@
 
     out.push(`[OK] ${r.records.length} row(s) checked, no errors found.`);
     if (r.commaReported) out.push(commaMessage(r.commaConversions));
+    if (r.formatConversions.length > 0) out.push(formatMessage(r.formatConversions));
     if (r.warnings.length > 0) {
       out.push(`[WARNINGS] ${r.warnings.length} warning(s). The values are written as shown:`);
       for (const w of r.warnings) out.push(`  - ${WARNINGS[w.code](w)}`);
@@ -160,6 +186,8 @@
       payload = {
         version: DPIA100.VERSION,
         encodable: DPIA100.encodableCodePoints(),
+        standardRubrieken: DPIA100.standardRubriekCount,
+        standardDate: DPIA100.STANDARD_RUBRIEKEN_DATE,
         cases: cases.map(c => {
           try { return runCase(c); } catch (e) { return { name: c.name, exitCode: -1, output: null, transcript: `HARNESS EXCEPTION: ${e.stack || e}` }; }
         })

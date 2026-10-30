@@ -18,7 +18,8 @@ Er zijn twee manieren, die precies hetzelfde doen en hetzelfde bestand maken:
 
 - Leest een CSV-bestand dat je vanuit Excel hebt opgeslagen. (scheidingsteken ;, , of tab wordt automatisch herkend).
 - Controleert elke regel. Bij één of meer fouten wordt **geen** bestand gemaakt en zie je een lijst met
-  alle fouten.
+  alle fouten. Kent het de rubriek (een [standaardrubriek](#standaardrubrieken)), dan controleert het ook
+  het dienstverband, S of V en de waarde tegen die rubriek.
 - Maakt het importbestand in het vaste formaat dat Beaufort verwacht. De technische details staan in
   `field-layout.md`.
 
@@ -53,8 +54,9 @@ Het versienummer staat onderaan de webpagina en bovenaan in het venster van het 
      tip. Er wordt dan geen bestand gemaakt. Pas de regels aan in Excel, sla de CSV op en klik op
      **Opnieuw controleren**. Je hoeft het bestand niet opnieuw te kiezen.
    - Onder *Welke kolom is gebruikt?* zie je welke kolom uit je CSV bij welk veld hoort. Let vooral op
-     *Mutatiewaarde*: die kolom kan niet worden gecontroleerd.
-   - **Waarschuwingen** (zie [Bedragen](#bedragen)) blokkeren niet, maar je moet ze bij stap 3 bevestigen.
+     *Mutatiewaarde*: bij een eigen rubriek kan die kolom niet worden gecontroleerd.
+   - **Waarschuwingen** (zie [Bedragen](#bedragen), [Lege waarden, datums en tijden](#lege-waarden-datums-en-tijden)
+     en [Standaardrubrieken](#standaardrubrieken)) blokkeren niet, maar je moet ze bij stap 3 bevestigen.
    - Met *Bekijk de mutaties* zie je precies wat er in het bestand komt.
 5. **Stap 3, Bestand maken** (alleen als er geen fouten zijn): vul de **procescode** (meestal `CMT`), de
    **creatiedatum** (standaard vandaag) en je **gebruikersnaam in Beaufort** in. Vink *Onthoud* aan, dan
@@ -93,8 +95,10 @@ de pagina werkt ook zonder internetverbinding. Gebruik op de pagina geen vertaal
    - **Creatiedatum**: druk op Enter voor vandaag, of typ een datum (`dd mm jjjj`).
    - **Creatiegebruiker**: je Beaufort-gebruikersnaam (verplicht, max. 16 tekens).
 
-   Waren er waarschuwingen (zie [Bedragen](#bedragen)), dan vraagt het script daarna nog of het
-   bestand toch gemaakt moet worden.
+   Waren er waarschuwingen (zie [Bedragen](#bedragen),
+   [Lege waarden, datums en tijden](#lege-waarden-datums-en-tijden) en
+   [Standaardrubrieken](#standaardrubrieken)), dan vraagt het script daarna nog of het bestand toch
+   gemaakt moet worden.
 6. Het bestand komt in **dezelfde map als je CSV-bestand**, met de naam van de CSV erin:
    `mutaties oktober.csv` wordt `DPIA100_mutaties oktober.txt`. Het volledige pad staat in het venster
    bij *Output file* en bij **[SUCCESS]**. Zet het bestand in de *Bestandsuitwisseling* naar HR Core en
@@ -112,6 +116,7 @@ Zo ziet het venster eruit bij `voorbeeld.csv` (jouw antwoorden staan achter de d
 Input file        : H:\Mutaties\voorbeeld.csv
 Output file       : H:\Mutaties\DPIA100_voorbeeld.txt
 Input encoding    : Windows-1252
+Standard rubrieken: 4227 (Beaufort export 30-10-2026)
 Detected delimiter: ';'
 Column mapping:
   Rubriek         <- 'Rubriek'
@@ -124,7 +129,7 @@ Column mapping:
 
 [OK] 3 row(s) checked, no errors found.
 
-Comma changed to dot in 1 Waarde value(s), because a numeric rubriek in Beaufort only accepts a dot (a text rubriek gets the dot too): row 3 '125,50' -> '125.50'.
+Comma changed to dot in 1 Waarde value(s), because a numeric rubriek in Beaufort only accepts a dot (a text rubriek that is not a standard rubriek gets the dot too): row 3 '125,50' -> '125.50'.
 
 Procescode [Press ENTER for 'CMT']:
 Creatiedatum (dd mm yyyy) [Press ENTER for '28 10 2026']:
@@ -149,13 +154,13 @@ dienstverbandmutaties. De volgorde van de kolommen maakt niet uit. Extra kolomme
 
 | Kolom (voorbeeldkop) | Verplicht | Toelichting |
 |---|---|---|
-| Rubriek | ja | Max. 6 letters/cijfers, bijvoorbeeld `E00101`. |
+| Rubriek | ja | Maximaal 6 letters/cijfers, bijvoorbeeld `E00101`. |
 | Pers. Nr | ja | Alleen cijfers, max. 6. Voorloopnullen worden weggehaald. |
-| Dienstv | nee | Alleen cijfers, max. 3. **Leeg = persoonsmutatie**, gevuld = dienstverbandmutatie. |
-| S of V | ja | `S` (stam) of `V` (variabel). |
-| Mutatiewaarde | nee | Max. 50 tekens; langer wordt afgekapt met een waarschuwing. Bedragen met een komma of punt als decimaalteken (`-12,50`), zonder scheidingsteken voor duizendtallen. Verder vrij in te vullen; Beaufort controleert de waarde. |
+| Dienstv | nee | Alleen cijfers, max. 3. **Leeg = persoonsmutatie**, gevuld = dienstverbandmutatie. Bij een standaardrubriek moet dat kloppen met de rubriek (zie [Standaardrubrieken](#standaardrubrieken)). |
+| S of V | ja | `S` (stam) of `V` (variabel). Bij een standaardrubriek moet de rubriek dat toestaan. |
+| Mutatiewaarde | nee | Max. 50 tekens; langer wordt afgekapt met een waarschuwing. Bedragen met een komma of punt als decimaalteken (`-12,50`), zonder scheidingsteken voor duizendtallen. Datums als `01-11-2026`, tijden als `08:30`. **Leeg = de huidige waarde verwijderen** (met een waarschuwing). Bij een standaardrubriek wordt de waarde gecontroleerd; bij een eigen rubriek doet Beaufort dat. |
 | Ingangsdatum | ja | Bijvoorbeeld `1 11 2026`, `01-11-2026`, `01/11/2026`, `2026-11-01` of `01112026`. |
-| Productiesoort | nee | Alleen `NOR`. Leeg wordt `NOR`. |
+| Productiesoort | nee | `NOR` of `COR`. Leeg wordt `NOR`. |
 
 ### Bedragen
 
@@ -165,29 +170,70 @@ Typ bedragen **zonder punt voor duizendtallen**: schrijf `3250` of `3250,50`, ni
 Zo'n punt komt er ongemerkt in als de cel in Excel is opgemaakt *met scheidingsteken voor
 duizendtallen*. Kies in dat geval een opmaak zonder dat scheidingsteken.
 
-Het hulpmiddel kan niet zien of een rubriek een bedrag of een tekst bevat. Daarom weigert het zulke
-waarden niet, maar geeft het een **waarschuwing**. Zijn er waarschuwingen, dan wordt het bestand pas
-gemaakt als je dat bevestigt: in de browser met het vinkje bij stap 3, in het script door `Y` te typen
-(elk ander antwoord stopt zonder bestand).
+Bij een **eigen rubriek** kan het hulpmiddel niet zien of de rubriek een bedrag of een tekst bevat.
+Daarom weigert het zulke waarden niet, maar geeft het een **waarschuwing**. Zijn er waarschuwingen, dan
+wordt het bestand pas gemaakt als je dat bevestigt: in de browser met het vinkje bij stap 3, in het
+script door `Y` te typen (elk ander antwoord stopt zonder bestand).
 
 Een decimale komma wordt een punt (`12,50` wordt `12.50`), want Beaufort accepteert alleen een punt. Dat
 wordt altijd gemeld.
+
+Bij een **standaardrubriek** weet het hulpmiddel het wel: een numerieke standaardrubriek krijgt dezelfde
+controles en daarnaast een foutmelding voor alles wat geen getal is, en een tekstrubriek krijgt de
+waarde precies zoals je hem typt (ook `12,50`). Zie [Standaardrubrieken](#standaardrubrieken).
 
 > **Voor wie het precies wil weten:** het script kijkt naar het scheidingsteken van de CSV. Een CSV met
 > `;` (Excel met Nederlandse instellingen) gebruikt de komma als decimaalteken. Een CSV met `,` (Excel
 > met Engelse instellingen) gebruikt de punt: daar is `3.250` gewoon 3,25 en geeft `1,234` een
 > waarschuwing.
 
+### Lege waarden, datums en tijden
+
+Een **lege mutatiewaarde verwijdert** de huidige waarde van de rubriek in Beaufort. Dat kan de bedoeling
+zijn, maar ook een vergeten cel. Daarom krijg je een waarschuwing met de regels waar de waarde leeg is.
+
+Schrijf een **datum** in de mutatiewaarde als `dd-mm-jjjj` (`01-11-2026`) en een **tijd** als `uu:mm`
+(`08:30`) of, in een rubriek met seconden, `uu:mm:ss` (`08:30:00`), zoals Beaufort ze bewaart. Bij een
+eigen rubriek wordt een andere vorm, zoals `1-11-2026`, `2026-11-01` of `8:30`, geschreven zoals je hem
+typt, met een waarschuwing: in een datum- of tijdrubriek kan Beaufort die anders lezen. Tip: geef de
+kolom in Excel de aangepaste opmaak `dd-mm-jjjj`.
+
+Ook deze waarschuwingen moet je bevestigen voordat het bestand wordt gemaakt. Bij een standaardrubriek
+zet het hulpmiddel de datum of tijd zelf in de goede vorm en meldt dat.
+
+### Standaardrubrieken
+
+Het hulpmiddel kent de **standaardrubrieken** van Beaufort voor persoon en dienstverband (ruim 4.200,
+de rubrieken die met Beaufort meekomen). Het aantal en de datum van de lijst staan in het venster bij
+*Standard rubrieken* en onderaan de webpagina. Voor zo'n rubriek controleert het:
+
+- **Dienstverband**: een dienstverbandrubriek heeft een dienstverband nodig (leeg of `0` geeft een
+  foutmelding), een persoonsrubriek mag er geen hebben.
+- **S of V**: een rubriek die alleen stam of alleen variabel is, accepteert alleen `S` of alleen `V`.
+- **Mutatiewaarde**, naar het soort rubriek:
+  - getal: moet een getal zijn met niet meer decimalen en cijfers dan de rubriek heeft (`12.345` in een
+    rubriek met 2 decimalen geeft een foutmelding, want Beaufort zou er 12,34 van maken);
+  - datum: wordt `dd-mm-jjjj` (`1-11-2026` wordt `01-11-2026`, en dat wordt gemeld); geen datum is een fout;
+  - tijd: wordt `uu:mm` of `uu:mm:ss`, zoals de rubriek het wil; geen tijd is een fout;
+  - tekst: precies zoals je hem typt, en niet langer dan de rubriek toestaat.
+- **Geblokkeerd voor indirect muteren** (*Blok ind mut*): zo'n rubriek kan niet met DPIA100 worden
+  geïmporteerd. Je krijgt een waarschuwing; voer de mutatie in Beaufort zelf in.
+
+Een rubriekcode die niet in de lijst staat, is een **eigen rubriek**. Die is gewoon toegestaan, zonder
+melding, en wordt gecontroleerd zoals hierboven bij bedragen en datums staat; Beaufort controleert de
+rest. Eigen rubrieken kunnen (nog) niet worden opgegeven
+([#24](https://github.com/japie06/dpia100-converter/issues/24)).
+
 ### Bijzondere tekens
 
 Letters met accenten (`é ë ö ç à ü` enz.) zijn geen probleem.
 
-**Let op:** uit een test blijkt dat Beaufort `€`, krullende aanhalingstekens (`’ “ ”`),
-gedachtestreepjes (`– —`), het weglatingsteken `…` en een paar zeldzame tekens (zoals `Š ž ™ ÿ`)
-**zonder melding weglaat**: `d’Ancona` wordt `dAncona`. Gebruik daarom gewone tekens: `'`, `"`, `-`,
-`...` en `EUR`. Word en Excel maken van `'` en `-` vaak automatisch een krullend aanhalingsteken of een
-gedachtestreepje; let daar op. Dit wordt nog nagekeken
-([#20](https://github.com/japie06/dpia100-converter/issues/20)).
+**Nog niet zeker:** `€`, krullende aanhalingstekens (`’ “ ”`), gedachtestreepjes (`– —`), het
+weglatingsteken `…` en een paar zeldzame tekens (zoals `Š ž ™ ÿ`) worden geaccepteerd en in het bestand
+gezet. In één test ontbraken ze in het verwerkingsverslag van Beaufort (`d’Ancona` stond er als
+`dAncona`), terwijl Beaufort ze accepteert als je ze daar zelf intypt. Dit wordt opnieuw getest
+([#20](https://github.com/japie06/dpia100-converter/issues/20)). Wil je zeker zijn, controleer de
+waarde dan na het verwerken in Beaufort.
 
 Tekens die Beaufort helemaal niet kent, worden door het script geweigerd met een foutmelding. Bijvoorbeeld een pijl `→` (Word maakt die soms automatisch van `->`),
 een vinkje `✓`, Poolse of Turkse letters (`ł`, `ş`) en emoji.
@@ -214,10 +260,11 @@ een vinkje `✓`, Poolse of Turkse letters (`ł`, `ş`) en emoji.
 
 ## Wat het (nog) niet doet
 
-Alleen persoons- en dienstverbandmutaties (PS en DV) met productiesoort NOR. Bankgiro, inzet,
+Alleen persoons- en dienstverbandmutaties (PS en DV) met productiesoort NOR of COR. Bankgiro, inzet,
 loonverdeling, speciale doorbelasting, ziektegevallen, JWP en de verrekenperiode worden niet
-ondersteund. Rubrieken worden niet gecontroleerd aan de hand van een lijst; Beaufort keurt een onjuiste
-rubriek af bij het importeren. Zie `field-layout.md` voor de technische details.
+ondersteund. Eigen rubrieken worden niet aan een lijst getoetst; Beaufort keurt een onjuiste rubriek af
+bij het importeren. Minimum- en maximumwaarden en de waarden van referentietabellen controleert alleen
+Beaufort. Zie `field-layout.md` voor de technische details.
 
 ## Voor beheerders
 
@@ -233,8 +280,14 @@ rubriek af bij het importeren. Zie `field-layout.md` voor de technische details.
 - Na een wijziging in een script- of stijlblok van `dpia100.html`: `pwsh tests\web\update-csp.ps1`.
   Anders weigert de browser de gewijzigde code (zie
   [docs/privacy-en-beveiliging.md](docs/privacy-en-beveiliging.md)).
+- `tests\demo\` bevat CSV-bestanden die elke fout, waarschuwing en melding laten zien, met per regel een
+  opmerking. Handig om de converter te bekijken of te laten zien; uitleg in `tests\demo\README.md`.
 - `tests\beaufort\` bevat testbestanden om na te gaan wat Beaufort zelf accepteert (bijzondere tekens,
   regeleinden), met de resultaten in `findings.md`.
+- De lijst met standaardrubrieken bijwerken (bijvoorbeeld na een nieuwe Beaufort-versie): maak het
+  overzicht met functie 210006 en draai `pwsh tools\update-standard-rubrieken.ps1 -InputPath <overzicht>`.
+  Uitleg in [docs/rubrieken-export.md](docs/rubrieken-export.md). Zet het overzicht zelf nooit in de
+  repository.
 
 ## Licentie
 

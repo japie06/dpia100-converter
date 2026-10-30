@@ -1,0 +1,108 @@
+---------------------------------------------------------------------------------------------------------------------------------
+|                                              Gemeente Voorbeeldstad                                                             |
+|                                                  Overzicht rubriekentabel                                          Blz :   1  |
+|                                                                                                                               |
+---------------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+      -Selectiecriteria-----------------------------------------------------------------------------------------------
+      |                Rubriek code  :                                                                               |
+      |                Soort rubriek :                                                                               |
+      |                Gegevenssoort :                                                                               |
+      ----------------------------------------------------------------------------------------------------------------
+                                                                                                                       Blok
+                                                            Rubriek Geg.              Opv                Toek Blok     ind
+ Code    Omschrijving              Fix Prompt               soort   soort Typ Len Dec trm  Stam Var Verv Rubr toek Mut mut
+ ZZ0001  Voorbeeld tekst            N  Voorbeeld tekst                DV   S   50            J   N    J    N   N    J   N
+         Ingedeeld  N                  Referentie    N                  Min/Max  N                 Salarisaanlev  N
+         Tabel      DPIA032            Tabel                            Minimum                   TWK vanaf (WG) N
+         Veld       WAARDE             Ref_key naam                     Maximum                  DIW <> begindt N
+         Logging    J                  Ref_oms naam                     Bereik                     TWK huidig jr  N
+         Groep code                    Ext_ref naam                     Syntax                     TWK vorig jaar N
+         Exportkenmerken                                                                           Autom. corr.   N
+
+ ZZ0002  Voorbeeld met lange        N  Voorbeeld uren                 DV   N   5   2         N   J    J    N   N    J   N
+         omschrijving
+         Ingedeeld  N                  Referentie    N                  Min/Max  J                 Salarisaanlev  N
+         Tabel      DPIA032            Tabel                            Minimum            0,00   TWK vanaf (WG) N
+         Veld       WAARDE             Ref_key naam                     Maximum          40,00   DIW <> begindt N
+         Logging    J                  Ref_oms naam                     Bereik   +                 TWK huidig jr  N
+         Groep code                    Ext_ref naam                     Syntax                     TWK vorig jaar N
+         Exportkenmerken                                                                           Autom. corr.   N
+
+
+---------------------------------------------------------------------------------------------------------------------------------
+| HR Core - OPIA000 - TESTUSER                                                                               01 jan 2026 12:00  |
+---------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------------------------------
+|                                              Gemeente Voorbeeldstad                                                             |
+|                                                  Overzicht rubriekentabel                                          Blz :   2  |
+|                                                                                                                               |
+---------------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+      -Selectiecriteria-----------------------------------------------------------------------------------------------
+      |                Rubriek code  :                                                                               |
+      |                Soort rubriek :                                                                               |
+      |                Gegevenssoort :                                                                               |
+      ----------------------------------------------------------------------------------------------------------------
+                                                                                                                       Blok
+                                                            Rubriek Geg.              Opv                Toek Blok     ind
+ Code    Omschrijving              Fix Prompt               soort   soort Typ Len Dec trm  Stam Var Verv Rubr toek Mut mut
+ ZZ0003  Standaard ja/nee           J  Standaard ja/nee               PS   N   1   0    0    J   J    J    N   N    J   J
+         Ingedeeld  N                  Referentie    J                  Min/Max  N                 Salarisaanlev  N
+         Tabel      DPIA032            Tabel         DPIA029            Minimum                   TWK vanaf (WG) N
+         Veld       WAARDE             Ref_key naam                     Maximum                  DIW <> begindt N
+         Logging    J                  Ref_oms naam                     Bereik                     TWK huidig jr  N
+         Groep code                    Ext_ref naam                     Syntax                     TWK vorig jaar N
+         Exportkenmerken                                                                           Autom. corr.   N
+
+ ZZ0004  Oude datum                 J  Oude datum                     DV   D   11      18    J   N    J    N   N    J
+         Ingedeeld  N                  Referentie                      Min/Max                   Salarisaanlev  J
+         Tabel      DPIA032            Tabel                            Minimum                   TWK vanaf (WG) N
+         Veld       WAARDE             Ref_key naam                     Maximum                  DIW <> begindt N
+         Logging    J                  Ref_oms naam                     Bereik                     TWK huidig jr  N
+         Groep code                    Ext_ref naam                     Syntax                     TWK vorig jaar N
+         Exportkenmerken                                                                           Autom. corr.   N
+
+ ZZ0005  Café toelage               N  Café toelage                   DV   S   25            J   N    J    N   N    J   N
+         Ingedeeld  N                  Referentie    N                  Min/Max  N                 Salarisaanlev  N
+         Tabel      DPIA032            Tabel                            Minimum                   TWK vanaf (WG) N
+         Veld       WAARDE             Ref_key naam                     Maximum                  DIW <> begindt N
+         Logging    J                  Ref_oms naam                     Bereik                     TWK huidig jr  N
+         Groep code                    Ext_ref naam                     Syntax                     TWK vorig jaar N
+         Exportkenmerken                                                                           Autom. corr.   N
+
+ ZZ0006  Toelage; extra "x"         N  Toelage                        DV   N   9   2         J   N    J    N   N    J   N
+         Ingedeeld  N                  Referentie    N                  Min/Max  N                 Salarisaanlev  N
+         Tabel      DPIA032            Tabel                            Minimum                   TWK vanaf (WG) N
+         Veld       WAARDE             Ref_key naam                     Maximum                  DIW <> begindt N
+         Logging    J                  Ref_oms naam                     Bereik                     TWK huidig jr  N
+         Groep code                    Ext_ref naam                     Syntax                     TWK vorig jaar N
+         Exportkenmerken                                                                           Autom. corr.   N
+
+ ZZ0007  Ander object               J  Ander object                   RG   N   9   2         J   N    J    N   N    J   J
+         Ingedeeld  N                  Referentie    N                  Min/Max  N                 Salarisaanlev  J
+         Tabel      DPIA032            Tabel                            Minimum                   TWK vanaf (WG) N
+         Veld       WAARDE             Ref_key naam                     Maximum                  DIW <> begindt N
+         Logging    J                  Ref_oms naam                     Bereik                     TWK huidig jr  N
+         Groep code                    Ext_ref naam                     Syntax                     TWK vorig jaar N
+         Exportkenmerken                                                                           Autom. corr.   N
+
+ ZZ08    Korte tijd                 J  Korte tijd                     DV   T   5             J   N    J    N   N    J   N
+         Ingedeeld  N                  Referentie    N                  Min/Max  N                 Salarisaanlev  N
+         Tabel      DPIA032            Tabel                            Minimum                   TWK vanaf (WG) N
+         Veld       WAARDE             Ref_key naam                     Maximum                  DIW <> begindt N
+         Logging    J                  Ref_oms naam                     Bereik                     TWK huidig jr  N
+         Groep code                    Ext_ref naam                     Syntax                     TWK vorig jaar N
+         Exportkenmerken                                                                           Autom. corr.   N
+
+---------------------------------------------------------------------------------------------------------------------------------
+| HR Core - OPIA000 - TESTUSER                                                                               01 jan 2026 12:00  |
+---------------------------------------------------------------------------------------------------------------------------------

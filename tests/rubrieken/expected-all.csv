@@ -1,0 +1,9 @@
+﻿Code;Omschrijving;Fix;Prompt;Gegsoort;Typ;Len;Dec;Stam;Var;BlokIndMut;Referentie;RefTabel;Minimum;Maximum;Bereik
+ZZ0001;Voorbeeld tekst;N;Voorbeeld tekst;DV;S;50;;J;N;N;N;;;;
+ZZ0002;Voorbeeld met lange omschrijving;N;Voorbeeld uren;DV;N;5;2;N;J;N;N;;0,00;40,00;+
+ZZ0003;Standaard ja/nee;J;Standaard ja/nee;PS;N;1;0;J;J;J;J;DPIA029;;;
+ZZ0004;Oude datum;J;Oude datum;DV;D;11;;J;N;;;;;;
+ZZ0005;Café toelage;N;Café toelage;DV;S;25;;J;N;N;N;;;;
+ZZ0006;"Toelage; extra ""x""";N;Toelage;DV;N;9;2;J;N;N;N;;;;
+ZZ0007;Ander object;J;Ander object;RG;N;9;2;J;N;J;N;;;;
+ZZ08;Korte tijd;J;Korte tijd;DV;T;5;;J;N;N;N;;;;

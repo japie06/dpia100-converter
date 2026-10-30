@@ -1,0 +1,2 @@
+Date or time written in the shape of the rubriek in 3 Waarde value(s): row 2 '8:30' -> '08:30', row 3 '08:30:00' -> '08:30', row 5 '8:30' -> '08:30:00'.
+[SUCCESS]

@@ -1,0 +1,4 @@
+Date or time written in the shape of the rubriek in 1 Waarde value(s): row 3 '1-1-2027' -> '01-01-2027'.
+[WARNINGS] 1 warning(s)
+2 row(s) use a standard rubriek that is blocked for indirect mutation (Blok ind mut = J): row 2 P00100, row 3 P00323. Beaufort does not import these mutations; enter them in Beaufort itself.
+Written with 1 confirmed warning(s)

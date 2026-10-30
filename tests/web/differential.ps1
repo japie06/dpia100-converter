@@ -39,19 +39,33 @@ function Chance([double]$P) { return $rng.NextDouble() -lt $P }
 # --- value pools (valid ones are used for clean files; the full pools for broken files) -------------
 $long = 'Senior beleidsmedewerker ruimtelijke ordening en milieu'
 $pools = @{
-    Rubriek    = @{ ok = @('E00101', 'E00205', 'e00310', ' P1 ', 'ABC123', 'P00332'); bad = @('E001011', 'E00-01', '', '#N/B', 'E0010ß', 'E 001') }
+    # Not standard rubrieken (eigen); standard ones come from $standardProfiles. The bad pool also has
+    # standard codes, which get random keys, S of V and values there.
+    Rubriek    = @{ ok = @('E00101', 'E00205', 'e00310', 'ABC123', 'E0010', ' M1 '); bad = @('E001011', 'E00-01', '', '#N/B', 'E0010ß', 'E 001', 'P00001', 'P00321', 'P00063') }
     PersNr     = @{ ok = @('123456', '10', '000123', ' 77 ', '2345', "12$([char]0xA0)", '999999'); bad = @('1234.0', '1 234', '', '0', '1234567', '12abc', "$([char]0xFF11)2") }
     Dienstv    = @{ ok = @('', '1', '001', '0', '999', ' 2 '); bad = @('1234', '1a', '1.0', '-1') }
     SofV       = @{ ok = @('S', 'V', 's', ' v ', 'STAM', 'Variabel'); bad = @('X', '', 'Stamm', 'SV') }
     Waarde     = @{ ok = @('Tekst', 'Café de Brug', '12,50', '-12,50', '1,234', '3.250', '1.234,56', '1,234.56', '1.234.567', '12.50',
                            '0.250', '- 7,5', '- 7', '007', '', ' 15 ', '1.11.2026', 'Gebiedscoördinator', '€ 250', "d$([char]0x2019)Ancona", 'a;b',
                            'He said "hi"', $long, "o$([char]0x308)k", "$([char]0xA0)x$([char]0xA0)", '100.000', '12.345', '3250,50', '12,0', 'a,b',
-                           '-0.5', "$([char]0x201C)quote$([char]0x201D)", 'Ünïcödé façade')
+                           '-0.5', "$([char]0x201C)quote$([char]0x201D)", 'Ünïcödé façade', '01-11-2026', '1/11/26', '2026-11-01', '8:30',
+                           '08:30', '08:30:00', '8:30:00', '8.30')
                      bad = @("$([char]0x133)sbaan", "ok $([char]::ConvertFromUtf32(0x1F600))", "regel1`nregel2", "a`tb", "$([char]0x661)$([char]0x662)", "x$([char]0x2192)y") }
     Ingang     = @{ ok = @('1-11-2026', '1 11 2026', '01112026', '2026-11-01', '1/11/2026', '1.11.2026', '29-02-2028', ' 1 11 2026 ', '1  11 2026', '1-11-0001', '31-12-9999')
                      bad = @('31-02-2026', '', '1-11-26', '2026-1-01', '00-00-0000', '29-02-2027', '1-13-2026', '1-11-2026x') }
-    Productie  = @{ ok = @('NOR', 'nor', '', ' NOR '); bad = @('JWP', 'ABC', 'NO') }
+    Productie  = @{ ok = @('NOR', 'nor', '', ' NOR ', 'COR', ' cor '); bad = @('JWP', 'ABC', 'NO') }
 }
+# Standard rubrieken (decisions 17-20) with a key, S of V and values that fit them, so clean files stay
+# clean: P00001 DV N 6,2 stam+var, P00332 DV S 3 stam, P00321 PS D stam, P00301 PS S 50 stam, P00100 DV
+# blocked (a warning), SETKB DV S 2 stam. Broken files sometimes take a field from the bad pools instead.
+$standardProfiles = @(
+    @{ Rubriek = @(' p00001 ', 'P00001'); Dienstv = @('1', ' 2 ', '001'); SofV = @('S', 'V', 'stam'); Waarde = @('12,50', '-7', '007', '12.5', '999.99', '', '3.250', '1,234', '0,5') }
+    @{ Rubriek = @('P00332'); Dienstv = @('1'); SofV = @('S'); Waarde = @('1,5', 'ab', 'x', '') }
+    @{ Rubriek = @('P00321'); Dienstv = @('', '0'); SofV = @('S', 'Stam'); Waarde = @('1-11-2026', '2026-11-01', '01112026', '01-11-2026', '1.11.2026', ' 1 11 2026 ') }
+    @{ Rubriek = @('P00301'); Dienstv = @(''); SofV = @('S'); Waarde = @('Jansen', '12,50', '1-11-2026', '8:30', $long, 'Café') }
+    @{ Rubriek = @('P00100'); Dienstv = @('1'); SofV = @('V', 'S'); Waarde = @('12', '1,5') }
+    @{ Rubriek = @('SETKB'); Dienstv = @('1'); SofV = @('S'); Waarde = @('ab', 'x') }
+)
 $headerVariants = @{
     Rubriek   = @('Rubriek', 'rubriek', ' Rubriek ', 'Rubriekcode')
     PersNr    = @('Pers. Nr', 'Persoonsnummer', 'PersNr', 'Pers_nr')
@@ -99,10 +113,11 @@ function New-Csv([int]$Index) {
         if (Chance 0.06) { $lines.Add('') }
         if (Chance 0.04) { $lines.Add('   ') }
         if (Chance 0.06) { $lines.Add(($columns | ForEach-Object { '' }) -join $delim) }
+        $standard = if (Chance 0.3) { Pick $standardProfiles } else { $null }
         $cells = foreach ($c in $columns) {
             if ($c.StartsWith('#extra:')) { Format-Cell (Pick @('', 'x', 'opmerking; met puntkomma', '12,5')) $delim; continue }
             $pool = $pools[$poolKey[$c]]
-            $value = if ($broken -and (Chance 0.12)) { Pick $pool.bad } else { Pick $pool.ok }
+            $value = if ($broken -and (Chance 0.12)) { Pick $pool.bad } elseif ($standard -and $standard[$c]) { Pick $standard[$c] } else { Pick $pool.ok }
             if ($r -eq 0 -and $c -eq 'Rubriek' -and (Chance 0.04)) { $value = '#N/B' }
             if ($delim -eq "`t" -and $value.Contains("`t")) { $value = $value.Replace("`t", ' ') }
             Format-Cell $value $delim

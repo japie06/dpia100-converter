@@ -29,6 +29,9 @@
       default-output       Optional marker (empty file): run without -OutputTxtPath, with input.csv
                            copied to out\<case>.<engine>.csv. The script must then write the default
                            out\DPIA100_<case>.<engine>.txt next to it (decision 13).
+      extra-rubrieken.txt  Optional: lines in the format of the standard rubrieken table, added to the
+                           table for this case only (a copy of the script, a separate Edge page). For
+                           types the real list lacks, such as T and U time rubrieken (decision 20).
     Fixtures are stored as raw bytes (.gitattributes: -text). Edit them with care: an editor that saves
     UTF-8 or LF changes the test.
 .EXAMPLE
@@ -78,6 +81,24 @@ New-Item -ItemType Directory -Force $outDir | Out-Null
 $failed = 0
 $total  = 0
 
+# The extra standard rubrieken of a case (extra-rubrieken.txt), or an empty list.
+function Get-ExtraRubrieken($CaseDir) {
+    $path = Join-Path $CaseDir 'extra-rubrieken.txt'
+    if (Test-Path $path) { return @(Get-Content $path | Where-Object { $_.Trim() }) }
+    return @()
+}
+
+# A copy of dpia100.ps1 with extra lines in its standard rubrieken table.
+function New-ScriptWithRubrieken([string]$Name, [string[]]$Extra) {
+    $text = [IO.File]::ReadAllText($script)
+    $pattern = "(\`$StandardRubriekenTable = @'\r?\n)"
+    if ($text -notmatch $pattern) { throw 'No $StandardRubriekenTable in dpia100.ps1.' }
+    $text = [regex]::Replace($text, $pattern, { param($m) $m.Groups[1].Value + (($Extra | ForEach-Object { "$_`r`n" }) -join '') })
+    $copy = Join-Path $outDir "dpia100-$Name.ps1"
+    [IO.File]::WriteAllText($copy, $text, (New-Object Text.UTF8Encoding($true)))
+    return $copy
+}
+
 function Write-Result([string]$Name, [string]$EngineName, [string[]]$Problems, [string]$Console) {
     if ($Problems.Count -eq 0) {
         Write-Host ("PASS  {0,-32} {1}" -f $Name, $EngineName) -ForegroundColor Green
@@ -109,11 +130,17 @@ if ($engines -contains 'edge') {
             fileName   = if (Test-Path (Join-Path $case.FullName 'default-output')) { "$($case.Name).edge.csv" } else { 'input.csv' }
             answers    = if (Test-Path $answersPath) { @(Get-Content $answersPath) } else { $defaultAnswers }
             outputName = if (Test-Path $namePath) { (Get-Content $namePath -TotalCount 1).Trim() } else { $null }
+            extra      = Get-ExtraRubrieken $case.FullName
         }
     }
     try {
-        $webPayload = Invoke-WebHarness -Cases @($webCases) -OutDir $outDir
-        foreach ($r in $webPayload.cases) { $webResults[$r.name] = $r }
+        # One Edge page per distinct table: the cases without extra rubrieken first, all in one page.
+        $groups = @($webCases | Group-Object { $_.extra -join "`n" } | Sort-Object { $_.Name -ne '' }, Name)
+        for ($i = 0; $i -lt $groups.Count; $i++) {
+            $payload = Invoke-WebHarness -Cases @($groups[$i].Group) -OutDir $outDir -ExtraRubrieken @($groups[$i].Group[0].extra) -PageName "web-harness-$i.html"
+            if ($i -eq 0) { $webPayload = $payload }
+            foreach ($r in $payload.cases) { $webResults[$r.name] = $r }
+        }
     } catch {
         Write-Host "FAIL  web harness: $($_.Exception.Message)" -ForegroundColor Red
         exit 1
@@ -134,6 +161,8 @@ foreach ($case in $cases) {
     $outName      = if (Test-Path $namePath) { (Get-Content $namePath -TotalCount 1).Trim() } else { $null }
     $foreignName  = $outName -and -not $outName.StartsWith('DPIA100', [StringComparison]::OrdinalIgnoreCase)
     $useDefault   = Test-Path (Join-Path $case.FullName 'default-output')
+    $extra        = Get-ExtraRubrieken $case.FullName
+    $caseScript   = if ($extra.Count -gt 0 -and ($engines | Where-Object { $_ -ne 'edge' })) { New-ScriptWithRubrieken $case.Name $extra } else { $script }
 
     foreach ($engine in $engines) {
         $total++
@@ -172,7 +201,7 @@ foreach ($case in $cases) {
                 $inputCsv = $copy
                 $outArgs  = @()
             }
-            $console  = $answers | & $engine -NoProfile -ExecutionPolicy Bypass -File $script -InputCsvPath $inputCsv @outArgs -NoPause 2>&1 | Out-String
+            $console  = $answers | & $engine -NoProfile -ExecutionPolicy Bypass -File $caseScript -InputCsvPath $inputCsv @outArgs -NoPause 2>&1 | Out-String
             $exitCode = $LASTEXITCODE
 
             if ($mustSucceed) {
@@ -230,6 +259,25 @@ if ($engines -contains 'edge') {
         'page-version' = {
             $ps = [regex]::Match([IO.File]::ReadAllText($script), "\`$ScriptVersion = '([^']+)'").Groups[1].Value
             if ($webPayload.version -ne $ps) { "dpia100.html has version '$($webPayload.version)', dpia100.ps1 has '$ps'" }
+        }
+        # The standard rubrieken table (decision 17) is the same text in the script and the page, with the
+        # same export date, and the page parsed every line of it.
+        'page-rubrieken' = {
+            $ps = [IO.File]::ReadAllText($script)
+            $psDate = [regex]::Match($ps, "\`$StandardRubriekenDate = '([^']*)'").Groups[1].Value
+            $psTable = @([regex]::Match($ps, "(?s)\`$StandardRubriekenTable = @'\r?\n(.*?)\r?\n'@").Groups[1].Value -split '\r?\n')
+            $core = (Get-PageParts).Blocks | Where-Object Id -eq 'dpia100-core'
+            $jsDate = [regex]::Match($core.Text, "const STANDARD_RUBRIEKEN_DATE = '([^']*)';").Groups[1].Value
+            $jsTable = @([regex]::Match($core.Text, '(?s)const STANDARD_RUBRIEKEN_TABLE = String\.raw`\n(.*?)\n`;').Groups[1].Value -split '\n')
+            if ($psDate -notmatch '^\d{2}-\d{2}-\d{4}$') { "dpia100.ps1 has no export date ('$psDate')" }
+            if ($jsDate -ne $psDate) { "export date: dpia100.html '$jsDate', dpia100.ps1 '$psDate'" }
+            if ($psTable.Count -lt 1000) { "dpia100.ps1 has only $($psTable.Count) standard rubrieken" }
+            $diff = @(Compare-Object $psTable $jsTable -SyncWindow 0 | Select-Object -First 3)
+            if ($diff.Count -gt 0 -or $psTable.Count -ne $jsTable.Count) {
+                "tables differ (ps1 $($psTable.Count) lines, html $($jsTable.Count) lines): " + (($diff | ForEach-Object { "$($_.SideIndicator) $($_.InputObject)" }) -join '; ') + '. Run tools\update-standard-rubrieken.ps1.'
+            }
+            if ($webPayload.standardRubrieken -ne $jsTable.Count) { "the page parsed $($webPayload.standardRubrieken) of $($jsTable.Count) lines" }
+            if ($webPayload.standardDate -ne $jsDate) { "the page reports export date '$($webPayload.standardDate)'" }
         }
         # The strict encoder of the page accepts exactly the characters the strict .NET encoder accepts.
         'page-1252-table' = {

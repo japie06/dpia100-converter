@@ -1,5 +1,5 @@
 Rubriek;Pers. Nr;Dienstv;S of V;Waarde;Ingangsdatum;Productiesoort
 e00101;1;1;STAM;x;1-11-2026;nor
-  P1 ;2;1;variabel;x;1-11-2026; NOR 
+  p00001 ;2;1;variabel;1;1-11-2026; NOR 
 E00101;3;1;s;x;1-11-2026;
-E00101;4;1; v ;x;1-11-2026;NOR
+E00101;4;1; v ;x;1-11-2026;cor

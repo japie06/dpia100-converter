@@ -1,0 +1,29 @@
+﻿Rubriek;Pers. Nr;Dienstv;S of V;Mutatiewaarde;Ingangsdatum;Productiesoort;Opmerking
+E00101;123456;1;V;100;1-11-2026;NOR;Goede regel ter vergelijking: geeft geen fout
+;123456;1;V;100;1-11-2026;NOR;Rubriek is leeg
+#N/B;123456;1;V;100;1-11-2026;NOR;Rubriek met andere tekens dan letters en cijfers (foutwaarde uit Excel)
+E001011;123456;1;V;100;1-11-2026;NOR;Rubriek langer dan 6 tekens
+E00101;;1;V;100;1-11-2026;NOR;Persoonsnummer is leeg
+E00101;12a456;1;V;100;1-11-2026;NOR;Persoonsnummer met een letter
+E00101;000;1;V;100;1-11-2026;NOR;Persoonsnummer is alleen nullen
+E00101;1234567;1;V;100;1-11-2026;NOR;Persoonsnummer langer dan 6 cijfers
+E00101;123456;1a;V;100;1-11-2026;NOR;Dienstverband met een letter
+E00101;123456;1234;V;100;1-11-2026;NOR;Dienstverband langer dan 3 cijfers
+P00001;123456;;V;100;1-11-2026;NOR;Standaard DV-rubriek zonder dienstverband
+P00001;123456;0;V;100;1-11-2026;NOR;Standaard DV-rubriek met dienstverband 0 (geeft een PS-sleutel)
+P00301;123456;1;S;Tekst;1-11-2026;NOR;Standaard PS-rubriek met een dienstverband
+E00101;123456;1;X;100;1-11-2026;NOR;S of V is niet S of V
+P00063;123456;1;S;100;1-11-2026;NOR;Standaardrubriek die alleen variabel is, met S
+P00027;123456;1;V;100;1-11-2026;NOR;Standaardrubriek die alleen stam is, met V
+E00101;123456;1;V;100;32-01-2026;NOR;Ingangsdatum bestaat niet
+E00101;123456;1;V;100;1-11-2026;JWP;Productiesoort JWP (niet ondersteund)
+E00101;123456;1;V;100;1-11-2026;XYZ;Productiesoort is niet NOR of COR
+E00101;123456;1;V;"regel 1
+regel 2";1-11-2026;NOR;Waarde met een regelovergang (Alt+Enter in Excel)
+E00101;123456;1;V;Łukasz;1-11-2026;NOR;Waarde met een teken dat niet in Windows-1252 bestaat
+P00001;123456;1;V;abc;1-11-2026;NOR;Standaard numerieke rubriek met tekst
+P00001;123456;1;V;1.234,56;1-11-2026;NOR;Standaard numerieke rubriek met een duizendtalpunt
+P00001;123456;1;V;12,345;1-11-2026;NOR;Standaard numerieke rubriek (2 decimalen) met 3 decimalen
+P00001;123456;1;V;1234;1-11-2026;NOR;Standaard numerieke rubriek (lengte 6 en 2 decimalen) met 4 cijfers voor de komma
+P00321;123456;;S;1/11/26;1-11-2026;NOR;Standaard datumrubriek met een waarde die geen datum is
+P00303;123456;;S;ABCDEFG;1-11-2026;NOR;Standaard tekstrubriek (lengte 6) met 7 tekens

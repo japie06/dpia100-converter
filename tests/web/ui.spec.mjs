@@ -105,6 +105,38 @@ test.describe('file input and download (works everywhere)', () => {
     await expect(page.locator('#step-make')).toBeHidden();
   });
 
+  test('standard rubrieken: list in the footer, date rewrite reported, errors with the rubriek (decisions 17-20)', async ({ page }, testInfo) => {
+    const core = loadCore();
+    const info = `${core.standardRubriekCount} standaardrubrieken, Beaufort-export van ${core.STANDARD_RUBRIEKEN_DATE}`;
+    await expect(page.locator('#rubrieken-info')).toHaveText(info);
+
+    await chooseFile(page, fixture(testInfo, casePath('ok-standard-rubrieken/input.csv'), 'standaard.csv'));
+    await expect(page.locator('#check-status')).toContainText('15 regels gecontroleerd, geen fouten');
+    await expect(page.locator('#check-body')).toContainText('Datums en tijden aangepast');
+    await expect(page.locator('#check-body')).toContainText('1-11-2026 → 01-11-2026');
+    await expect(page.locator('#check-body')).toContainText(info);
+    await expect(page.locator('#confirm-box')).toBeHidden();
+    await fillForm(page);
+    const file = await downloadFile(page);
+    expect(file.bytes.equals(bytesOf(casePath('ok-standard-rubrieken/expected.txt')))).toBe(true);
+
+    await chooseFile(page, fixture(testInfo, casePath('err-standard-keys/input.csv'), 'sleutels.csv'));
+    await expect(page.locator('.tbl-errors tbody tr')).toHaveCount(8);
+    await expect(page.locator('.tbl-errors')).toContainText('P00001 is een dienstverbandrubriek: vul het dienstverband in.');
+    await expect(page.locator('.tbl-errors')).toContainText('P00063 is een variabel gegeven: gebruik V.');
+  });
+
+  test('a rubriek blocked for indirect mutation is a warning that needs the confirmation', async ({ page }, testInfo) => {
+    await chooseFile(page, fixture(testInfo, casePath('ok-standard-blok/input.csv'), 'blok.csv'));
+    await expect(page.locator('.warn-list li')).toHaveCount(1);
+    await expect(page.locator('.warn-list')).toContainText('regel 2: P00100, regel 3: P00323');
+    await expect(page.locator('#confirm-box')).toBeVisible();
+    await fillForm(page);
+    await page.check('#f-confirm');
+    const file = await downloadFile(page);
+    expect(file.bytes.equals(bytesOf(casePath('ok-standard-blok/expected.txt')))).toBe(true);
+  });
+
   test('a missing column is reported with the mapping', async ({ page }, testInfo) => {
     await chooseFile(page, fixture(testInfo, casePath('err-missing-column/input.csv'), 'kolom.csv'));
     await expect(page.locator('#check-status')).toContainText('Er ontbreekt een verplichte kolom: S of V');

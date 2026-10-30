@@ -72,7 +72,9 @@ The 16 rejections, all explained:
 - P04-8 (PI_1650): DV rubriek with a PS key, rejected as expected.
 - P08-1..12 (PI_2250 *object_id P 1 is ongeldig*): P04-4 used exactly the same key on DV rubriek
   TST002 and was created, so dv 1 is valid. **P02748 is not a plain DV rubriek** (or not usable for this
-  person). The amount probes are still untested: pick another numeric DV rubriek.
+  person). The amount probes are still untested: pick another numeric DV rubriek. Later explained by the
+  rubrieken export (210006, 2026-10-30): P02748 *Saldo* has gegevenssoort **V1**, not DV, so it needs
+  another object_id.
 - The blank line (PI_1537), as in round 1.
 
 **Created means "accepted at import", not "stored correctly".** Whether characters, dates and keys
@@ -119,8 +121,9 @@ Reports: `Findings 20261030/` (not in git). Real test person; settings as round 
 - **`DPIA100_web-probes.txt`: 151 of 151 created at import and 151 of 151 processed (100252), none
   rejected.** All keys (W01, including leading zeros and dv `0`), codes (W02), date formats (W04) and the
   converted amounts (W05: no PI_2229) were accepted end to end. This confirms the web app's output.
-- **New: Beaufort drops the characters 0x80-0x9F and 0xFF** (`€ ’ “ ” – — … Š ™ ÿ`, ...) without any
-  message. Seen in the processing report of the raw P02/P03 probes (see the Results table): `a€b`
+- **Unverified (owner, 2026-10-30): the characters 0x80-0x9F and 0xFF** (`€ ’ “ ” – — … Š ™ ÿ`, ...)
+  were missing in the processing report, but the Beaufort GUI accepts `€ ’ “ ” – — …` when typed, so the
+  loss may be in the report only. Retest in #20. Seen in the processing report of the raw P02/P03 probes (see the Results table): `a€b`
   became `ab`, `d’Ancona` became `dAncona`; 0xA0-0xFE arrive unchanged. The web probes were all
   processed, but in run 1 their W rows shared a rubriek, key and date, so each value overwrote the
   previous one and the stored characters cannot be checked. Issue **#20**.
@@ -168,14 +171,21 @@ person must be in service on those dates.
 | W05 | Amounts `12,50` `-12,50` `3250,5` `0,25` `12.50` `3250` (numeric rubriek) | created | **run 2: all six stored as intended** | processed, no PI_2229 |
 | W06 | Exactly 50 characters; 60 cut to 50 (warning); empty Waarde | created | Complete / cut / empty? | processed |
 
+## GUI checks (owner, 2026-10-30)
+- **Lengte of a numeric rubriek includes the decimal point and the decimals.** A numeric rubriek with
+  Lengte 4 and 2 decimals rejects `12,34` in the Beaufort GUI, so it holds 1 digit before the point
+  (`9,99`). Digits before the point = Lengte − Decimalen − 1 (− 0 without decimals). Decision 20 uses this
+  rule (`digits` error).
+- **Time types:** T = time `hh:mm`, U = time `hh:mm:ss` (decision 20).
+
 ## Results
 
 | ID | Probe | Import (round 2) | Check in 100251 | Consequence for script |
 |---|---|---|---|---|
 | P01 | ASCII punctuation, one character per record | all 33 created | Are `" ' ; \ < > &` shown as sent? | None if stored correctly |
-| P02 | Every Windows-1252 character 0x80-0xFF | all 123 created | **Round 4 report: 0x80-0x9F and 0xFF dropped, 0xA0-0xFE kept** | Decision 7 allows all of Windows-1252: to be decided in #20 |
+| P02 | Every Windows-1252 character 0x80-0xFF | all 123 created | **Round 4 report: 0x80-0x9F and 0xFF missing, 0xA0-0xFE kept** (unverified: the GUI accepts them) | Decision 7 allows all of Windows-1252; kept (owner), retest in #20 |
 | P02-0xA0 | Non-breaking space | created | Round 4 report: kept | |
-| P03-1..4 | Realistic Dutch text | created | Round 4 report: accents kept; `’ “ ” € –` dropped (P03-3, P03-4) | Decision 1, 7; #20 |
+| P03-1..4 | Realistic Dutch text | created | Round 4 report: accents kept; `’ “ ” € –` missing (P03-3, P03-4; unverified) | Decision 1, 7; #20 |
 | P03-5 | Accented character in the last Waarde position | created | Is the `é` at the end still there? | |
 | P03-6 | Waarde exactly 50 characters | created | Complete? | Decision 3 |
 | P03-7 | Leading spaces | created | Round 4 report: trimmed | None: script trims Waarde |
@@ -186,8 +196,8 @@ person must be in service on those dates.
 | P04-4 | DV key `P   1` (Excel tool) | created | | |
 | P04-5 | DV key `P 1` | **created** (round 3) | Same dienstverband? | None: script keeps the Excel-tool layout |
 | P04-6 | DV key `P 001` | **created** (round 3) | Same dienstverband? | None: script strips leading zeros (decision 4) |
-| P04-7 | PS rubriek with DV key | **created** (again) | What happens to the dv part? Does 100252 process it? | Script derives PS/DV from Dienstverband: a filled Dienstverband on a PS rubriek is not stopped at import |
-| P04-8 | DV rubriek with PS key | PI_1650 | | Expected |
+| P04-7 | PS rubriek with DV key | **created** (again) | What happens to the dv part? Does 100252 process it? | Standard PS rubriek: the script stops it (decision 18). Eigen rubriek: not stopped, PS/DV comes from Dienstverband (#2) |
+| P04-8 | DV rubriek with PS key | PI_1650 | | Expected. Standard DV rubriek: the script stops it first (decision 18) |
 | P05-1 | Procescode lowercase `cmt` | **created** | Linked to proces CMT? | None: script keeps uppercasing (docs) |
 | P05-2 | Rubriek lowercase | **created** | Linked to the right rubriek? | idem |
 | P05-3 | Creatiegebruiker left-aligned | **created** | Correct user? | None: script keeps the Excel-tool layout |

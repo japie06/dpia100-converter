@@ -1,0 +1,9 @@
+8 validation error(s)
+Rubriek P00001 is a DV rubriek: fill in the dienstverband (empty or 0 gives a PS key, which Beaufort rejects)
+Rubriek P00001 is a DV rubriek: fill in the dienstverband (empty or 0 gives a PS key, which Beaufort rejects)
+Rubriek P00301 is a PS rubriek: leave Dienstverband empty
+Rubriek P00063 is a variabel gegeven: use V
+Rubriek P00027 is a stamgegeven: use S
+Must contain digits only
+Rubriek P00323 is a PS rubriek: leave Dienstverband empty
+Rubriek P00323 is a stamgegeven: use S

@@ -1,0 +1,3 @@
+Rubriek	Pers. Nr	Dienstv	S of V	Mutatiewaarde	Ingangsdatum	Productiesoort	Opmerking
+E00101	123456	1	V	12,50	1-11-2026	NOR	Komma wordt punt: in een tabbestand een waarschuwing
+E00101	123456	1	V	1,234	1-11-2026	NOR	Komma als decimaal of als duizendtal? Wordt 1.234
