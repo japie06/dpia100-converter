@@ -7,5 +7,6 @@ tests/beaufort/probes/
 tests/beaufort/Findings */
 # Visma/Raet documentation: copyrighted, local reference only
 docs/*.pdf
+docs/DPIA100-Excel-tool/*
 # Node.js test tooling (npm test)
 node_modules/
