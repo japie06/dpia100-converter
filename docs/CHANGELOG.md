@@ -4,7 +4,7 @@ All notable changes to `dpia100.ps1`, `dpia100.bat` and `dpia100.html`. Newest f
 [Keep a Changelog](https://keepachangelog.com/). Releases are numbered from v1.0.0 (tag `vX.Y.Z`,
 zip on the GitHub Releases page); older entries are dated.
 
-## Unreleased
+## v1.3.0 (2026-10-30)
 
 Changes after reviewing the source of the official Excel tool and the Beaufort rubrieken export (owner
 decisions). Script and page alike.
