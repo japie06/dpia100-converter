@@ -135,7 +135,23 @@ Reports: `Findings 20261030/` (not in git). Real test person; settings as round 
 - Not a finding: `DPIA100_probes.txt` and `DPIA100_P07a-lf.txt` in this run were old files with the
   placeholder person `123`, so processing failed with PI_0802 (*bovenliggend object niet aanwezig*).
 
-**For run 2** the W rows each have their own ingangsdatum (`$Ingang`, then one day later per row, up to
+### Round 4 run 2 (2026-10-30)
+Reports: `Findings 20261030/Round 2 - webprobes*.txt`. Each W row has its own ingangsdatum.
+**151 of 151 created and 151 of 151 processed**, none rejected. Only `TST004` (numeric, W05) keeps
+history in the test environment; `TST002` and `TST003` were set up without history, so the stored
+values of W01-W04 and W06 (including the characters of #20) cannot be checked. Retest: issue **#21**.
+W05 stored values (TST004, person 10000, dv 1): _to be filled in from the history_.
+
+| W05 | Sent (CSV) | Written by the page | Ingangsdatum | Expected in history | Stored |
+|---|---|---|---|---|---|
+| W05-1 | `12,50` | `12.50` | 20-02-2021 | 12,50 | |
+| W05-2 | `-12,50` | `-12.50` | 21-02-2021 | -12,50 | |
+| W05-3 | `3250,5` | `3250.5` | 22-02-2021 | 3.250,50 | |
+| W05-4 | `0,25` | `0.25` | 23-02-2021 | 0,25 | |
+| W05-5 | `12.50` | `12.50` | 24-02-2021 | 12,50 | |
+| W05-6 | `3250` | `3250` | 25-02-2021 | 3.250,00 | |
+
+The W rows each have their own ingangsdatum (`$Ingang`, then one day later per row, up to
 about five months), so after processing every value stays in the history and can be checked. The test
 person must be in service on those dates.
 
