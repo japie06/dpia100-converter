@@ -1,6 +1,6 @@
 # Privacy en beveiliging: webversie DPIA100 converter
 
-**Voor:** CISO, IT-beheer en functionaris gegevensbescherming. **Versie:** 1.2.0.
+**Voor:** CISO, IT-beheer en functionaris gegevensbescherming. **Versie:** 1.3.0.
 **Broncode:** <https://github.com/japie06/dpia100-converter> (MIT).
 
 ## Doel en werking
