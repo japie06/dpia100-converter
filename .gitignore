@@ -10,3 +10,7 @@ docs/*.pdf
 docs/DPIA100-Excel-tool/
 # Node.js test tooling (npm test)
 node_modules/
+# Beaufort rubriek export (function 210006) and the CSV made from it: customer data
+Overzicht*Rubrieken*.txt
+rubrieken*.csv
+!tests/rubrieken/expected-*.csv

@@ -41,6 +41,8 @@ JavaScript port of the script, not a wrapper: a browser cannot run PowerShell. T
 | `tests/beaufort/` | Probe files for what Beaufort accepts (`make-probes.ps1`), results in `findings.md`. |
 | `docs/DPIA100 record indeling.pdf` | Beaufort help (2024): record layout. Primary spec. Local only, not in the repo (copyrighted). |
 | `docs/Microsoft Word - Handboek DPIA100 via Excel.doc.pdf` | Raet handbook (2005): Excel tool and Beaufort setup. Local only, not in the repo (copyrighted). |
+| `tools/convert-rubrieken.ps1`, `tests/rubrieken/` | Cleans the Beaufort report *Overzicht rubrieken* (210006) into a CSV; tests on a synthetic export (`pwsh tests\rubrieken\run-tests.ps1`). Not used by the converter yet; see `docs/rubrieken-export.md`. The real export and its CSV are git-ignored. |
+| `docs/rubrieken-export.md` | Dutch: the rubrieken report format, what it holds, and the planned use (standard rubrieken hard-coded, Blok ind mut = J not importable). |
 | `docs/DPIA100-Excel-tool/` | Source of the official Excel tool (`DPIA100.xlsm` V 06.12.6, VBA exports). Local only, git-ignored: copyrighted, contains the sheet password and the municipality's rubriek list. Summary in `field-layout.md` (*Excel tool*). |
 
 ## Hard constraints (do not break)
