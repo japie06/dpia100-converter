@@ -1,0 +1,9 @@
+8 validation error(s)
+Rubriek P00001 is numeric: write a number with a decimal point, e.g. -1234.56
+Rubriek P00001 is numeric: write a number with a decimal point, e.g. -1234.56
+Rubriek P00001 allows 2 decimal(s): Beaufort would store 12.34
+Rubriek P00001 allows at most 3 digit(s) before the decimal point
+Rubriek P00320 allows 0 decimal(s): Beaufort would store 12
+Rubriek P00321 is a date: write dd-mm-yyyy, e.g. 01-11-2026
+Rubriek P00321 is a date: write dd-mm-yyyy, e.g. 01-11-2026
+Rubriek P00303 allows at most 6 characters

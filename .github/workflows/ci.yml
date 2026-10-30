@@ -19,6 +19,9 @@ jobs:
         shell: pwsh
         # A new seed per run widens the coverage over time; a failure prints the seed to rerun it locally.
         run: ./tests/web/differential.ps1 -Count 40 -Seed ${{ github.run_number }}
+      - name: Rubriek tools (cleaner and generator of the standard rubrieken, on a synthetic export)
+        shell: pwsh
+        run: ./tests/rubrieken/run-tests.ps1
 
   web:
     # Unit tests (node:test) and UI tests (Playwright) of dpia100.html in the preinstalled Edge.

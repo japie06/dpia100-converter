@@ -1,0 +1,4 @@
+﻿Code;Omschrijving;Fix;Prompt;Gegsoort;Typ;Len;Dec;Stam;Var;BlokIndMut;Referentie;RefTabel;Minimum;Maximum;Bereik
+ZZ0003;Standaard ja/nee;J;Standaard ja/nee;PS;N;1;0;J;J;J;J;DPIA029;;;
+ZZ0004;Oude datum;J;Oude datum;DV;D;11;;J;N;;;;;;
+ZZ08;Korte tijd;J;Korte tijd;DV;T;5;;J;N;N;N;;;;

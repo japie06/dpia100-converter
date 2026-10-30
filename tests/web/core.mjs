@@ -9,11 +9,16 @@ export const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 export const pagePath = fileURLToPath(new URL('../../dpia100.html', import.meta.url));
 export const casePath = name => fileURLToPath(new URL(`../cases/${name}`, import.meta.url));
 
-export function loadCore() {
+// extraRubrieken: lines added to the standard rubrieken table, for test rubrieken the real list lacks
+// (T and U time rubrieken), as tests/cases/*/extra-rubrieken.txt does in the PowerShell runner.
+export function loadCore({ extraRubrieken = [] } = {}) {
   const html = readFileSync(pagePath, 'utf8').replace(/\r\n?/g, '\n');
   const match = /<script id="dpia100-core">([\s\S]*?)<\/script>/.exec(html);
   if (!match) throw new Error('No <script id="dpia100-core"> in dpia100.html');
-  return new vm.Script(`${match[1]}\nDPIA100;`, { filename: 'dpia100-core.js' }).runInNewContext({ TextDecoder, TextEncoder });
+  const marker = 'const STANDARD_RUBRIEKEN_TABLE = String.raw`\n';
+  if (!match[1].includes(marker)) throw new Error('No STANDARD_RUBRIEKEN_TABLE in the core of dpia100.html');
+  const code = match[1].replace(marker, marker + extraRubrieken.map(l => `${l}\n`).join(''));
+  return new vm.Script(`${code}\nDPIA100;`, { filename: 'dpia100-core.js' }).runInNewContext({ TextDecoder, TextEncoder });
 }
 
 // Analyze a CSV given as text (encoded as UTF-8). The result comes from another realm, so it is turned

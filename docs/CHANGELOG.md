@@ -6,19 +6,51 @@ zip on the GitHub Releases page); older entries are dated.
 
 ## Unreleased
 
-Changes after reviewing the source of the official Excel tool (owner decisions). Script and page alike.
+Changes after reviewing the source of the official Excel tool and the Beaufort rubrieken export (owner
+decisions). Script and page alike.
 
 ### Added
+- **Standard rubrieken** (decisions 17-20). The 4,227 standard PS/DV rubrieken of Beaufort (export of
+  function 210006, 30-10-2026) are built into the script and the page, with the attributes a customer
+  cannot change. The console and the page show the count and the export date. For a standard rubriek:
+  - a **Dienstverband** that does not fit is an error: a DV rubriek needs one (empty or `0` gave a PS key,
+    which Beaufort rejects), a PS rubriek may not have one (decision 18);
+  - an **S of V** the rubriek does not allow (stam only or variabel only) is an error (decision 18);
+  - a rubriek **blocked for indirect mutation** (Blok ind mut = J) gets a warning: Beaufort does not import
+    it through DPIA100 (decision 19);
+  - the **Waarde is checked by type** (decision 20): a numeric value must be a number that fits the
+    rubriek's digits and decimals (`12.345` in a 2-decimal rubriek is an error, Beaufort would store
+    12,34); a date is written as `dd-mm-yyyy` and a time as `hh:mm` (type T) or `hh:mm:ss` (type U), which
+    is reported; anything else is an error; a text value is written as typed and may not exceed the
+    rubriek's length.
+
+  Any other code is an eigen rubriek: allowed without a message and checked as before. Supplying eigen
+  rubrieken is #24.
 - Productiesoort **COR** is accepted, next to NOR (decision 11).
 - Warning for an **empty Waarde**, which deletes the current value in Beaufort (decision 16). One warning
   lists the rows. Before, an empty value was written without a message.
-- Warning for a Waarde that looks like a **date not written as dd-mm-yyyy** (`1-11-2026`, `1/11/26`,
-  `2026-11-01`, `1.11.2026`) or a **time not written as hh:mm** (`8:30`, `08:30:00`), the shapes the Excel
-  tool wrote (decision 16). Values are still written as typed. A date with dots used to pass silently.
+- Warning for a Waarde of an eigen rubriek that looks like a **date not written as dd-mm-yyyy**
+  (`1-11-2026`, `1/11/26`, `2026-11-01`, `1.11.2026`) or a **time in neither hh:mm nor hh:mm:ss** (`8:30`,
+  `8:30:00`) (decision 16). Values are still written as typed. A date with dots used to pass silently.
+- `tools/update-standard-rubrieken.ps1` writes the standard rubrieken into both files from a new export;
+  `tools/convert-rubrieken.ps1` (the cleaner it uses) also outputs Stam and Var.
 
 ### Changed
-- **Rubriek must be exactly 6 characters.** A shorter code was left-aligned before; the Excel tool
-  right-aligned it, so its layout was never certain.
+- A standard **text** rubriek gets its value exactly as typed: no comma -> dot conversion and no amount,
+  date or time warnings (decision 20). The comma message says so: "a text rubriek that is not a standard
+  rubriek gets the dot too".
+- Rubriek codes stay 1-6 characters, left-aligned, as in v1.2.0: the export has real shorter codes
+  (`SETKB`, eigen `E0010`). The alignment is not yet probed in Beaufort (#25).
+
+### Tests
+- New cases `ok-standard-rubrieken`, `ok-standard-blok`, `err-standard-keys`, `err-standard-waarde`,
+  `ok-rubriek-short`, and `ok-/err-standard-time` with the new case file `extra-rubrieken.txt` (test-only
+  T and U rubrieken). New page check `page-rubrieken`: the table is the same in script and page.
+- The differential test mixes in standard rubrieken with fitting and unfitting keys and values.
+- `tests/rubrieken/run-tests.ps1` (cleaner and generator on a synthetic export) runs in CI.
+- New `tests/demo`: CSV files that show every error, warning and report line, with a remark column, for a
+  visible check and to show users. Made by `make-demo.ps1`; `check-demo.mjs` lists any message of the page
+  core that no demo file shows. Not in CI.
 
 ### Documentation
 - `field-layout.md`: new *Excel tool* section (how it built each field, its bugs); positions 149-178 are
@@ -27,6 +59,11 @@ Changes after reviewing the source of the official Excel tool (owner decisions).
   has no effect; `NULL` is written as typed.
 - The round 4 finding that Beaufort drops `€`, curly quotes and dashes (0x80-0x9F, 0xFF) is now marked
   **unverified**: the Beaufort GUI accepts these characters when typed. They stay accepted; retest in #20.
+- `docs/rubrieken-export.md`: the rubrieken export, what is taken from it and how to refresh the list.
+  README: new section *Standaardrubrieken*. `field-layout.md`: *Standard rubrieken* and the Waarde rules
+  per type. `docs/privacy-en-beveiliging.md`: the page contains the standard rubriek codes, no personal
+  data. `tests/beaufort/findings.md`: P02748 (round 1-2, PI_2250) is gegevenssoort V1, not DV; the length of
+  a numeric rubriek includes the decimal point and the decimals (Beaufort GUI: N 4,2 rejects `12,34`).
 
 ## v1.2.0 (2026-10-30)
 

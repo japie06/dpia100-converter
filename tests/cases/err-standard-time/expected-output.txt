@@ -1,0 +1,6 @@
+5 validation error(s)
+Rubriek ZZT001 is a time: write hh:mm, e.g. 08:30
+Rubriek ZZT001 is a time: write hh:mm, e.g. 08:30
+Rubriek ZZT001 is a time: write hh:mm, e.g. 08:30
+Rubriek ZZU001 is a time: write hh:mm:ss, e.g. 08:30:00
+Rubriek ZZU001 is a time: write hh:mm:ss, e.g. 08:30:00

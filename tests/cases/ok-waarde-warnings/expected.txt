@@ -13,3 +13,4 @@ CMTE00101     1   1                                        V   07102026         
 CMTE00101     1   1                                        V   07102026         TSTUSER08:30                                                01112026                              NOR      
 CMTE00101     1   1                                        V   07102026         TSTUSER8.30                                                 01112026                              NOR      
 CMTE00101     1   1                                        V   07102026         TSTUSER1-11                                                 01112026                              NOR      
+CMTE00101     1   1                                        V   07102026         TSTUSER8:30:00                                              01112026                              NOR      
