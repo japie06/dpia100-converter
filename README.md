@@ -180,9 +180,16 @@ wordt altijd gemeld.
 
 ### Bijzondere tekens
 
-Letters met accenten (`é ë ö ç à ü` enz.), `€`, krullende aanhalingstekens (`’ “ ”`) en
-gedachtestreepjes (`–`) zijn geen probleem. Tekens die Beaufort niet kent, worden door het script
-geweigerd met een foutmelding. Bijvoorbeeld een pijl `→` (Word maakt die soms automatisch van `->`),
+Letters met accenten (`é ë ö ç à ü` enz.) zijn geen probleem.
+
+**Let op:** uit een test blijkt dat Beaufort `€`, krullende aanhalingstekens (`’ “ ”`),
+gedachtestreepjes (`– —`), het weglatingsteken `…` en een paar zeldzame tekens (zoals `Š ž ™ ÿ`)
+**zonder melding weglaat**: `d’Ancona` wordt `dAncona`. Gebruik daarom gewone tekens: `'`, `"`, `-`,
+`...` en `EUR`. Word en Excel maken van `'` en `-` vaak automatisch een krullend aanhalingsteken of een
+gedachtestreepje; let daar op. Dit wordt nog nagekeken
+([#20](https://github.com/japie06/dpia100-converter/issues/20)).
+
+Tekens die Beaufort helemaal niet kent, worden door het script geweigerd met een foutmelding. Bijvoorbeeld een pijl `→` (Word maakt die soms automatisch van `->`),
 een vinkje `✓`, Poolse of Turkse letters (`ł`, `ş`) en emoji.
 
 ## Als er iets misgaat

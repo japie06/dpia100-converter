@@ -37,7 +37,11 @@ zip on the GitHub Releases page); older entries are dated.
   as the primary route and the open and save dialogs stubbed. CI runs it in a separate `web` job.
 - The *Privacy en veiligheid* section of the page is collapsed by default; the link in the header opens it.
 - Beaufort probe round 4 for the web app: `tests/beaufort/make-probes.ps1 -Web` writes one probe CSV and
-  lets the page make one import file from it (`DPIA100_web-probes.txt`).
+  lets the page make one import file from it (`DPIA100_web-probes.txt`). Run 1: all 151 records imported
+  and processed. Each row now has its own ingangsdatum, so stored values can be checked.
+- Documented from probe round 4: Beaufort drops the characters 0x80-0x9F and 0xFF (`€`, curly quotes,
+  dashes, `…`, `ÿ`) without a message. The README now advises plain characters; what the converter
+  should do is open in #20. Extra decimals are not rounded up (`12.345` became 12,34).
 - CI runs the web tests and the differential test, checks the page version on a release tag, adds
   `dpia100.html` to the zip and deploys it to GitHub Pages.
 

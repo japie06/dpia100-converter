@@ -61,12 +61,16 @@ if ($Web) {
     Remove-Item (Join-Path $outDir 'index-web.txt') -ErrorAction SilentlyContinue
     $inv  = [System.Globalization.CultureInfo]::InvariantCulture
     $date = [DateTime]::ParseExact($Ingang, 'ddMMyyyy', $inv)
-    $dash = $date.ToString('dd-MM-yyyy', $inv)
     $rows = [System.Collections.Generic.List[string]]::new()
+    $script:day = 0
 
     # One CSV row. Cells are given as a user would type them; the page validates and converts them.
+    # Every row gets its own ingangsdatum ($Ingang, then one day later per row): processing would otherwise
+    # let rows on the same rubriek and key overwrite each other, so stored values could not be checked
+    # (rounds 3 and 4). The dates stay the same with -Only. The test person must be in service on them.
     function Row {
-        param($Id, $Waarde, $Rub = $RubTxt, $Pers = $PersNr, $DvCell = '', $SV = 'S', $Datum = $dash, $Prod = 'NOR')
+        param($Id, $Waarde, $Rub = $RubTxt, $Pers = $PersNr, $DvCell = '', $SV = 'S', $Format = 'dd-MM-yyyy', $Prod = 'NOR')
+        $Datum = $date.AddDays($script:day++).ToString($Format, $inv)
         if ($Only -and -not ($Only | Where-Object { $Id -like "$_*" })) { return }
         $cells = foreach ($c in @($Rub, $Pers, $DvCell, $SV, $Waarde, $Datum, $Prod)) {
             if ($c -match '[;"\r\n]') { '"' + $c.Replace('"', '""') + '"' } else { $c }
@@ -96,21 +100,20 @@ if ($Web) {
     Row 'W03-d' "W03-d Gebiedscoo$([char]0x308)rdinator (losse trema)"
     Row 'W03-q' "W03-q d$([char]0x2019)Ancona $([char]0x201C)citaat$([char]0x201D)"
     Row 'W03-s' 'W03-s puntkomma; en "aanhalingstekens"'
-    # W04: the ingangsdatum in every input format the page accepts; all become the same date.
+    # W04: the ingangsdatum in every input format the page accepts.
     $formats = 'd M yyyy', 'dd-MM-yyyy', 'd/M/yyyy', 'yyyy-MM-dd', 'ddMMyyyy', 'd.M.yyyy'
     for ($i = 0; $i -lt $formats.Count; $i++) {
-        Row ('W04-{0}' -f ($i + 1)) ('W04-{0} datum als {1}' -f ($i + 1), $formats[$i]) -Datum $date.ToString($formats[$i], $inv)
+        Row ('W04-{0}' -f ($i + 1)) ('W04-{0} datum als {1}' -f ($i + 1), $formats[$i]) -Format $formats[$i]
     }
-    # W05: amounts in the numeric rubriek. A numeric Waarde cannot hold the ID, so each amount gets its
-    # own ingangsdatum (earlier days), which also keeps processing from overwriting them (round 3).
+    # W05: amounts in the numeric rubriek. A numeric Waarde cannot hold the ID; index-web.txt maps the date.
     $amounts = '12,50', '-12,50', '3250,5', '0,25', '12.50', '3250'
     for ($i = 0; $i -lt $amounts.Count; $i++) {
-        Row ('W05-{0}' -f ($i + 1)) $amounts[$i] -Rub $RubNum -DvCell $Dv -Datum $date.AddDays(-($i + 1)).ToString('dd-MM-yyyy', $inv)
+        Row ('W05-{0}' -f ($i + 1)) $amounts[$i] -Rub $RubNum -DvCell $Dv
     }
     # W06: length and empty value. 60 characters are cut to 50 with a warning (decision 3).
     Row 'W06-1' 'W06-1 precies 50 tekens '.PadRight(50, 'x')
     Row 'W06-2' 'W06-2 zestig tekens, wordt afgekapt na vijftig '.PadRight(60, 'y')
-    Row 'W06-3' '' -Datum $date.AddDays(-10).ToString('dd-MM-yyyy', $inv)
+    Row 'W06-3' ''
 
     if ($rows.Count -eq 0) { throw "No probes match -Only $($Only -join ',')." }
     $csvText  = "Rubriek;Pers. Nr;Dienstv;S of V;Mutatiewaarde;Ingangsdatum;Productiesoort`r`n" + ($rows -join "`r`n") + "`r`n"

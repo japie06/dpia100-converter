@@ -81,8 +81,8 @@
        Comma conversions are listed together (one line or one warning). 'Reported' means printed without
        asking for confirmation. Beaufort processes '3.250' silently as 3,25, which is right in an English
        file and probably a formatted 3250 in a Dutch one. Dates with dots ('1.11.2026') are not amounts.
-       Extra decimals are rounded to the rubriek's decimals by Beaufort (owner: seen with manual entry,
-       assumed for import).
+       Extra decimals are not rounded up by Beaufort: '12.345' became 12,34 in a 2-decimal rubriek
+       (probe round 4, tests/beaufort/findings.md).
     9. HEADER ROW PARSED BY THE SCRIPT:
        Excel often adds empty header cells (header ending in ';;'). Windows PowerShell 5.1 aborts on
        duplicate/empty column names, PowerShell 7 renames them. The header row is parsed here and empty

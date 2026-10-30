@@ -250,7 +250,9 @@ Top to bottom:
   (git-ignored: server paths and names). Results go into `tests/beaufort/findings.md`.
   `make-probes.ps1 -Web` (round 4) tests the web app instead. It writes one probe CSV of valid input,
   `web-probes.csv`, and lets the page's core make `DPIA100_web-probes.txt` through the `edge` harness.
-  The owner can recreate that file in the real page and compare.
+  The owner can recreate that file in the real page and compare. Every W row gets its own ingangsdatum, so
+  processing does not overwrite values and each stored value can be checked. Round 4 found that Beaufort
+  drops the bytes 0x80-0x9F and 0xFF (`€`, curly quotes, dashes; #20).
 - **Headless runs.** Pipe the prompt answers in (add `Y` to confirm warnings) and pass `-NoPause`
   (works on 5.1 and 7): `printf 'CMT\n07 10 2026\nTSTUSER\nY\n' | pwsh -NoProfile -File dpia100.ps1 -InputCsvPath t.csv -OutputTxtPath out.txt -NoPause`
 - **pwsh on Linux.** It writes LF line endings, so convert to CRLF before comparing.
