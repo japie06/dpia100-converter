@@ -24,7 +24,7 @@
     Probe IDs (prefixes) to include, e.g. P04-5,P04-6,P08 (or W05 with -Web). Use it to repeat a few
     probes without re-importing everything. Without it, all probes are written.
 .PARAMETER Web
-    Build the web-app probes (W01-W06) through dpia100.html instead of the raw probes.
+    Build the web-app probes (W01-W07) through dpia100.html instead of the raw probes.
 .EXAMPLE
     pwsh tests\beaufort\make-probes.ps1
 .EXAMPLE
@@ -114,6 +114,12 @@ if ($Web) {
     Row 'W06-1' 'W06-1 precies 50 tekens '.PadRight(50, 'x')
     Row 'W06-2' 'W06-2 zestig tekens, wordt afgekapt na vijftig '.PadRight(60, 'y')
     Row 'W06-3' ''
+    # W07: does a minus sign count towards the Lengte? $RubNum must have Lengte 4 with 2 decimals (one digit
+    # before the point). 9,99 must be processed and 10,00 rejected (PI_0637); the minus rows answer it.
+    $amounts = '9,99', '-9,99', '-9', '-0,50', '10,00'
+    for ($i = 0; $i -lt $amounts.Count; $i++) {
+        Row ('W07-{0}' -f ($i + 1)) $amounts[$i] -Rub $RubNum -DvCell $Dv
+    }
 
     if ($rows.Count -eq 0) { throw "No probes match -Only $($Only -join ',')." }
     $csvText  = "Rubriek;Pers. Nr;Dienstv;S of V;Mutatiewaarde;Ingangsdatum;Productiesoort`r`n" + ($rows -join "`r`n") + "`r`n"

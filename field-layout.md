@@ -196,7 +196,7 @@ apply as for any rubriek; then:
 
 | Type | Handling | Error when |
 |---|---|---|
-| `N` numeric | The amount table above (comma conversion, warnings) | Not a number after the conversion (`abc`, `NULL`, `1.234,56`, English `1,234`, a date); more significant decimals than the rubriek has (`12.345` in a 2-decimal rubriek: Beaufort would store 12,34); more digits before the point than the length allows (the length includes the point and the decimals, so N 9,2 allows 6; confirmed in the Beaufort GUI, where N 4,2 rejects `12,34`) |
+| `N` numeric | The amount table above (comma conversion, warnings) | Not a number after the conversion (`abc`, `NULL`, `1.234,56`, English `1,234`, a date); more significant decimals than the rubriek has (`12.345` in a 2-decimal rubriek: Beaufort would store 12,34); more digits before the point than the length allows (the length includes the point and the decimals, so N 9,2 allows 6; confirmed in the Beaufort GUI, where N 4,2 rejects `12,34`, and at processing, PI_0637); a minus sign does not count (N 4,2 takes `-9.99`, probe W07) |
 | `D` date | Written as `dd-mm-yyyy`, reported in one line (no `Y` needed). Accepts the Ingangsdatum shapes (`1-11-2026`, `2026-11-01`, `01112026`, `1.11.2026`, ...) | Not a date: `1/11/26` (2-digit year), `46327`, text |
 | `T` time | Written as `hh:mm` (`8:30` becomes `08:30`), reported | Not a time; seconds other than `00` |
 | `U` time | Written as `hh:mm:ss` (`8:30` becomes `08:30:00`), reported | Not a time |
@@ -216,11 +216,10 @@ Special characters (tested in `tests/cases/ok-chars-*` for every input encoding)
 - Rejected with an error: characters outside Windows-1252, for example the `ĳ`/`Ĳ` ligature, Polish
   `Ł ł ę`, Turkish `Ş ş`, `ő`, `Ć`, Vietnamese `ễ`, Greek, `₂`, `→`, zero-width space and emoji.
   Write `ij` as two letters.
-- **Unverified: 0x80-0x9F and 0xFF** (`€ ‚ ƒ „ … † ‡ ˆ ‰ Š ‹ Œ Ž ‘ ’ “ ” • – — ˜ ™ š › œ ž Ÿ ÿ`). In the
-  processing report of probe round 4 they were missing (`d’Ancona` showed as `dAncona`, `a€b` as `ab`),
-  but the Beaufort GUI accepts `€ ’ “ ” – — …` when typed (owner). Whether the import really loses them
-  is not known: it may be the report only. Retest in #20. The script accepts them and keeps doing so
-  (owner). 0xA0-0xFE, so all accented letters except `ÿ`, arrived unchanged.
+- **0x80-0x9F and 0xFF are stored, but missing in the processing report** (`€ ‚ ƒ „ … † ‡ ˆ ‰ Š ‹ Œ Ž ‘ ’
+  “ ” • – — ˜ ™ š › œ ž Ÿ ÿ`). The *Uitgebreid foutverslag* of 100252 leaves them out (`d’Ancona` shows
+  as `dAncona`, `a€b` as `ab`), but the stored values have them (probe round 4 run 3, #20). All of
+  Windows-1252 0xA0-0xFF arrives unchanged as well.
 - Values over 50 characters are truncated with a warning.
 - For an eigen rubriek, dates, times and uppercase-only values are written as typed. The owner chose
   not to force a format there; Beaufort validates it against the rubriek.

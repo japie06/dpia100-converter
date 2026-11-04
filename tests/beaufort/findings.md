@@ -121,12 +121,10 @@ Reports: `Findings 20261030/` (not in git). Real test person; settings as round 
 - **`DPIA100_web-probes.txt`: 151 of 151 created at import and 151 of 151 processed (100252), none
   rejected.** All keys (W01, including leading zeros and dv `0`), codes (W02), date formats (W04) and the
   converted amounts (W05: no PI_2229) were accepted end to end. This confirms the web app's output.
-- **Unverified (owner, 2026-10-30): the characters 0x80-0x9F and 0xFF** (`€ ’ “ ” – — … Š ™ ÿ`, ...)
-  were missing in the processing report, but the Beaufort GUI accepts `€ ’ “ ” – — …` when typed, so the
-  loss may be in the report only. Retest in #20. Seen in the processing report of the raw P02/P03 probes (see the Results table): `a€b`
-  became `ab`, `d’Ancona` became `dAncona`; 0xA0-0xFE arrive unchanged. The web probes were all
-  processed, but in run 1 their W rows shared a rubriek, key and date, so each value overwrote the
-  previous one and the stored characters cannot be checked. Issue **#20**.
+- **The characters 0x80-0x9F and 0xFF** (`€ ’ “ ” – — … Š ™ ÿ`, ...) were missing in the processing
+  report of the raw P02/P03 probes (see the Results table): `a€b` became `ab`, `d’Ancona` became
+  `dAncona`; 0xA0-0xFE arrive unchanged. **Run 3 showed this is the report only: the values are stored
+  with these characters** (#20).
 - **New: extra decimals are not rounded up.** In the report `12.345` became `12,34` (2-decimal
   rubriek): cut off, or rounded on a binary value, but not `12,35`. The report also shows how Beaufort
   read each amount: `3.250` → `3,25`, `3250` → `3.250,00`, `0012.50` → `12,50`, `12` → `12,00`.
@@ -142,7 +140,8 @@ Reports: `Findings 20261030/` (not in git). Real test person; settings as round 
 Reports: `Findings 20261030/Round 2 - webprobes*.txt`. Each W row has its own ingangsdatum.
 **151 of 151 created and 151 of 151 processed**, none rejected. Only `TST004` (numeric, W05) keeps
 history in the test environment; `TST002` and `TST003` were set up without history, so the stored
-values of W01-W04 and W06 (including the characters of #20) cannot be checked. Retest: issue **#21**.
+values of W01-W04 and W06 (including the characters of #20) cannot be checked. Retest: issue **#21**
+(done in run 3).
 W05 stored values (TST004, person 10000, dv 1; `Findings 20261030/TST004 history.txt`): **all six as
 intended.** The page's comma → dot conversion gives the right amount in Beaufort, a negative amount
 included. The history shows trailing zeros dropped (`12,5`), with thousand separators in the display.
@@ -158,24 +157,82 @@ included. The history shows trailing zeros dropped (`12,5`), with thousand separ
 
 The history also has a record of 25-09-2020 (3.250,00) from an earlier round; not part of this run.
 
+### Round 4 run 3 (2026-11-04): text rubrieken with history (#20, #21)
+Reports: `Findings 20261104/` (not in git). `TST002` and `TST003` now keep history. The imported file is
+the same `DPIA100_web-probes.txt` as runs 1 and 2 (same SHA-256). Histories: `TST002 Historie.txt`,
+`TST003 Historie.txt`, `TST004 Historie.txt` (copied from the screen; slips such as `ll jan` for
+`11 jan` are in the copy, not in Beaufort).
+
+**Processing (100252): 151 read, 146 processed, 5 rejected.** All 5 rejections are W05 on `TST004`; every
+text record was processed.
+
+- **#20 settled: 0x80-0x9F and 0xFF are stored.** All 27 defined characters in 0x80-0x9F and `ÿ` (W03-0x80
+  … W03-0x9F, W03-0xFF) are in the TST003 history as sent (`a€b`, `a’b`, `a™b`, `aÿb`, ...), and so is
+  W03-q `d’Ancona “citaat”`. The loss seen in run 1 is in the *Uitgebreid foutverslag* only. Decision 7
+  (all of Windows-1252) stands.
+- **0xA0-0xFE** are all stored as sent, NBSP (0xA0) and soft hyphen (0xAD) included. One oddity: the
+  Beaufort GUI shows W03-0xB7 as `a··b` (two middle dots; owner checked on screen), while the file has one
+  byte 0xB7 (`a·b`). Whether that is the display or the stored value is not known. Low risk (the middle
+  dot is rare); not followed up.
+- **W03-d**: the decomposed `ö` arrives as one precomposed `ö` (the page combines it). **W03-s**: `;` and
+  `"` inside a value are stored as sent.
+- **W01 keys** on the right objects: W01-1 and W01-4 (dv `0` becomes a PS key) on the person (TST003),
+  W01-2, W01-3 (leading zeros in pers_nr and dv) and W01-5 (spaces around the keys) on dienstverband 1
+  (TST002).
+- **W02**: lowercase rubriek, `STAM`, `s`, empty productiesoort and `nor` are all stored on TST003.
+- **W04 dates**: all six input formats arrive on the intended date (14-19 Feb 2021).
+- **W06**: W06-1 complete (50 characters); W06-2 cut to exactly the first 50 characters, as the page
+  warned; W06-3 (empty Waarde) is a history row of 28 Feb 2021 with an empty value, so it ends the
+  previous value, as the warning says (decision 3).
+- **W05 rejected with PI_0637** *Maximaal 1 tekens voor en 2 tekens na de komma toegestaan*: `12.50`,
+  `-12.50`, `3250.5`, `12.50`, `3250`. Only `0.25` was processed. The message means TST004 now has Lengte 4
+  with 2 decimals (presumably changed for the GUI check of 2026-10-30; in run 2 these values were processed),
+  so this **confirms the Lengte rule at processing**: digits before the
+  point = Lengte − Decimalen − 1. The import accepts the value; processing rejects the record, per record,
+  with the value in the report. Whether a minus sign counts as a digit is not shown (`-12.50` is too long
+  either way): probe W07 (run 4).
+- The TST004 history still shows the run 2 values of 20-23 Feb 2021; the run 2 rows of 24 and 25 Feb
+  (12,5 and 3.250,00) are not in it. Not explained by this run; not needed for any conclusion.
+
+### Round 4 run 4 (2026-11-04): a minus sign does not count towards the Lengte
+Reports: `Findings 20261104-2/` (not in git). Decision 20 counts only digits before the point, so for a
+standard numeric rubriek of Lengte 4 with 2 decimals the script accepts `-9.99`. If Beaufort counted the
+minus too, that value would pass the script and be rejected at processing. Probe W07 on TST004 (Lengte 4,
+2 decimals, so 1 digit before the point), made with `make-probes.ps1 -Web -Only W07`.
+
+**Processing (100252): 5 read, 4 processed, 1 rejected** (W07-5, PI_0637). All four processed values are
+in the TST004 history as intended.
+
+| W07 | Sent (CSV) | Written | Ingangsdatum | Expected | Result |
+|---|---|---|---|---|---|
+| W07-1 | `9,99` | `9.99` | 01-03-2021 | processed (control) | processed, stored 9,99 ✔ |
+| W07-2 | `-9,99` | `-9.99` | 02-03-2021 | the question | **processed**, stored -9,99 |
+| W07-3 | `-9` | `-9` | 03-03-2021 | the question, without decimals | **processed**, stored -9,00 |
+| W07-4 | `-0,50` | `-0.50` | 04-03-2021 | the question, with a zero | processed, stored -0,50 |
+| W07-5 | `10,00` | `10.00` | 05-03-2021 | PI_0637 (control) | PI_0637 ✔ |
+
+**The minus sign does not count** towards the Lengte, and the leading `0` of `-0.50` does not count
+either. Decision 20's `digits` check (minus and leading zeros stripped before counting) matches Beaufort;
+no change needed.
+
 The W rows each have their own ingangsdatum (`$Ingang`, then one day later per row, up to
 about five months), so after processing every value stays in the history and can be checked. The test
 person must be in service on those dates.
 
-| ID | Probe (CSV input → page) | Import (run 1) | Check stored value (run 2) | Processing (run 1) |
+| ID | Probe (CSV input → page) | Import (run 1) | Stored value (runs 2, 3) | Processing (run 1) |
 |---|---|---|---|---|
-| W01 | Keys: PS, DV, leading zeros, dv `0` (PS key), spaces around keys | created | Right person and dienstverband? | processed |
-| W02 | Lowercase rubriek, `STAM` / `s`, productiesoort empty / `nor` | created | | processed |
-| W03 | Every Windows-1252 character 0x80-0xFF typed in UTF-8; decomposed accent; curly quotes; `;` and `"` in a value | created | 0x80-0x9F and 0xFF lost? (#20) | processed |
-| W04 | Ingangsdatum in 6 input formats | created | Right dates? | processed |
-| W05 | Amounts `12,50` `-12,50` `3250,5` `0,25` `12.50` `3250` (numeric rubriek) | created | **run 2: all six stored as intended** | processed, no PI_2229 |
-| W06 | Exactly 50 characters; 60 cut to 50 (warning); empty Waarde | created | Complete / cut / empty? | processed |
+| W01 | Keys: PS, DV, leading zeros, dv `0` (PS key), spaces around keys | created | **run 3: right person and dienstverband** | processed |
+| W02 | Lowercase rubriek, `STAM` / `s`, productiesoort empty / `nor` | created | **run 3: stored** | processed |
+| W03 | Every Windows-1252 character 0x80-0xFF typed in UTF-8; decomposed accent; curly quotes; `;` and `"` in a value | created | **run 3: all stored as sent, 0x80-0x9F and 0xFF included** (#20) | processed |
+| W04 | Ingangsdatum in 6 input formats | created | **run 3: right dates** | processed |
+| W05 | Amounts `12,50` `-12,50` `3250,5` `0,25` `12.50` `3250` (numeric rubriek) | created | **run 2: all six stored as intended**; run 3 (Lengte 4): 5 rejected PI_0637 | processed, no PI_2229 |
+| W06 | Exactly 50 characters; 60 cut to 50 (warning); empty Waarde | created | **run 3: complete / cut to 50 / empty** | processed |
 
 ## GUI checks (owner, 2026-10-30)
 - **Lengte of a numeric rubriek includes the decimal point and the decimals.** A numeric rubriek with
   Lengte 4 and 2 decimals rejects `12,34` in the Beaufort GUI, so it holds 1 digit before the point
   (`9,99`). Digits before the point = Lengte − Decimalen − 1 (− 0 without decimals). Decision 20 uses this
-  rule (`digits` error).
+  rule (`digits` error). Round 4 run 3 confirmed it for imported values: processing rejects them with PI_0637.
 - **Time types:** T = time `hh:mm`, U = time `hh:mm:ss` (decision 20).
 
 ## Results
@@ -183,9 +240,9 @@ person must be in service on those dates.
 | ID | Probe | Import (round 2) | Check in 100251 | Consequence for script |
 |---|---|---|---|---|
 | P01 | ASCII punctuation, one character per record | all 33 created | Are `" ' ; \ < > &` shown as sent? | None if stored correctly |
-| P02 | Every Windows-1252 character 0x80-0xFF | all 123 created | **Round 4 report: 0x80-0x9F and 0xFF missing, 0xA0-0xFE kept** (unverified: the GUI accepts them) | Decision 7 allows all of Windows-1252; kept (owner), retest in #20 |
+| P02 | Every Windows-1252 character 0x80-0xFF | all 123 created | Round 4 report: 0x80-0x9F and 0xFF missing; **run 3 (W03): all stored, the report only drops them** | None: decision 7 confirmed (#20) |
 | P02-0xA0 | Non-breaking space | created | Round 4 report: kept | |
-| P03-1..4 | Realistic Dutch text | created | Round 4 report: accents kept; `’ “ ” € –` missing (P03-3, P03-4; unverified) | Decision 1, 7; #20 |
+| P03-1..4 | Realistic Dutch text | created | Round 4 report: accents kept; `’ “ ” € –` missing in the report, stored (run 3, W03-q) | None (#20) |
 | P03-5 | Accented character in the last Waarde position | created | Is the `é` at the end still there? | |
 | P03-6 | Waarde exactly 50 characters | created | Complete? | Decision 3 |
 | P03-7 | Leading spaces | created | Round 4 report: trimmed | None: script trims Waarde |

@@ -4,6 +4,24 @@ All notable changes to `dpia100.ps1`, `dpia100.bat` and `dpia100.html`. Newest f
 [Keep a Changelog](https://keepachangelog.com/). Releases are numbered from v1.0.0 (tag `vX.Y.Z`,
 zip on the GitHub Releases page); older entries are dated.
 
+## Unreleased
+
+### Documentation
+- Beaufort probe round 4 run 3 (2026-11-04, text rubrieken with history, #21): `€`, curly quotes,
+  dashes and the other characters 0x80-0x9F and 0xFF are **stored correctly**; only the processing report
+  leaves them out (#20). README, `field-layout.md` and `tests/beaufort/findings.md` no longer call them
+  unverified. Keys, dates, the 50-character cut and an empty Waarde were also stored as intended. A value
+  too long for a numeric rubriek is rejected at processing with PI_0637, which confirms the Lengte rule
+  of decision 20. Run 4 (probe W07): a minus sign does not count towards the Lengte (`-9.99` fits N 4,2),
+  as decision 20 already assumed.
+
+### Tests
+- Unit tests of the page core pin the confirmed Beaufort findings: every defined character 0x80-0xFF is
+  accepted and written as its byte; a minus sign and leading zeros do not count towards a numeric length;
+  50 characters are kept whole and longer values keep the first 50; spaces around keys are trimmed and dv
+  `0` gives a PS key; S of V and codes in any case; `;` and `"` inside a value; a tab is rejected; 187
+  bytes + CRLF per line with every field at its maximum.
+
 ## v1.3.0 (2026-10-30)
 
 Changes after reviewing the source of the official Excel tool and the Beaufort rubrieken export (owner
