@@ -172,6 +172,7 @@ tab gives no hint.
 | Value | `;` file (Dutch) | `,` file (English) | Tab file |
 |---|---|---|---|
 | `12,50`, `-12,50` | `12.50`, reported | `12.50`, warning | `12.50`, warning |
+| `,50`, `-,50` | `0.50`, reported | `0.50`, warning | `0.50`, warning |
 | `1,234` | `1.234`, reported | as typed, warning (means 1234) | `1.234`, warning |
 | `3.250`, `12.345` | as typed, warning (formatted 3250?) | as typed, no warning | as typed, warning |
 | `1.234,56`, `1,234.56`, `1.234.567` | as typed, warning | as typed, warning | as typed, warning |

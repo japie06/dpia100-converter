@@ -1,0 +1,4 @@
+Comma changed to dot in 3 Waarde value(s)
+row 2 ',50' -> '0.50'
+row 3 '-,50' -> '-0.50'
+row 4 ',5' -> '0.5'

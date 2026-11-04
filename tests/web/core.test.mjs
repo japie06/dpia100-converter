@@ -34,6 +34,17 @@ describe('delimiter (PS: Detect-CsvDelimiter)', () => {
     const text = 'Rubriek\tPers. Nr\tDienstv\tS of V\tWaarde (a, b, c, d, e, f)\tIngangsdatum\tProductiesoort\r\nE00101\t123\t1\tS\tx\t1-11-2026\tNOR\r\n';
     assert.equal(analyzeText(core, text).delimiter, '\t');
   });
+  test('delimiters inside a quoted header name are not counted (issue #17)', () => {
+    const text = 'Rubriek;Pers. Nr;Dienstv;S of V;"Waarde (a, b, c, d, e, f, g)";Ingangsdatum;Productiesoort\r\nE00101;123;1;S;x;1-11-2026;NOR\r\n';
+    assert.equal(analyzeText(core, text).delimiter, ';');
+  });
+  test('a quoted header name may continue on the next line (issue #17)', () => {
+    const text = '"Rubriek; code; a; b\r\nc",Pers. Nr,Dienstv,S of V,Waarde,Ingangsdatum,Productiesoort\r\nE00101,123,1,S,x,1-11-2026,NOR\r\n';
+    assert.equal(analyzeText(core, text).delimiter, ',');
+  });
+  test('an unclosed quote: only the text before it counts', () => {
+    assert.equal(analyzeText(core, 'a,b,"c;d;e;f\r\nx\r\n').delimiter, ',');
+  });
 });
 
 describe('CSV records (PS: ConvertFrom-Csv quirks)', () => {
@@ -93,6 +104,10 @@ describe('amounts by delimiter (decision 8)', () => {
   const table = [
     ['12,50', ['12.50', 'reported'], ['12.50', 'commaChanged'], ['12.50', 'commaChanged']],
     ['-12,50', ['-12.50', 'reported'], ['-12.50', 'commaChanged'], ['-12.50', 'commaChanged']],
+    // A leading-decimal amount gets a 0 before the dot (issue #14).
+    [',50', ['0.50', 'reported'], ['0.50', 'commaChanged'], ['0.50', 'commaChanged']],
+    ['-,50', ['-0.50', 'reported'], ['-0.50', 'commaChanged'], ['-0.50', 'commaChanged']],
+    [',500', ['0.500', 'reported'], ['0.500', 'commaChanged'], ['0.500', 'commaChanged']],
     ['1,234', ['1.234', 'reported'], ['1,234', 'thousandEn'], ['1.234', 'commaAsDecimal']],
     ['3.250', ['3.250', 'dotDecimal'], ['3.250', null], ['3.250', 'dotDecimal']],
     ['1.234,56', ['1.234,56', 'separator'], ['1.234,56', 'separator'], ['1.234,56', 'separator']],

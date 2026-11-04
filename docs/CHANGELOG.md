@@ -6,6 +6,17 @@ zip on the GitHub Releases page); older entries are dated.
 
 ## Unreleased
 
+### Changed
+- A leading-decimal amount (`,50`, `-,50`) is written as `0.50` / `-0.50` and listed with the other comma
+  conversions (decision 8; reported in a `;` file, a warning otherwise). Before, it was written as typed
+  without a message for an eigen rubriek, and a numeric rubriek rejected it at processing (PI_2229); a
+  standard numeric rubriek gave an error (#14).
+
+### Fixed
+- Delimiter detection no longer counts delimiters inside quoted header names, and follows a quoted name
+  onto the next line. A header such as `"Waarde (bedrag, uren, tekst, ...)";...` with more commas inside
+  quotes than semicolons was taken for a comma file and stopped with a mapping error (#17).
+
 ### Documentation
 - Beaufort probe round 4 run 3 (2026-11-04, text rubrieken with history, #21): `€`, curly quotes,
   dashes and the other characters 0x80-0x9F and 0xFF are **stored correctly**; only the processing report
@@ -16,6 +27,10 @@ zip on the GitHub Releases page); older entries are dated.
   as decision 20 already assumed.
 
 ### Tests
+- Cases `ok-delimiter-quoted-header` (#17) and `ok-amounts-leading-decimal` (#14), with unit tests.
+- Probe round 5 in `tests/beaufort/make-probes.ps1`: P09 short rubriek code left- and right-aligned (#25),
+  and every raw record gets its own ingangsdatum, so P04-7 (#2), P01 and P03-5 (#1) can be checked in the
+  history after processing. One file: `-Only P01,P03-5,P04-7,P09`.
 - Unit tests of the page core pin the confirmed Beaufort findings: every defined character 0x80-0xFF is
   accepted and written as its byte; a minus sign and leading zeros do not count towards a numeric length;
   50 characters are kept whole and longer values keep the first 50; spaces around keys are trimmed and dv
