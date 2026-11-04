@@ -4,7 +4,10 @@ All notable changes to `dpia100.ps1`, `dpia100.bat` and `dpia100.html`. Newest f
 [Keep a Changelog](https://keepachangelog.com/). Releases are numbered from v1.0.0 (tag `vX.Y.Z`,
 zip on the GitHub Releases page); older entries are dated.
 
-## Unreleased
+## v1.4.0 (2026-11-04)
+
+Two fixes from the review of the open issues, and probe rounds 4 (runs 3 and 4) and 5 in Beaufort, which
+settle the open questions about special characters, short rubriek codes and keys.
 
 ### Changed
 - A leading-decimal amount (`,50`, `-,50`) is written as `0.50` / `-0.50` and listed with the other comma
@@ -31,6 +34,10 @@ zip on the GitHub Releases page); older entries are dated.
   as decision 20 already assumed.
 
 ### Tests
+- `run-tests.ps1 -Filter page-*` failed `page-version`, `page-rubrieken` and `page-1252-table`: without a
+  selected case the Edge harness did not run, so these checks read an empty result. The runner now runs the
+  harness without cases when needed, and the page checks always read the page with the real standard
+  rubrieken table, never one with a case's extra rubrieken.
 - Cases `ok-delimiter-quoted-header` (#17) and `ok-amounts-leading-decimal` (#14), with unit tests.
 - Probe round 5 in `tests/beaufort/make-probes.ps1`: P09 short rubriek code left- and right-aligned (#25),
   and every raw record gets its own ingangsdatum, so P04-7 (#2), P01 and P03-5 (#1) can be checked in the

@@ -219,7 +219,7 @@ param (
 )
 
 # NOTE: Bump together with a new section in docs/CHANGELOG.md and a git tag vX.Y.Z (see CLAUDE.md).
-$ScriptVersion = '1.3.0'
+$ScriptVersion = '1.4.0'
 
 
 # -------------------------------------------------------------------------
