@@ -1,0 +1,4 @@
+Rubriek;Pers. Nr;Dienstv;S of V;"Mutatiewaarde (bedrag, uren, tekst, datum, tijd, enz., met komma, punt, of leeg)";"Ingangs
+datum";Productiesoort
+E00101;123;1;S;Tekst, met komma;1-11-2026;NOR
+E00101;456;;V;een, twee, drie;01-11-2026;

@@ -34,6 +34,17 @@ describe('delimiter (PS: Detect-CsvDelimiter)', () => {
     const text = 'Rubriek\tPers. Nr\tDienstv\tS of V\tWaarde (a, b, c, d, e, f)\tIngangsdatum\tProductiesoort\r\nE00101\t123\t1\tS\tx\t1-11-2026\tNOR\r\n';
     assert.equal(analyzeText(core, text).delimiter, '\t');
   });
+  test('delimiters inside a quoted header name are not counted (issue #17)', () => {
+    const text = 'Rubriek;Pers. Nr;Dienstv;S of V;"Waarde (a, b, c, d, e, f, g)";Ingangsdatum;Productiesoort\r\nE00101;123;1;S;x;1-11-2026;NOR\r\n';
+    assert.equal(analyzeText(core, text).delimiter, ';');
+  });
+  test('a quoted header name may continue on the next line (issue #17)', () => {
+    const text = '"Rubriek; code; a; b\r\nc",Pers. Nr,Dienstv,S of V,Waarde,Ingangsdatum,Productiesoort\r\nE00101,123,1,S,x,1-11-2026,NOR\r\n';
+    assert.equal(analyzeText(core, text).delimiter, ',');
+  });
+  test('an unclosed quote: only the text before it counts', () => {
+    assert.equal(analyzeText(core, 'a,b,"c;d;e;f\r\nx\r\n').delimiter, ',');
+  });
 });
 
 describe('CSV records (PS: ConvertFrom-Csv quirks)', () => {
@@ -60,6 +71,13 @@ describe('CSV records (PS: ConvertFrom-Csv quirks)', () => {
     const r = analyzeText(core, csv([['E00101', '123', '1', 'S', '"regel1\nregel2"', '1-11-2026', 'NOR']]));
     assert.deepEqual(r.errors.map(e => e.code), ['control']);
   });
+  test('a tab in Waarde is an error (Beaufort shows it as a space, probe P07j)', () => {
+    assert.deepEqual(analyzeText(core, csv([row('a\tb')])).errors.map(e => e.code), ['control']);
+  });
+  test('; and " inside a quoted value are kept (stored as sent, probe W03-s)', () => {
+    const r = analyzeText(core, csv([row('"puntkomma; en ""aanhalingstekens"""')]));
+    assert.deepEqual([r.errors, r.records[0].waarde], [[], 'puntkomma; en "aanhalingstekens"']);
+  });
 });
 
 describe('.NET string semantics', () => {
@@ -74,6 +92,10 @@ describe('.NET string semantics', () => {
     const rec = analyzeText(core, csv([row('x', { persNr: '000123', dv: '001' })])).records[0];
     assert.deepEqual([rec.persNr, rec.dienstv], ['123', '1']);
   });
+  test('spaces around the keys are trimmed (stored on the right dienstverband, probe W01-5)', () => {
+    const rec = analyzeText(core, csv([row('x', { persNr: ' 123 ', dv: ' 1 ' })])).records[0];
+    assert.deepEqual([rec.persNr, rec.dienstv], ['123', '1']);
+  });
 });
 
 describe('amounts by delimiter (decision 8)', () => {
@@ -82,6 +104,10 @@ describe('amounts by delimiter (decision 8)', () => {
   const table = [
     ['12,50', ['12.50', 'reported'], ['12.50', 'commaChanged'], ['12.50', 'commaChanged']],
     ['-12,50', ['-12.50', 'reported'], ['-12.50', 'commaChanged'], ['-12.50', 'commaChanged']],
+    // A leading-decimal amount gets a 0 before the dot (issue #14).
+    [',50', ['0.50', 'reported'], ['0.50', 'commaChanged'], ['0.50', 'commaChanged']],
+    ['-,50', ['-0.50', 'reported'], ['-0.50', 'commaChanged'], ['-0.50', 'commaChanged']],
+    [',500', ['0.500', 'reported'], ['0.500', 'commaChanged'], ['0.500', 'commaChanged']],
     ['1,234', ['1.234', 'reported'], ['1,234', 'thousandEn'], ['1.234', 'commaAsDecimal']],
     ['3.250', ['3.250', 'dotDecimal'], ['3.250', null], ['3.250', 'dotDecimal']],
     ['1.234,56', ['1.234,56', 'separator'], ['1.234,56', 'separator'], ['1.234,56', 'separator']],
@@ -101,9 +127,12 @@ describe('amounts by delimiter (decision 8)', () => {
       });
     });
   }
-  test('Waarde over 50 characters is truncated with a warning (decision 3)', () => {
-    const r = analyzeText(core, csv([row('x'.repeat(60))]));
-    assert.equal(r.records[0].waarde.length, 50);
+  test('Waarde of 50 characters is whole; over 50 keeps the first 50, with a warning (decision 3, probe W06)', () => {
+    const fifty = 'W06-1 precies 50 tekens '.padEnd(50, 'x');
+    const r50 = analyzeText(core, csv([row(fifty)]));
+    assert.deepEqual([r50.records[0].waarde, r50.warnings], [fifty, []]);
+    const r = analyzeText(core, csv([row(fifty + 'y'.repeat(10))]));
+    assert.equal(r.records[0].waarde, fifty);
     assert.equal(r.warnings[0].code, 'truncated');
   });
 });
@@ -145,6 +174,11 @@ describe('rubriek and productiesoort', () => {
     assert.deepEqual(codes({ rubriek: 'E001011' }), ['tooLong']);
     assert.deepEqual(codes({ rubriek: ' e00101 ' }), []);
     assert.deepEqual(codes({ rubriek: '#N/B' }), ['chars']);
+  });
+  test('codes are uppercased; S of V is S, STAM, V or VARIABEL in any case (probe W02)', () => {
+    const r = analyzeText(core, csv(['STAM', 's', 'Variabel', 'v'].map(sv => row('x', { rubriek: 'e00101', sv }))));
+    assert.deepEqual(r.records.map(x => [x.rubriek, x.indicator]), [['E00101', 'S'], ['E00101', 'S'], ['E00101', 'V'], ['E00101', 'V']]);
+    assert.deepEqual(codes({ sv: 'X' }), ['invalid']);
   });
   test('a shorter code is left-aligned in positions 4-9 (issue #25)', () => {
     const r = analyzeText(core, csv([row('x', { rubriek: 'E0010' })]));
@@ -229,6 +263,15 @@ describe('standard rubrieken (decisions 17-20)', () => {
     assert.deepEqual(e('0001234'), [['digits', 3]]);
     assert.deepEqual(value('P00320', '12.5', { dv: '', sv: 'S' }).errors.map(x => [x.code, x.decimals, x.kept]), [['decimals', 0, '12']]);
     assert.deepEqual(value('P00320', '123456789', { dv: '', sv: 'S' }).errors, []);
+    assert.deepEqual(value('P00320', '1234567890', { dv: '', sv: 'S' }).errors.map(x => [x.code, x.max]), [['digits', 9]]);
+  });
+  test('numeric: a minus sign and leading zeros do not count towards the length (probe W07)', () => {
+    // Beaufort N 4,2 processed -9.99, -9 and -0.50 and rejected 10.00 (PI_0637). P00001 is N 6,2: 3 digits.
+    const e = v => value('P00001', v).errors.map(x => [x.code, x.max]);
+    for (const v of ['-999.99', '-999', '-0.50', '-000999.99']) assert.deepEqual(e(v), [], v);
+    assert.deepEqual(e('-1234'), [['digits', 3]]);
+    assert.deepEqual(e('-1234.5'), [['digits', 3]]);
+    assert.deepEqual(value('P00320', '-123456789', { dv: '', sv: 'S' }).errors, []);
   });
   test('date: rewritten as dd-mm-yyyy and reported; not a date is an error', () => {
     const r = analyze(['1-11-2026', '2026-11-01', '01112026', '01-11-2026', '1.11.2026'].map(v => row(v, { rubriek: 'P00321', dv: '', sv: 'S' })));
@@ -273,6 +316,15 @@ describe('Windows-1252 (decisions 1 and 7)', () => {
     assert.throws(() => core.encodeOutput(['\u0080']));
     assert.equal(core.unencodableChars('ĳ ok 😀'), 'ĳ (U+0133), \uD83D (U+D83D), \uDE00 (U+DE00)');
   });
+  test('every defined character 0x80-0xFF is accepted and written as its byte (stored by Beaufort, #20)', () => {
+    const bytes = [];
+    for (let b = 0x80; b <= 0xFF; b++) if (![0x81, 0x8D, 0x8F, 0x90, 0x9D].includes(b)) bytes.push(b);
+    const chars = bytes.map(b => new TextDecoder('windows-1252').decode(new Uint8Array([b])));
+    const r = analyzeText(core, csv(chars.map(c => row(`a${c}b`))));
+    assert.deepEqual([r.errors, r.warnings, r.records.length], [[], [], bytes.length]);
+    const out = core.encodeOutput(core.buildLines(r.records, { procescode: 'CMT', creatiedatum: '07102026', gebruiker: 'U' }));
+    assert.deepEqual(bytes.map((_, i) => out[i * 189 + 88]), bytes);
+  });
   test('decomposed accents are composed first', () => {
     assert.equal(analyzeText(core, csv([row('coördinator')])).records[0].waarde, 'coördinator');
   });
@@ -287,10 +339,17 @@ describe('record layout (field-layout.md)', () => {
       'CMTE00101123450   1' + ' '.repeat(40) + 'S   07102026         TSTUSERTest' + ' '.repeat(46) + '   05112024' + ' '.repeat(30) + 'NOR      '
     ]);
   });
-  test('a PS key has no dienstverband part', () => {
-    const r = analyzeText(core, csv([row('x', { dv: '' })]));
-    const [line] = core.buildLines(r.records, { procescode: 'CMT', creatiedatum: '07102026', gebruiker: 'U' });
-    assert.equal(line.substring(9, 59), '   123'.padEnd(50));
+  test('a PS key has no dienstverband part; dv 0 also gives a PS key (decision 4, probe W01-4)', () => {
+    const r = analyzeText(core, csv(['', '0', '000'].map(dv => row('x', { dv }))));
+    for (const line of core.buildLines(r.records, { procescode: 'CMT', creatiedatum: '07102026', gebruiker: 'U' })) {
+      assert.equal(line.substring(9, 59), '   123'.padEnd(50));
+    }
+  });
+  test('fields at their maximum still give 187 bytes + CRLF per line, last line included, no BOM (probes P07)', () => {
+    const r = analyzeText(core, csv([['E00101', '123456', '999', 'S', 'w'.repeat(50), '1-11-2026', 'COR'], row('x')]));
+    const out = core.encodeOutput(core.buildLines(r.records, { procescode: 'CMT', creatiedatum: '07102026', gebruiker: 'ABCDEFGHIJKLMNOP' }));
+    assert.equal(out.length, 2 * 189);
+    assert.deepEqual([out[0], out[187], out[188], out[376], out[377]], [0x43, 13, 10, 13, 10]);
   });
 });
 

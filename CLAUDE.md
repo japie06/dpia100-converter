@@ -7,8 +7,7 @@ in `docs/CHANGELOG.md`.
 ## What this is
 
 `dpia100.ps1` converts a CSV of HR mutations into `DPIA100_<csv name>.txt` (next to the CSV), the fixed-width import file for
-Visma/Raet **Beaufort** (function 100254, *Import externe indirecte mutaties*). It replaces the official
-Excel tool's "Maak DPIA100" button with stricter validation. Users are non-technical colleagues at
+Visma/Raet **Beaufort** (function 100254, *Import externe indirecte mutaties*). It replaces the official Excel tool's "Maak DPIA100" button with stricter validation. Users are non-technical colleagues at
 a Dutch municipality who drag a CSV onto `dpia100.bat`.
 
 `dpia100.html` is the same converter as a web page (decision 15): one self-contained file, Dutch UI,
@@ -176,7 +175,7 @@ Top to bottom:
 ## Scope decisions by the owner
 
 - **In scope:** PS and DV only, productiesoort NOR or COR, verrekenperiode always blank. Rubriek 1-6
-  characters; a shorter code is left-aligned (unprobed, #25).
+  characters; a shorter code is left-aligned (Beaufort processes it, probe P09, #25).
 - **Standard rubrieken are known, eigen rubrieken are not (decisions 17-20).** The standard PS/DV
   rubrieken (Fix = J, about 4,200) are hard-coded from the 210006 export; their gegevenssoort, type,
   length, decimals, stam/variabel and Blok ind mut cannot be changed by a customer. A code that is not in
@@ -313,10 +312,11 @@ Top to bottom:
   `make-probes.ps1 -Web` (round 4) tests the web app instead. It writes one probe CSV of valid input,
   `web-probes.csv`, and lets the page's core make `DPIA100_web-probes.txt` through the `edge` harness.
   The owner can recreate that file in the real page and compare. Every W row gets its own ingangsdatum, so
-  processing does not overwrite values and each stored value can be checked. Round 4 found that Beaufort
-  reported the bytes 0x80-0x9F and 0xFF (`€`, curly quotes, dashes) as missing in the processing report.
-  That is **unverified**: the Beaufort GUI accepts these characters when typed. Retest in #20; the
-  script keeps accepting them (owner).
+  processing does not overwrite values and each stored value can be checked. Round 4 found that the
+  processing report leaves out the bytes 0x80-0x9F and 0xFF (`€`, curly quotes, dashes); run 3
+  (2026-11-04) showed they are stored correctly, so that is the report only (#20). The test rubrieken
+  TST002/TST003 keep history since run 3; TST004 now has Lengte 4 (2 decimals), so amounts over `9.99`
+  are rejected at processing (PI_0637); a minus sign does not count (run 4, probe W07).
 - **Headless runs.** Pipe the prompt answers in (add `Y` to confirm warnings) and pass `-NoPause`
   (works on 5.1 and 7): `printf 'CMT\n07 10 2026\nTSTUSER\nY\n' | pwsh -NoProfile -File dpia100.ps1 -InputCsvPath t.csv -OutputTxtPath out.txt -NoPause`
 - **pwsh on Linux.** It writes LF line endings, so convert to CRLF before comparing.

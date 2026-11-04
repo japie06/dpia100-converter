@@ -226,14 +226,14 @@ rest. Eigen rubrieken kunnen (nog) niet worden opgegeven
 
 ### Bijzondere tekens
 
-Letters met accenten (`é ë ö ç à ü` enz.) zijn geen probleem.
+Letters met accenten (`é ë ö ç à ü` enz.), `€`, krullende aanhalingstekens (`’ “ ”`),
+gedachtestreepjes (`– —`) en het weglatingsteken `…` zijn geen probleem: getest in Beaufort, ze worden
+goed opgeslagen.
 
-**Nog niet zeker:** `€`, krullende aanhalingstekens (`’ “ ”`), gedachtestreepjes (`– —`), het
-weglatingsteken `…` en een paar zeldzame tekens (zoals `Š ž ™ ÿ`) worden geaccepteerd en in het bestand
-gezet. In één test ontbraken ze in het verwerkingsverslag van Beaufort (`d’Ancona` stond er als
-`dAncona`), terwijl Beaufort ze accepteert als je ze daar zelf intypt. Dit wordt opnieuw getest
-([#20](https://github.com/japie06/dpia100-converter/issues/20)). Wil je zeker zijn, controleer de
-waarde dan na het verwerken in Beaufort.
+Let op: in het *Uitgebreid foutverslag* van de verwerking laat Beaufort `€`, krullende
+aanhalingstekens, gedachtestreepjes, `…` en een paar zeldzame tekens (zoals `Š ž ™ ÿ`) weg (`d’Ancona`
+staat er als `dAncona`). Dat zit alleen in het verslag; de opgeslagen waarde is goed
+([#20](https://github.com/japie06/dpia100-converter/issues/20)).
 
 Tekens die Beaufort helemaal niet kent, worden door het script geweigerd met een foutmelding. Bijvoorbeeld een pijl `→` (Word maakt die soms automatisch van `->`),
 een vinkje `✓`, Poolse of Turkse letters (`ł`, `ş`) en emoji.

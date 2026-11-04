@@ -83,7 +83,8 @@
        Excel with ',' and a decimal dot. A tab-separated file gives no hint.
                                  ';' file (Dutch)       ',' file (English)       tab file
        '12,50', '-12,50'         -> '12.50', reported   -> '12.50', warning      -> '12.50', warning
-       '1,234'                   -> '1.234', reported   as typed, warning (1234) -> '1.234', warning
+       ',50', '-,50'             -> '0.50', reported    -> '0.50', warning       -> '0.50', warning
+       '1,234'                -> '1.234', reported   as typed, warning (1234) -> '1.234', warning
        '3.250', '12.345'         as typed, warning      as typed, no warning     as typed, warning
        '1.234,56', '1,234.56',   as typed, warning      as typed, warning        as typed, warning
        '1.234.567'
@@ -146,11 +147,11 @@
        rubriek newer than the list) and is checked as before. Eigen rubrieken are issue #24.
        Rubriek codes are 1-6 letters and digits (the export has standard SETKB and eigen codes such as
        E0010). A shorter code is left-aligned in positions 4-9, as v1.2.0 did (owner); the Excel tool
-       right-aligned it and Beaufort was never probed with one (issue #25).
+       right-aligned it. Beaufort processes both alignments (probe P09, round 5, issue #25).
     18. DIENSTVERBAND AND S OF V OF A STANDARD RUBRIEK (owner):
        A DV rubriek needs a dienstverband; empty or 0 gives a PS key, which Beaufort rejects at import
-       (PI_1650). A PS rubriek may not have one: Beaufort accepts a DV key there at import (probe P04-7, #2),
-       with an unknown effect. S on a variabel-only or V on a stam-only rubriek is rejected by Beaufort.
+       (PI_1650). A PS rubriek may not have one: Beaufort accepts a DV key there and processes it on the
+       person, ignoring the dienstverband (probe P04-7, round 5, #2); the input is still inconsistent. S on a variabel-only or V on a stam-only rubriek is rejected by Beaufort.
        All are validation errors. Without the list the key is derived from the Dienstverband column alone.
     19. BLOK IND MUT (owner):
        A standard rubriek with Blok ind mut = J is blocked for indirect mutation, so Beaufort does not import
@@ -218,7 +219,7 @@ param (
 )
 
 # NOTE: Bump together with a new section in docs/CHANGELOG.md and a git tag vX.Y.Z (see CLAUDE.md).
-$ScriptVersion = '1.3.0'
+$ScriptVersion = '1.4.0'
 
 
 # -------------------------------------------------------------------------
@@ -367,21 +368,33 @@ $script:fullOutputPath = $resolvedOutputPath
 # Helper Functions
 # -------------------------------------------------------------------------
 
-# DECISION: Inspects the first non-empty line of the file and calculates the frequency
+# DECISION: Inspects the header record (the first non-empty line) and calculates the frequency
 # of common delimiters (;, ,, \t). This eliminates dependency on Regional Settings / Excel locale.
+# DECISION: Delimiters inside quoted header names are not counted, and a quoted name may continue on
+# the next line, as in Split-CsvHeader (issue #17): '"Waarde (uren, bedrag, ...)";Rubriek;...' is a ';'
+# file. A quote opens or closes quoting wherever it is, as in Split-CsvHeader.
 # DECISION: On a tie the first candidate in the order ';', tab, ',' wins. This is the order Windows
 # PowerShell 5.1 happened to use; PowerShell 7 picked at random (hashtable order changes per run).
 function Detect-CsvDelimiter([string]$text) {
-    $firstLine = $text -split '\r?\n' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1
-    if ([string]::IsNullOrWhiteSpace($firstLine)) {
+    $lines = $text -split '\r?\n'
+    $k = 0
+    while ($k -lt $lines.Count -and [string]::IsNullOrWhiteSpace($lines[$k])) { $k++ }
+    if ($k -ge $lines.Count) {
         throw "The CSV file is empty."
     }
-    $firstLine = $firstLine.Trim([char]0xFEFF).Trim()
+    # An odd number of quotes means a quoted name continues on the next line.
+    $header = $lines[$k]
+    while ((($header.Split([char]'"').Count - 1) % 2) -eq 1 -and $k + 1 -lt $lines.Count) {
+        $k++
+        $header += "`n" + $lines[$k]
+    }
+    $parts = $header.Trim([char]0xFEFF).Trim().Split([char]'"')
+    $unquoted = -join $(for ($p = 0; $p -lt $parts.Count; $p += 2) { $parts[$p] })
 
     $best = ';' # Default fallback
     $bestCount = 0
     foreach ($c in @(';', "`t", ',')) {
-        $count = ($firstLine -split [regex]::Escape($c)).Count - 1
+        $count = ($unquoted -split [regex]::Escape($c)).Count - 1
         if ($count -gt $bestCount) {
             $best = $c
             $bestCount = $count
@@ -4937,7 +4950,8 @@ foreach ($row in $rows) {
     }
 
     # 3. Validate Dienstv (Numeric, max 3 digits, optional)
-    # ASSUMPTION: If Dienstv is empty (or all zeros, e.g. '0'), this is a Person-level mutation (PS).
+    # DECISION (owner, issue #13): If Dienstv is empty (or all zeros, e.g. '0', what an Excel formula gives
+    # for an empty cell), this is a Person-level mutation (PS); probe W01-4 stored it on the person.
     # If provided, it is a Contract-level mutation (DV) and must not exceed 3 digits.
     # For a standard rubriek the key must match its gegevenssoort (decision 18, below).
     $cleanDienstv = ""
@@ -5037,9 +5051,11 @@ foreach ($row in $rows) {
     $isNumberLike = $waardeType -in @('', 'N') -and $cleanWaarde -match '^\-?\s*[\d\.,]+$' -and $cleanWaarde -match '\d' -and
                     $cleanWaarde -notmatch '^\d{1,2}\.\d{1,2}\.\d{4}$'
     $rowLabel = "Row $rowNumber (Pers. Nr: $cleanPersNr)"
-    if ($isNumberLike -and $cleanWaarde -match '^(\-)?\s*(\d+)(?:,(\d+))?$') {
+    # DECISION (owner, issue #14): A leading-decimal amount (',50', '-,50') gets a 0 before the dot, like
+    # Excel shows it; listed with the other comma conversions.
+    if ($isNumberLike -and $cleanWaarde -match '^(\-)?\s*(\d*)(?:,(\d+))?$') {
         $sign = if ($Matches[1] -eq '-') { "-" } else { "" }
-        $whole = $Matches[2]
+        $whole = if ($Matches[2]) { $Matches[2] } else { "0" }
         $fraction = $Matches[3]
         $converted = if ($fraction) { "$sign$whole.$fraction" } else { "$sign$whole" }
         $thousandShape = $fraction -and $whole -match '^[1-9]\d{0,2}$' -and $fraction.Length -eq 3

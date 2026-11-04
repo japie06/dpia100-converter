@@ -1,6 +1,7 @@
 Rubriek;Pers. Nr;Dienstv;S of V;Mutatiewaarde;Ingangsdatum;Productiesoort;Opmerking
 E00101;123456;;S;Café de Brug;1-11-2026;NOR;Gewone tekst: geen melding
 E00101;123456;1;V;125,50;1-11-2026;NOR;Komma wordt punt: alleen gemeld
+E00101;123456;1;V;,50;1-11-2026;NOR;Komma vooraan: wordt 0.50, alleen gemeld
 P00001;123456;1;V;12,50;1-11-2026;NOR;Standaard numerieke rubriek: komma wordt punt, alleen gemeld
 P00332;123456;1;S;1,5;1-11-2026;NOR;Standaard tekstrubriek: komma blijft staan, geen melding
 P00321;123456;;S;1-11-2026;1-11-2026;NOR;Standaard datumrubriek: datum wordt dd-mm-jjjj, alleen gemeld

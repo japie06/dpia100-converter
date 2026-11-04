@@ -11,7 +11,7 @@
 <html lang="nl" translate="no">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-mgNs1tnyHHocNaoFbFLox2dZk1frEfq6QH9+/A5igNA=' 'sha256-KeLVYlTxZGgd9/oyY5Cp/TYWz9bxWCrJRQPc+MlpnWQ='; style-src 'sha256-V22O4laejLQ2OPxcAoI9UKPHbjw2czl6+bDs9TiZzhc='; connect-src 'none'; form-action 'none'; base-uri 'none'; require-trusted-types-for 'script'; trusted-types 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-C4dgVbkuw6f4FhR8pOipl9i8sNT05sOta3dXjy2tOME=' 'sha256-KeLVYlTxZGgd9/oyY5Cp/TYWz9bxWCrJRQPc+MlpnWQ='; style-src 'sha256-V22O4laejLQ2OPxcAoI9UKPHbjw2czl6+bDs9TiZzhc='; connect-src 'none'; form-action 'none'; base-uri 'none'; require-trusted-types-for 'script'; trusted-types 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
@@ -309,7 +309,7 @@ const DPIA100 = (() => {
   'use strict';
 
   // NOTE: Keep equal to $ScriptVersion in dpia100.ps1 (checked by tests/run-tests.ps1 and CI).
-  const VERSION = '1.3.0';
+  const VERSION = '1.4.0';
 
   // ---------------------------------------------------------------------------------------------
   // .NET string semantics
@@ -398,16 +398,21 @@ const DPIA100 = (() => {
 
   const splitLines = text => text.split(/\r?\n/); // PS: -split '\r?\n'
 
-  // PS: Detect-CsvDelimiter. Counts ';', tab and ',' in the first non-empty line; on a tie the first
-  // in that order wins; ';' when none occurs.
+  // PS: Detect-CsvDelimiter. Counts ';', tab and ',' in the header record (the first non-empty line),
+  // outside quoted names, which may continue on the next line (issue #17); on a tie the first in that
+  // order wins; ';' when none occurs.
   function detectDelimiter(text) {
-    const first = splitLines(text).find(l => !isBlank(l));
-    if (first === undefined) throw new Error('The CSV file is empty.');
-    const line = trim(first.replace(/^﻿+|﻿+$/g, ''));
+    const lines = splitLines(text);
+    let k = lines.findIndex(l => !isBlank(l));
+    if (k < 0) throw new Error('The CSV file is empty.');
+    // An odd number of quotes means a quoted name continues on the next line.
+    let header = lines[k];
+    while ((header.split('"').length - 1) % 2 === 1 && k + 1 < lines.length) header += '\n' + lines[++k];
+    const unquoted = trim(header.replace(/^﻿+|﻿+$/g, '')).split('"').filter((_, i) => i % 2 === 0).join('');
     let best = ';';
     let bestCount = 0;
     for (const c of [';', '\t', ',']) {
-      const count = line.split(c).length - 1;
+      const count = unquoted.split(c).length - 1;
       if (count > bestCount) {
         best = c;
         bestCount = count;
@@ -611,7 +616,7 @@ const DPIA100 = (() => {
   const reNumberLike = new RegExp(`^-?${S}*[${D}.,]+$`, 'u');
   const reHasDigit = new RegExp(D, 'u');
   const reDottedDate = new RegExp(`^${D}{1,2}\\.${D}{1,2}\\.${D}{4}$`, 'u');
-  const reCommaAmount = new RegExp(`^(-)?${S}*(${D}+)(?:,(${D}+))?$`, 'u');
+  const reCommaAmount = new RegExp(`^(-)?${S}*(${D}*)(?:,(${D}+))?$`, 'u');
   const reThousandWhole = new RegExp(`^[1-9]${D}{0,2}$`, 'u');
   const reDotThousand = new RegExp(`^-?${S}*[1-9]${D}{0,2}\\.${D}{3}$`, 'u');
   const reTwoSeparators = /\..*,|,.*\.|\..*\.|,.*,/;
@@ -737,7 +742,7 @@ const DPIA100 = (() => {
         else if (cleanPersNr.length > 6) err(rowNumber, 'Pers. Nr', 'tooLong', rawPersNr);
       }
 
-      // 3. Dienstverband: optional (empty or all zeros = PS mutation), digits only, max 3. For a standard
+      // 3. Dienstverband: optional (empty or all zeros = PS mutation, issue #13), digits only, max 3. For a standard
       //    rubriek the key must match its gegevenssoort (decision 18, step 4b).
       let cleanDienstv = '';
       let dienstvValid = true;
@@ -799,7 +804,8 @@ const DPIA100 = (() => {
       const m = isNumberLike ? reCommaAmount.exec(cleanWaarde) : null;
       if (m) {
         const sign = m[1] === '-' ? '-' : '';
-        const whole = m[2];
+        // A leading-decimal amount (',50', '-,50') gets a 0 before the dot (issue #14).
+        const whole = m[2] || '0';
         const fraction = m[3];
         let converted = fraction ? `${sign}${whole}.${fraction}` : `${sign}${whole}`;
         const thousandShape = !!fraction && reThousandWhole.test(whole) && fraction.length === 3;

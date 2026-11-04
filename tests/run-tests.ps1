@@ -138,7 +138,8 @@ if ($engines -contains 'edge') {
         $groups = @($webCases | Group-Object { $_.extra -join "`n" } | Sort-Object { $_.Name -ne '' }, Name)
         for ($i = 0; $i -lt $groups.Count; $i++) {
             $payload = Invoke-WebHarness -Cases @($groups[$i].Group) -OutDir $outDir -ExtraRubrieken @($groups[$i].Group[0].extra) -PageName "web-harness-$i.html"
-            if ($i -eq 0) { $webPayload = $payload }
+            # The page checks need the page with the real table, not one with extra rubrieken.
+            if ($groups[$i].Name -eq '') { $webPayload = $payload }
             foreach ($r in $payload.cases) { $webResults[$r.name] = $r }
         }
     } catch {
@@ -298,6 +299,16 @@ if ($engines -contains 'edge') {
             $copy = Join-Path $outDir 'dpia100-lf.html'
             [IO.File]::WriteAllText($copy, ([IO.File]::ReadAllText($script:PagePath) -replace "`r`n", "`n"), (New-Object Text.UTF8Encoding($false)))
             Test-PageStarts $copy
+        }
+    }
+    # The version, table and 1252 checks read the harness page. Without a selected case on the real table
+    # (-Filter page-*, or only cases with extra rubrieken) the harness has not run yet: run it without cases.
+    if (-not $webPayload -and ($pageChecks.Keys | Where-Object { $_ -like $Filter })) {
+        try {
+            $webPayload = Invoke-WebHarness -Cases @() -OutDir $outDir -PageName 'web-harness-page.html'
+        } catch {
+            Write-Host "FAIL  web harness: $($_.Exception.Message)" -ForegroundColor Red
+            exit 1
         }
     }
     foreach ($name in $pageChecks.Keys) {

@@ -4,6 +4,50 @@ All notable changes to `dpia100.ps1`, `dpia100.bat` and `dpia100.html`. Newest f
 [Keep a Changelog](https://keepachangelog.com/). Releases are numbered from v1.0.0 (tag `vX.Y.Z`,
 zip on the GitHub Releases page); older entries are dated.
 
+## v1.4.0 (2026-11-04)
+
+Two fixes from the review of the open issues, and probe rounds 4 (runs 3 and 4) and 5 in Beaufort, which
+settle the open questions about special characters, short rubriek codes and keys.
+
+### Changed
+- A leading-decimal amount (`,50`, `-,50`) is written as `0.50` / `-0.50` and listed with the other comma
+  conversions (decision 8; reported in a `;` file, a warning otherwise). Before, it was written as typed
+  without a message for an eigen rubriek, and a numeric rubriek rejected it at processing (PI_2229); a
+  standard numeric rubriek gave an error (#14).
+
+### Fixed
+- Delimiter detection no longer counts delimiters inside quoted header names, and follows a quoted name
+  onto the next line. A header such as `"Waarde (bedrag, uren, tekst, ...)";...` with more commas inside
+  quotes than semicolons was taken for a comma file and stopped with a mapping error (#17).
+
+### Documentation
+- Beaufort probe round 5 (2026-11-04): a rubriek code shorter than 6 characters is processed left-aligned,
+  as the converter writes it, and right-aligned (#25). A PS rubriek with a DV key is processed on the person
+  and the dienstverband is ignored (#2). All ASCII punctuation and an accent in position 50 are stored as
+  sent (#1). No change to the converter.
+- Beaufort probe round 4 run 3 (2026-11-04, text rubrieken with history, #21): `€`, curly quotes,
+  dashes and the other characters 0x80-0x9F and 0xFF are **stored correctly**; only the processing report
+  leaves them out (#20). README, `field-layout.md` and `tests/beaufort/findings.md` no longer call them
+  unverified. Keys, dates, the 50-character cut and an empty Waarde were also stored as intended. A value
+  too long for a numeric rubriek is rejected at processing with PI_0637, which confirms the Lengte rule
+  of decision 20. Run 4 (probe W07): a minus sign does not count towards the Lengte (`-9.99` fits N 4,2),
+  as decision 20 already assumed.
+
+### Tests
+- `run-tests.ps1 -Filter page-*` failed `page-version`, `page-rubrieken` and `page-1252-table`: without a
+  selected case the Edge harness did not run, so these checks read an empty result. The runner now runs the
+  harness without cases when needed, and the page checks always read the page with the real standard
+  rubrieken table, never one with a case's extra rubrieken.
+- Cases `ok-delimiter-quoted-header` (#17) and `ok-amounts-leading-decimal` (#14), with unit tests.
+- Probe round 5 in `tests/beaufort/make-probes.ps1`: P09 short rubriek code left- and right-aligned (#25),
+  and every raw record gets its own ingangsdatum, so P04-7 (#2), P01 and P03-5 (#1) can be checked in the
+  history after processing. One file: `-Only P01,P03-5,P04-7,P09`.
+- Unit tests of the page core pin the confirmed Beaufort findings: every defined character 0x80-0xFF is
+  accepted and written as its byte; a minus sign and leading zeros do not count towards a numeric length;
+  50 characters are kept whole and longer values keep the first 50; spaces around keys are trimmed and dv
+  `0` gives a PS key; S of V and codes in any case; `;` and `"` inside a value; a tab is rejected; 187
+  bytes + CRLF per line with every field at its maximum.
+
 ## v1.3.0 (2026-10-30)
 
 Changes after reviewing the source of the official Excel tool and the Beaufort rubrieken export (owner

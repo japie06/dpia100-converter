@@ -118,7 +118,7 @@ Opvallend:
 
 - Codes zijn niet altijd 6 tekens: 59 rubrieken hebben 3 tot 5 tekens (31 daarvan PS of DV, 1 standaard:
   `SETKB`). Daarom accepteert de converter 1 tot 6 tekens en zet hij een kortere code links in positie 4-9
-  (eigenaar). Dat is nog niet in Beaufort getest (issue #25).
+  (eigenaar). Beaufort verwerkt dat goed, net als rechts uitgelijnd (probe P09, issue #25).
 - 10 standaardrubrieken in PS/DV (en 5 daarbuiten) hebben een lege `Blok ind mut`, bijvoorbeeld P00633. Het
   overzicht zegt niet wat dat betekent; de converter behandelt leeg als niet geblokkeerd (eigenaar).
 - Standaardcodes in PS/DV beginnen met `P` (4.215), `R` (11) of `S` (1), maar ook 3 eigen rubrieken beginnen
