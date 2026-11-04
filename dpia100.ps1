@@ -147,11 +147,11 @@
        rubriek newer than the list) and is checked as before. Eigen rubrieken are issue #24.
        Rubriek codes are 1-6 letters and digits (the export has standard SETKB and eigen codes such as
        E0010). A shorter code is left-aligned in positions 4-9, as v1.2.0 did (owner); the Excel tool
-       right-aligned it and Beaufort was never probed with one (issue #25).
+       right-aligned it. Beaufort processes both alignments (probe P09, round 5, issue #25).
     18. DIENSTVERBAND AND S OF V OF A STANDARD RUBRIEK (owner):
        A DV rubriek needs a dienstverband; empty or 0 gives a PS key, which Beaufort rejects at import
-       (PI_1650). A PS rubriek may not have one: Beaufort accepts a DV key there at import (probe P04-7, #2),
-       with an unknown effect. S on a variabel-only or V on a stam-only rubriek is rejected by Beaufort.
+       (PI_1650). A PS rubriek may not have one: Beaufort accepts a DV key there and processes it on the
+       person, ignoring the dienstverband (probe P04-7, round 5, #2); the input is still inconsistent. S on a variabel-only or V on a stam-only rubriek is rejected by Beaufort.
        All are validation errors. Without the list the key is derived from the Dienstverband column alone.
     19. BLOK IND MUT (owner):
        A standard rubriek with Blok ind mut = J is blocked for indirect mutation, so Beaufort does not import

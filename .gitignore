@@ -8,6 +8,8 @@ tests/beaufort/Findings */
 # Visma/Raet documentation: copyrighted, local reference only
 docs/*.pdf
 docs/DPIA100-Excel-tool/
+# Claude Code worktrees
+.claude/worktrees/
 # Node.js test tooling (npm test)
 node_modules/
 # Beaufort rubriek export (function 210006) and the CSV made from it: customer data

@@ -175,7 +175,7 @@ Top to bottom:
 ## Scope decisions by the owner
 
 - **In scope:** PS and DV only, productiesoort NOR or COR, verrekenperiode always blank. Rubriek 1-6
-  characters; a shorter code is left-aligned (unprobed, #25).
+  characters; a shorter code is left-aligned (Beaufort processes it, probe P09, #25).
 - **Standard rubrieken are known, eigen rubrieken are not (decisions 17-20).** The standard PS/DV
   rubrieken (Fix = J, about 4,200) are hard-coded from the 210006 export; their gegevenssoort, type,
   length, decimals, stam/variabel and Blok ind mut cannot be changed by a customer. A code that is not in

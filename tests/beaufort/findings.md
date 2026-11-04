@@ -229,26 +229,33 @@ person must be in service on those dates.
 | W05 | Amounts `12,50` `-12,50` `3250,5` `0,25` `12.50` `3250` (numeric rubriek) | created | **run 2: all six stored as intended**; run 3 (Lengte 4): 5 rejected PI_0637 | processed, no PI_2229 |
 | W06 | Exactly 50 characters; 60 cut to 50 (warning); empty Waarde | created | **run 3: complete / cut to 50 / empty** | processed |
 
-## Round 5 (planned): short rubriek code, PS rubriek with a DV key, characters in history
-One file of raw probes, made with `pwsh tests\beaufort\make-probes.ps1 -Only P01,P03-5,P04-7,P09`
-(37 records in `DPIA100_probes.txt`; no LF file). Every raw record now has its own ingangsdatum
-(`$IngangRaw` = 01-04-2021, then one day later per record, up to October 2021; `probes\index.txt` lists the
-date of each ID), so processing keeps each value in the history. The test person must be in service on
-those dates. New rubriek: `T01` (`$RubShort`, DV, stam, text; created by the owner in the sandbox).
+## Round 5 (2026-11-04): short rubriek code, PS rubriek with a DV key, characters in history
+Reports: `Findings 20261104-3/` (not in git): the imported file (same bytes as generated), `index.txt` and the
+histories `T01 Historie.txt` and `TST003 Historie.txt` (copied from the screen; `OS apr` for `05 apr` is a
+slip in the copy). One file of raw probes, made with
+`pwsh tests\beaufort\make-probes.ps1 -Only P01,P03-5,P04-7,P09` (37 records in `DPIA100_probes.txt`; no LF
+file). Every raw record has its own ingangsdatum (`$IngangRaw` = 01-04-2021, then one day later per record;
+`probes\index.txt` lists the date of each ID), so processing keeps each value in the history. New rubriek:
+`T01` (`$RubShort`, DV, stam, text of 50; created by the owner in the sandbox).
 
-Import (100254), process (100252), then check the histories of `T01` (dienstverband) and `TST003` (person).
+**All 37 records are in the histories, so all were created and processed.**
 
-| ID | Probe | Question | Issue |
+| ID | Probe | Result | Issue |
 |---|---|---|---|
-| P09-1 | `T01` left-aligned in positions 4-9 (what the converter writes) | Created, processed, in the T01 history? | #25 |
-| P09-2 | `T01` right-aligned (what the Excel tool wrote), next day | idem | #25 |
-| P04-7 | PS rubriek TST003 with a DV key | Processed? Is the value in TST003's history on the person, or rejected? | #2 |
-| P01 | ASCII punctuation on TST003, one per day | Are `' \ < > &` (and the rest) stored as sent? | #1 |
-| P03-5 | Accented `é` in position 50 of Waarde | Is the `é` at the end stored? | #1 |
+| P09-1 | `T01` left-aligned in positions 4-9 (what the converter writes) | **processed**, in the T01 history (09-10-2021) | #25 |
+| P09-2 | `T01` right-aligned (what the Excel tool wrote), next day | **processed**, in the T01 history (10-10-2021) | #25 |
+| P04-7 | PS rubriek TST003 with a DV key | **processed, stored on the person** (TST003 history, 18-09-2021) | #2 |
+| P01 | ASCII punctuation on TST003, one per day | **all 33 stored as sent**, `" ' ; \ < > &` included | #1 |
+| P03-5 | Accented `é` in position 50 of Waarde | **stored**, the `é` at the end is kept | #1 |
 
-Outcome for #25: if P09-1 works, nothing changes. If only P09-2 works, the converter must right-align
-a short code in both front ends (output format change). For #2: record what happens; the script cannot
-detect it for an eigen rubriek (decision 18 covers the standard ones).
+- **#25 settled: a short rubriek code works left-aligned**, as the converter writes it (decision 17). Beaufort
+  also accepts it right-aligned, like the Excel tool did. No change.
+- **#2 settled: a PS rubriek with a DV key is processed on the person.** Beaufort ignores the dienstverband
+  part of the key. The value ends up where a PS rubriek lives, so for an eigen rubriek a filled Dienstverband
+  does no harm. For a standard PS rubriek the script keeps its error (decision 18): the input is
+  inconsistent, and the docs give a PS rubriek a PS key.
+- **#1 leftovers settled:** every ASCII punctuation character and an accented character in the last
+  position are stored as sent.
 
 ## GUI checks (owner, 2026-10-30)
 - **Lengte of a numeric rubriek includes the decimal point and the decimals.** A numeric rubriek with
@@ -261,11 +268,11 @@ detect it for an eigen rubriek (decision 18 covers the standard ones).
 
 | ID | Probe | Import (round 2) | Check in 100251 | Consequence for script |
 |---|---|---|---|---|
-| P01 | ASCII punctuation, one character per record | all 33 created | Are `" ' ; \ < > &` shown as sent? `;` `"` stored (W03-s); the rest in round 5 | None if stored correctly |
+| P01 | ASCII punctuation, one character per record | all 33 created | **Round 5: all 33 stored as sent** | None |
 | P02 | Every Windows-1252 character 0x80-0xFF | all 123 created | Round 4 report: 0x80-0x9F and 0xFF missing; **run 3 (W03): all stored, the report only drops them** | None: decision 7 confirmed (#20) |
 | P02-0xA0 | Non-breaking space | created | Round 4 report: kept | |
 | P03-1..4 | Realistic Dutch text | created | Round 4 report: accents kept; `’ “ ” € –` missing in the report, stored (run 3, W03-q) | None (#20) |
-| P03-5 | Accented character in the last Waarde position | created | Is the `é` at the end still there? Round 5 | |
+| P03-5 | Accented character in the last Waarde position | created | **Round 5: stored, `é` kept** | None |
 | P03-6 | Waarde exactly 50 characters | created | Complete? | Decision 3 |
 | P03-7 | Leading spaces | created | Round 4 report: trimmed | None: script trims Waarde |
 | P03-8 | Mixed case | created | | |
@@ -275,7 +282,7 @@ detect it for an eigen rubriek (decision 18 covers the standard ones).
 | P04-4 | DV key `P   1` (Excel tool) | created | | |
 | P04-5 | DV key `P 1` | **created** (round 3) | Same dienstverband? | None: script keeps the Excel-tool layout |
 | P04-6 | DV key `P 001` | **created** (round 3) | Same dienstverband? | None: script strips leading zeros (decision 4) |
-| P04-7 | PS rubriek with DV key | **created** (again) | What happens to the dv part? Does 100252 process it? Round 5 | Standard PS rubriek: the script stops it (decision 18). Eigen rubriek: not stopped, PS/DV comes from Dienstverband (#2) |
+| P04-7 | PS rubriek with DV key | **created** (again) | **Round 5: processed, stored on the person; the dv part is ignored** | Standard PS rubriek: the script stops it (decision 18). Eigen rubriek: not stopped and harmless (#2) |
 | P04-8 | DV rubriek with PS key | PI_1650 | | Expected. Standard DV rubriek: the script stops it first (decision 18) |
 | P05-1 | Procescode lowercase `cmt` | **created** | Linked to proces CMT? | None: script keeps uppercasing (docs) |
 | P05-2 | Rubriek lowercase | **created** | Linked to the right rubriek? | idem |

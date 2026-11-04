@@ -18,6 +18,10 @@ zip on the GitHub Releases page); older entries are dated.
   quotes than semicolons was taken for a comma file and stopped with a mapping error (#17).
 
 ### Documentation
+- Beaufort probe round 5 (2026-11-04): a rubriek code shorter than 6 characters is processed left-aligned,
+  as the converter writes it, and right-aligned (#25). A PS rubriek with a DV key is processed on the person
+  and the dienstverband is ignored (#2). All ASCII punctuation and an accent in position 50 are stored as
+  sent (#1). No change to the converter.
 - Beaufort probe round 4 run 3 (2026-11-04, text rubrieken with history, #21): `€`, curly quotes,
   dashes and the other characters 0x80-0x9F and 0xFF are **stored correctly**; only the processing report
   leaves them out (#20). README, `field-layout.md` and `tests/beaufort/findings.md` no longer call them

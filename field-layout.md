@@ -66,7 +66,7 @@ Standard or eigen (custom) rubriek, length 6 (the PDF gives no alignment). The 2
 only, while the 2005 handbook allows both. The script uppercases and accepts 1-6 characters. Most codes
 have 6, but the rubrieken export has shorter ones: the standard DV rubriek `SETKB` and eigen codes such
 as `E0010`, `M01` and `WS100`. A shorter code is **left-aligned** (owner; what v1.2.0 did). The Excel tool
-right-aligned it, and Beaufort has not been probed with one yet (#25).
+right-aligned it. Beaufort imports and processes both alignments (probe P09, round 5, #25).
 
 ### Standard rubrieken
 The script and the page contain the standard PS/DV rubrieken of Beaufort (decision 17): the rubrieken
