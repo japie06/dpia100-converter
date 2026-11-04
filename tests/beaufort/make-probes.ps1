@@ -6,11 +6,13 @@
     The files are written raw, NOT through dpia100.ps1, because many probes contain things the script
     would reject. Beaufort rejects only the records with errors and reports them, so almost everything
     goes into one file:
-      DPIA100_probes.txt      all record-level and line-level probes (P01-P08), CRLF
+      DPIA100_probes.txt      all record-level and line-level probes (P01-P09), CRLF
       DPIA100_P07a-lf.txt     the whole file with LF line endings (cannot be mixed with CRLF probes)
     File names start with DPIA100, otherwise Beaufort does not find them.
     Every text Waarde starts with the probe ID (P02-0x80 = group P02, character 0x80), so each record can
     be recognised in the import report and in 100251. probes\index.txt lists every ID with its content.
+    Every raw record has its own ingangsdatum ($IngangRaw, then one day later per record), so processing
+    keeps each value in the history (round 5). P06 and P07k set their dates themselves.
 
     With -Web the probes test the web version instead (round 4): the script writes one probe CSV of
     valid input and lets the page's own core (dpia100.html, in headless Edge, as tests/run-tests.ps1 does)
@@ -30,6 +32,9 @@
 .EXAMPLE
     pwsh tests\beaufort\make-probes.ps1 -Only P04-5,P04-6,P08
 .EXAMPLE
+    pwsh tests\beaufort\make-probes.ps1 -Only P01,P03-5,P04-7,P09
+    Round 5: short rubriek code (#25), PS rubriek with a DV key (#2) and the leftovers of #1.
+.EXAMPLE
     pwsh tests\beaufort\make-probes.ps1 -Web
 #>
 param([string[]]$Only, [switch]$Web)
@@ -40,12 +45,14 @@ $Only = @($Only | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() 
 $Proces  = 'CMT'        # procescode of the aanleverend proces
 $User    = 'JvdBerg'    # creatiegebruiker that exists in Beaufort (fill in)
 $Cdate   = '01012020'   # creatiedatum ddMMyyyy
-$Ingang  = '01102020'   # ingangsdatum ddMMyyyy (today or earlier, so it can be processed)
+$Ingang  = '01102020'   # ingangsdatum ddMMyyyy (today or earlier, so it can be processed); W rows start here
+$IngangRaw = '01042021' # first ingangsdatum of the raw P records, after the W rows (up to 05-03-2021)
 $PersNr  = '10000'        # test person (fill in)
 $Dv      = '1'          # dienstverband of the test person
 $RubTxt  = 'TST003'     # PS, stam, type S (tekst), length 50
 $RubDv   = 'TST002'     # DV, stam, type S (tekst), length 50
 $RubNum  = 'TST004'     # DV, stam, type N (numeriek), 2 decimals (variabel rubrieken cannot be created)
+$RubShort = 'T01'       # DV, stam, type S (tekst), a code shorter than 6 characters (issue #25)
 # --------------------------------------------------------------------------------------------
 
 $ErrorActionPreference = 'Stop'
@@ -155,11 +162,19 @@ Get-ChildItem $outDir -File | Where-Object Name -notlike '*web-probes*' | Where-
 $psKey = '{0,6}' -f $PersNr
 $dvKey = '{0,6} {1,3}' -f $PersNr, $Dv
 
+$rawDate = [DateTime]::ParseExact($IngangRaw, 'ddMMyyyy', [System.Globalization.CultureInfo]::InvariantCulture)
+$script:rawDay = 0
+
 # One record. Slots are given as they must appear; each is padded/cut to its width so a probe can
 # deviate in exactly one field. -Length makes the record too short or too long.
+# Without -Idate the record gets its own ingangsdatum ($IngangRaw plus one day per record, counted also
+# for records skipped by -Only, so the dates stay the same): processing would otherwise let records on
+# the same rubriek and key overwrite each other, and stored values could not be checked (round 3).
 function Rec {
-    param($Waarde, $Rub = $RubTxt, $Obj = $psKey, $SV = 'S', $Idate = "   $Ingang", $Proc = $Proces,
+    param($Waarde, $Rub = $RubTxt, $Obj = $psKey, $SV = 'S', $Idate = $null, $Proc = $Proces,
           $CdateSlot = "   $Cdate", $UserSlot = $User.PadLeft(16), [int]$Length = 187, $Label = '')
+    $ownDate = $rawDate.AddDays($script:rawDay++).ToString('ddMMyyyy', [System.Globalization.CultureInfo]::InvariantCulture)
+    if ($null -eq $Idate) { $Idate = "   $ownDate" }
     $l = $Proc.PadRight(3).Substring(0, 3) + $Rub.PadRight(6).Substring(0, 6) + $Obj.PadRight(50).Substring(0, 50) + $SV +
          $CdateSlot.PadRight(11).Substring(0, 11) + $UserSlot.PadRight(16).Substring(0, 16) + $Waarde.PadRight(50).Substring(0, 50) +
          $Idate.PadRight(11).Substring(0, 11) + (' ' * 30) + 'NOR' + (' ' * 6)
@@ -167,7 +182,7 @@ function Rec {
     # With -Only, skip probes whose ID (the label, or the first word of Waarde) does not match.
     $id = if ($Label) { $Label } else { ($Waarde.Trim() -split '\s')[0] }
     if ($Only -and -not ($Only | Where-Object { $id -like "$_*" })) { return $null }
-    $script:index.Add((("$Label " + $Waarde.Trim())).Trim())
+    $script:index.Add((("$Label " + $Waarde.Trim())).Trim() + "  (ingang $($Idate.Trim()))")
     $l
 }
 
@@ -247,6 +262,13 @@ for ($i = 0; $i -lt $amounts.Count; $i++) {
     $all.Add((Rec $amounts[$i] -Rub $RubNum -Obj $dvKey -SV 'S' -Label ('P08-{0}' -f ($i + 1))))
 }
 
+# P09: a rubriek code shorter than 6 characters (issue #25). The converter left-aligns it in positions
+# 4-9 (decision 17); the Excel tool right-aligned it. $RubShort is a DV rubriek, so both use the DV key.
+# Each has its own ingangsdatum, so both values stay in the history if both are processed.
+Section 'P09 short rubriek code'
+$all.Add((Rec 'P09-1 links (converter)' -Rub $RubShort -Obj $dvKey))
+$all.Add((Rec 'P09-2 rechts (Excel tool)' -Rub $RubShort.PadLeft(6) -Obj $dvKey))
+
 # P07: line-level probes. Beaufort reads line by line (round 1), so these can share the file.
 # They come last; P07c (the very last line) has no line break after it.
 Section 'P07 line level'
@@ -256,8 +278,9 @@ $p07h = Rec 'P07h-1 spaties achteraan weggehaald'
 if ($null -ne $p07h) { $p07h = $p07h.TrimEnd() }
 $all.Add($p07h)
 $all.Add((Rec "P07j-1 a`tb tab in waarde"))
-$all.Add((Rec 'P07k dubbel record'))
-$all.Add((Rec 'P07k dubbel record'))
+$p07k = Rec 'P07k dubbel record'                              # the same record twice, same date
+$all.Add($p07k)
+$all.Add($p07k)
 if (-not $Only -or ($Only | Where-Object { 'P07i' -like "$_*" })) {
     $all.Add('')                                               # P07i: blank line
     $index.Add('P07i (blank line, expected: PI_1537 with all fields empty)')
