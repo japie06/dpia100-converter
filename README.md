@@ -178,6 +178,9 @@ script door `Y` te typen (elk ander antwoord stopt zonder bestand).
 Een decimale komma wordt een punt (`12,50` wordt `12.50`), want Beaufort accepteert alleen een punt. Dat
 wordt altijd gemeld.
 
+Typ een **0 voor de punt**: schrijf `0.50`, niet `.50`. Bij een eigen rubriek blijft `.50` staan, met een
+waarschuwing; bij een numerieke standaardrubriek wordt het `0.50`, en dat wordt gemeld.
+
 Bij een **standaardrubriek** weet het hulpmiddel het wel: een numerieke standaardrubriek krijgt dezelfde
 controles en daarnaast een foutmelding voor alles wat geen getal is, en een tekstrubriek krijgt de
 waarde precies zoals je hem typt (ook `12,50`). Zie [Standaardrubrieken](#standaardrubrieken).

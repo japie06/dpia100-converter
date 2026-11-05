@@ -112,7 +112,7 @@ test.describe('file input and download (works everywhere)', () => {
 
     await chooseFile(page, fixture(testInfo, casePath('ok-standard-rubrieken/input.csv'), 'standaard.csv'));
     await expect(page.locator('#check-status')).toContainText('15 regels gecontroleerd, geen fouten');
-    await expect(page.locator('#check-body')).toContainText('Datums en tijden aangepast');
+    await expect(page.locator('#check-body')).toContainText('Datums, tijden en getallen aangepast');
     await expect(page.locator('#check-body')).toContainText('1-11-2026 → 01-11-2026');
     await expect(page.locator('#check-body')).toContainText(info);
     await expect(page.locator('#confirm-box')).toBeHidden();

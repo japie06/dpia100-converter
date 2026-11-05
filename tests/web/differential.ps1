@@ -45,7 +45,7 @@ $pools = @{
     PersNr     = @{ ok = @('123456', '10', '000123', ' 77 ', '2345', "12$([char]0xA0)", '999999'); bad = @('1234.0', '1 234', '', '0', '1234567', '12abc', "$([char]0xFF11)2") }
     Dienstv    = @{ ok = @('', '1', '001', '0', '999', ' 2 '); bad = @('1234', '1a', '1.0', '-1') }
     SofV       = @{ ok = @('S', 'V', 's', ' v ', 'STAM', 'Variabel'); bad = @('X', '', 'Stamm', 'SV') }
-    Waarde     = @{ ok = @('Tekst', 'Café de Brug', '12,50', '-12,50', '1,234', '3.250', '1.234,56', '1,234.56', '1.234.567', '12.50',
+    Waarde     = @{ ok = @('Tekst', 'Café de Brug', '12,50', '-12,50', '1,234', '3.250', '1.234,56', '1,234.56', '1.234.567', '12.50', '.50', '-.50',
                            '0.250', '- 7,5', '- 7', '007', '', ' 15 ', '1.11.2026', 'Gebiedscoördinator', '€ 250', "d$([char]0x2019)Ancona", 'a;b',
                            'He said "hi"', $long, "o$([char]0x308)k", "$([char]0xA0)x$([char]0xA0)", '100.000', '12.345', '3250,50', '12,0', 'a,b',
                            '-0.5', "$([char]0x201C)quote$([char]0x201D)", 'Ünïcödé façade', '01-11-2026', '1/11/26', '2026-11-01', '8:30',
@@ -59,7 +59,7 @@ $pools = @{
 # clean: P00001 DV N 6,2 stam+var, P00332 DV S 3 stam, P00321 PS D stam, P00301 PS S 50 stam, P00100 DV
 # blocked (a warning), SETKB DV S 2 stam. Broken files sometimes take a field from the bad pools instead.
 $standardProfiles = @(
-    @{ Rubriek = @(' p00001 ', 'P00001'); Dienstv = @('1', ' 2 ', '001'); SofV = @('S', 'V', 'stam'); Waarde = @('12,50', '-7', '007', '12.5', '999.99', '', '3.250', '1,234', '0,5') }
+    @{ Rubriek = @(' p00001 ', 'P00001'); Dienstv = @('1', ' 2 ', '001'); SofV = @('S', 'V', 'stam'); Waarde = @('12,50', '-7', '007', '12.5', '999.99', '', '3.250', '1,234', '0,5', '.50', '- .5') }
     @{ Rubriek = @('P00332'); Dienstv = @('1'); SofV = @('S'); Waarde = @('1,5', 'ab', 'x', '') }
     @{ Rubriek = @('P00321'); Dienstv = @('', '0'); SofV = @('S', 'Stam'); Waarde = @('1-11-2026', '2026-11-01', '01112026', '01-11-2026', '1.11.2026', ' 1 11 2026 ') }
     @{ Rubriek = @('P00301'); Dienstv = @(''); SofV = @('S'); Waarde = @('Jansen', '12,50', '1-11-2026', '8:30', $long, 'Café') }

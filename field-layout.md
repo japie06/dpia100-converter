@@ -176,7 +176,10 @@ tab gives no hint.
 | `1,234` | `1.234`, reported | as typed, warning (means 1234) | `1.234`, warning |
 | `3.250`, `12.345` | as typed, warning (formatted 3250?) | as typed, no warning | as typed, warning |
 | `1.234,56`, `1,234.56`, `1.234.567` | as typed, warning | as typed, warning | as typed, warning |
+| `.50`, `-.50` | as typed, warning | as typed, warning | as typed, warning |
 
+A standard numeric rubriek writes `.50` as `0.50`, reported in the line with the date and time shapes
+(decision 20). For an eigen rubriek it stays as typed: Beaufort was not probed with a leading dot.
 "Reported" means listed in one line without asking for confirmation. `12.50` and `0.250` always pass
 as-is without a warning. A date with dots (`1.11.2026`) is not an amount, but gets the date warning below.
 

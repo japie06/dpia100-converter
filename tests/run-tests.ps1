@@ -302,8 +302,10 @@ if ($engines -contains 'edge') {
         }
     }
     # The version, table and 1252 checks read the harness page. Without a selected case on the real table
-    # (-Filter page-*, or only cases with extra rubrieken) the harness has not run yet: run it without cases.
-    if (-not $webPayload -and ($pageChecks.Keys | Where-Object { $_ -like $Filter })) {
+    # (-Filter page-*, or only cases with extra rubrieken) the harness has not run yet: run it without cases,
+    # but only when one of these three checks is selected (page-security and page-smoke-* do not need it).
+    $payloadChecks = @('page-version', 'page-rubrieken', 'page-1252-table')
+    if (-not $webPayload -and ($payloadChecks | Where-Object { $_ -like $Filter })) {
         try {
             $webPayload = Invoke-WebHarness -Cases @() -OutDir $outDir -PageName 'web-harness-page.html'
         } catch {

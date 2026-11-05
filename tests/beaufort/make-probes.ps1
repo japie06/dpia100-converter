@@ -281,6 +281,7 @@ $all.Add((Rec "P07j-1 a`tb tab in waarde"))
 $p07k = Rec 'P07k dubbel record'                              # the same record twice, same date
 $all.Add($p07k)
 $all.Add($p07k)
+if ($null -ne $p07k) { $index.Add('P07k dubbel record (tweede kopie, zelfde regel en ingangsdatum)') }
 if (-not $Only -or ($Only | Where-Object { 'P07i' -like "$_*" })) {
     $all.Add('')                                               # P07i: blank line
     $index.Add('P07i (blank line, expected: PI_1537 with all fields empty)')

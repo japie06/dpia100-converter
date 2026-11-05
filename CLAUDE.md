@@ -63,8 +63,8 @@ JavaScript port of the script, not a wrapper: a browser cannot run PowerShell. T
 - **Nothing changes silently.** Do not "clean" input into a different valid-looking value (for
   example stripping non-digits, or writing `?` for characters that can't be encoded). Reject instead.
   The deliberate changes are always listed: the comma -> dot conversion of amounts (a report line in a
-  `;` file, otherwise a warning) and a date or time written in the shape of a standard date or time
-  rubriek (a report line, decision 20).
+  `;` file, otherwise a warning) and a date, time or leading-dot amount (`.50` -> `0.50`) written in the
+  shape of a standard date, time or numeric rubriek (a report line, decision 20).
 - **Windows PowerShell 5.1 compatible.** `dpia100.bat` calls `powershell.exe`, which is always 5.1.
   Also keep it working on PowerShell 7.
 - **Script file encoding.** Save `dpia100.ps1` as UTF-8 **with BOM** and CRLF. Without a BOM, 5.1

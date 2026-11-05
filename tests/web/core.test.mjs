@@ -108,6 +108,9 @@ describe('amounts by delimiter (decision 8)', () => {
     [',50', ['0.50', 'reported'], ['0.50', 'commaChanged'], ['0.50', 'commaChanged']],
     ['-,50', ['-0.50', 'reported'], ['-0.50', 'commaChanged'], ['-0.50', 'commaChanged']],
     [',500', ['0.500', 'reported'], ['0.500', 'commaChanged'], ['0.500', 'commaChanged']],
+    // A leading-dot amount: an eigen rubriek keeps it, with a warning (decision 8).
+    ['.50', ['.50', 'leadingDot'], ['.50', 'leadingDot'], ['.50', 'leadingDot']],
+    ['-.50', ['-.50', 'leadingDot'], ['-.50', 'leadingDot'], ['-.50', 'leadingDot']],
     ['1,234', ['1.234', 'reported'], ['1,234', 'thousandEn'], ['1.234', 'commaAsDecimal']],
     ['3.250', ['3.250', 'dotDecimal'], ['3.250', null], ['3.250', 'dotDecimal']],
     ['1.234,56', ['1.234,56', 'separator'], ['1.234,56', 'separator'], ['1.234,56', 'separator']],
@@ -250,6 +253,11 @@ describe('standard rubrieken (decisions 17-20)', () => {
     assert.deepEqual([r.records[0].waarde, r.commaReported, r.errors], ['12.50', true, []]);
     for (const v of ['-7', '007', '12.340', '999.99', '0.5', '']) assert.deepEqual(value('P00001', v).errors, [], v);
     assert.equal(value('P00001', '3.250').warnings[0].code, 'dotDecimal');
+    // A leading-dot amount gets a 0 before the dot, reported with the date and time shapes.
+    for (const [v, out] of [['.50', '0.50'], ['-.50', '-0.50'], ['- .5', '-0.5']]) {
+      const d = value('P00001', v);
+      assert.deepEqual([d.errors, d.warnings, d.records[0].waarde, d.formatConversions], [[], [], out, [{ row: 2, from: v, to: out }]], v);
+    }
     for (const v of ['abc', 'NULL', '1.234,56', '+5', '1-11-2026', '- 7.5']) {
       assert.deepEqual(value('P00001', v).errors.map(e => e.code), ['notNumber'], v);
     }
