@@ -84,7 +84,7 @@
                                  ';' file (Dutch)       ',' file (English)       tab file
        '12,50', '-12,50'         -> '12.50', reported   -> '12.50', warning      -> '12.50', warning
        ',50', '-,50'             -> '0.50', reported    -> '0.50', warning       -> '0.50', warning
-       '1,234'                -> '1.234', reported   as typed, warning (1234) -> '1.234', warning
+       '1,234'                   -> '1.234', reported   as typed, warning (1234) -> '1.234', warning
        '3.250', '12.345'         as typed, warning      as typed, no warning     as typed, warning
        '1.234,56', '1,234.56',   as typed, warning      as typed, warning        as typed, warning
        '1.234.567'
@@ -151,7 +151,8 @@
     18. DIENSTVERBAND AND S OF V OF A STANDARD RUBRIEK (owner):
        A DV rubriek needs a dienstverband; empty or 0 gives a PS key, which Beaufort rejects at import
        (PI_1650). A PS rubriek may not have one: Beaufort accepts a DV key there and processes it on the
-       person, ignoring the dienstverband (probe P04-7, round 5, #2); the input is still inconsistent. S on a variabel-only or V on a stam-only rubriek is rejected by Beaufort.
+       person, ignoring the dienstverband (probe P04-7, round 5, #2); the input is still inconsistent. 
+       S on a variabel-only or V on a stam-only rubriek is rejected by Beaufort.
        All are validation errors. Without the list the key is derived from the Dienstverband column alone.
     19. BLOK IND MUT (owner):
        A standard rubriek with Blok ind mut = J is blocked for indirect mutation, so Beaufort does not import
