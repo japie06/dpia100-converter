@@ -11,7 +11,7 @@
 <html lang="nl" translate="no">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-C4dgVbkuw6f4FhR8pOipl9i8sNT05sOta3dXjy2tOME=' 'sha256-KeLVYlTxZGgd9/oyY5Cp/TYWz9bxWCrJRQPc+MlpnWQ='; style-src 'sha256-V22O4laejLQ2OPxcAoI9UKPHbjw2czl6+bDs9TiZzhc='; connect-src 'none'; form-action 'none'; base-uri 'none'; require-trusted-types-for 'script'; trusted-types 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-+wfvU2VDuskajnX9dwdkWin1+kCyGcKEl10KLyHOljY=' 'sha256-GV2JwX9EMJtZ9n3fTP1yTwIXcysTdoz99u6tctZ2qi8='; style-src 'sha256-V22O4laejLQ2OPxcAoI9UKPHbjw2czl6+bDs9TiZzhc='; connect-src 'none'; form-action 'none'; base-uri 'none'; require-trusted-types-for 'script'; trusted-types 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
@@ -309,7 +309,7 @@ const DPIA100 = (() => {
   'use strict';
 
   // NOTE: Keep equal to $ScriptVersion in dpia100.ps1 (checked by tests/run-tests.ps1 and CI).
-  const VERSION = '1.4.0';
+  const VERSION = '1.4.1';
 
   // ---------------------------------------------------------------------------------------------
   // .NET string semantics
@@ -405,9 +405,15 @@ const DPIA100 = (() => {
     const lines = splitLines(text);
     let k = lines.findIndex(l => !isBlank(l));
     if (k < 0) throw new Error('The CSV file is empty.');
-    // An odd number of quotes means a quoted name continues on the next line.
-    let header = lines[k];
-    while ((header.split('"').length - 1) % 2 === 1 && k + 1 < lines.length) header += '\n' + lines[++k];
+    // An odd number of quotes means a quoted name continues on the next line. The quotes are counted per
+    // line and the lines joined once, so a stray quote in a large file stays linear, not quadratic.
+    const headerLines = [lines[k]];
+    let quotes = lines[k].split('"').length - 1;
+    while (quotes % 2 === 1 && k + 1 < lines.length) {
+      headerLines.push(lines[++k]);
+      quotes += lines[k].split('"').length - 1;
+    }
+    const header = headerLines.join('\n');
     const unquoted = trim(header.replace(/^﻿+|﻿+$/g, '')).split('"').filter((_, i) => i % 2 === 0).join('');
     let best = ';';
     let bestCount = 0;
@@ -617,7 +623,8 @@ const DPIA100 = (() => {
   const reHasDigit = new RegExp(D, 'u');
   const reDottedDate = new RegExp(`^${D}{1,2}\\.${D}{1,2}\\.${D}{4}$`, 'u');
   const reCommaAmount = new RegExp(`^(-)?${S}*(${D}*)(?:,(${D}+))?$`, 'u');
-  const reThousandWhole = new RegExp(`^[1-9]${D}{0,2}$`, 'u');
+  const reLeadingDot = new RegExp(`^(-)?${S}*\\.(${D}+)$`, 'u');
+  const reThousandWhole =new RegExp(`^[1-9]${D}{0,2}$`, 'u');
   const reDotThousand = new RegExp(`^-?${S}*[1-9]${D}{0,2}\\.${D}{3}$`, 'u');
   const reTwoSeparators = /\..*,|,.*\.|\..*\.|,.*,/;
   // Dates and times in another shape than the Excel tool wrote (dd-mm-yyyy, hh:mm; decision 16).
@@ -819,6 +826,17 @@ const DPIA100 = (() => {
           r.commaConversions.push({ row: rowNumber, from: cleanWaarde, to: converted });
         }
         cleanWaarde = converted;
+      } else if (isNumberLike && reLeadingDot.test(cleanWaarde)) {
+        // A leading-dot amount ('.50', '-.50'): a standard numeric rubriek gets a 0 before the dot, reported
+        // like the date and time shapes (decision 20); an eigen rubriek keeps it, with a warning (decision 8).
+        const d = reLeadingDot.exec(cleanWaarde);
+        const shaped = `${d[1] === '-' ? '-' : ''}0.${d[2]}`;
+        if (waardeType === 'N') {
+          r.formatConversions.push({ row: rowNumber, from: cleanWaarde, to: shaped });
+          cleanWaarde = shaped;
+        } else {
+          warn('leadingDot', { value: cleanWaarde, suggested: shaped });
+        }
       } else if (isNumberLike && r.notation !== 'en' && reDotThousand.test(cleanWaarde)) {
         // In English notation '3.250' is a plain decimal (3,25), as Beaufort reads it: no warning.
         warn('dotDecimal', { value: cleanWaarde, asComma: cleanWaarde.replace(/\./g, ',') });
@@ -5289,13 +5307,14 @@ SETKB  DV S  2 - S- N
     return list.length > 5 ? `${shown} en nog ${list.length - 5}` : shown;
   };
   const commaText = list =>`Komma veranderd in punt bij ${plural(list.length, 'waarde', 'waarden')}, want een numerieke rubriek in Beaufort accepteert alleen een punt (een tekstrubriek die geen standaardrubriek is, krijgt de punt ook): ${conversionList(list)}.`;
-  const formatText = list => `Datum of tijd in de vorm van de rubriek gezet bij ${plural(list.length, 'waarde', 'waarden')}: ${conversionList(list)}.`;
+  const formatText = list => `Datum, tijd of getal in de vorm van de rubriek gezet bij ${plural(list.length, 'waarde', 'waarden')}: ${conversionList(list)}.`;
   const WARNINGS = {
     commaChanged: w => commaText(w.conversions),
     blocked: w => `${plural(w.rows.length, 'regel gebruikt', 'regels gebruiken')} een standaardrubriek die geblokkeerd is voor indirect muteren (Blok ind mut = J): ${exampleList(w.rows, x => `regel ${x.row}: ${x.rubriek}`)}. Beaufort importeert deze mutaties niet; voer ze in Beaufort zelf in.`,
     thousandEn: w => `${rowLabel(w)}: '${w.value}' heeft een scheidingsteken voor duizendtallen (Engelse notatie). Zo geschreven; een numerieke rubriek keurt dit af bij verwerken (PI_2229). Bedoel je ${w.whole}${w.fraction}, schrijf dan ${w.whole}${w.fraction}.`,
     commaAsDecimal: w => `${rowLabel(w)}: '${w.value}' is geschreven als '${w.converted}' (de komma gelezen als decimaalteken). Is de komma een scheidingsteken voor duizendtallen, schrijf dan ${w.whole}${w.fraction}.`,
-    dotDecimal: w => `${rowLabel(w)}: Beaufort leest '${w.value}' als ${w.asComma} in een numerieke rubriek. Is de punt een scheidingsteken voor duizendtallen, schrijf het dan zonder punt.`,
+    leadingDot: w => `${rowLabel(w)}: '${w.value}' heeft geen cijfer voor de punt. Zo geschreven; een numerieke rubriek keurt dit mogelijk af. Schrijf ${w.suggested}.`,
+    dotDecimal: w =>`${rowLabel(w)}: Beaufort leest '${w.value}' als ${w.asComma} in een numerieke rubriek. Is de punt een scheidingsteken voor duizendtallen, schrijf het dan zonder punt.`,
     separator: w => `${rowLabel(w)}: '${w.value}' lijkt een bedrag met een scheidingsteken voor duizendtallen. Een numerieke rubriek keurt dit af bij verwerken (PI_2229); schrijf het zonder, bijvoorbeeld 1234.56.`,
     truncated: w => `${rowLabel(w)}: de waarde is ingekort van ${w.length} naar 50 tekens. Was: '${w.original}'. Wordt: '${w.truncated}'.`,
     emptyValue: w => `Lege waarde in ${plural(w.rows.length, 'regel', 'regels')}: ${exampleList(w.rows, x => rowLabel(x).toLowerCase())}. Een lege waarde verwijdert de huidige waarde van de rubriek in Beaufort. Vul de waarde in als dat niet de bedoeling is.`,
@@ -5487,7 +5506,7 @@ SETKB  DV S  2 - S- N
     status.replaceChildren(banner('ok', `${plural(r.records.length, 'regel', 'regels')} gecontroleerd, geen fouten.`, extra));
     body.append(mappingSection(r));
     if (r.commaReported) body.append(banner('info', 'Bedragen aangepast', el('p', { text: commaText(r.commaConversions) })));
-    if (r.formatConversions.length > 0) body.append(banner('info', 'Datums en tijden aangepast', el('p', { text: formatText(r.formatConversions) })));
+    if (r.formatConversions.length > 0) body.append(banner('info', 'Datums, tijden en getallen aangepast', el('p', { text: formatText(r.formatConversions) })));
     if (r.warnings.length > 0) body.append(warningsSection(r));
     body.append(previewSection(r));
     prepareMakeStep(r);

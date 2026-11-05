@@ -4,6 +4,28 @@ All notable changes to `dpia100.ps1`, `dpia100.bat` and `dpia100.html`. Newest f
 [Keep a Changelog](https://keepachangelog.com/). Releases are numbered from v1.0.0 (tag `vX.Y.Z`,
 zip on the GitHub Releases page); older entries are dated.
 
+## v1.4.1 (2026-11-05)
+
+Fixes from the code review of v1.4.0. Completes the #14 fix for leading-decimal amounts.
+
+### Changed
+- A leading-dot amount (`.50`, `-.50`) in a **standard numeric** rubriek is written as `0.50` / `-0.50`
+  and reported; before, it gave an error although it is a valid number. For an **eigen** rubriek it is
+  written as typed with a warning (decision 8, warn don't block): before, it passed without a message.
+  Beaufort was not probed with a leading dot.
+- The report line for rewritten values now reads "Date, time or number written in the shape of the
+  rubriek" (page: *Datums, tijden en getallen aangepast*).
+
+### Fixed
+- Delimiter detection was slow on a header with an unclosed quote: it re-split the growing header for
+  every following line (quadratic in the file size). It now counts quotes per line.
+
+### Tests
+- `run-tests.ps1` starts the extra harness page only for `page-version`, `page-rubrieken` and
+  `page-1252-table`, not for `page-security` or `page-smoke-*`.
+- `make-probes.ps1` lists the second P07k record in `index.txt`.
+- Case `ok-amounts-leading-dot`, unit tests, differential values and demo rows for the leading dot.
+
 ## v1.4.0 (2026-11-04)
 
 Two fixes from the review of the open issues, and probe rounds 4 (runs 3 and 4) and 5 in Beaufort, which

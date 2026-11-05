@@ -46,7 +46,8 @@
     blocked: w => `${w.rows.length} row(s) use a standard rubriek that is blocked for indirect mutation (Blok ind mut = J): ${examples(w.rows.map(x => `row ${x.row} ${x.rubriek}`))}. Beaufort does not import these mutations; enter them in Beaufort itself.`,
     thousandEn: w => `${label(w)}: Waarde '${w.value}' has a thousand separator (English notation in a comma-separated file). Written as typed; a numeric rubriek rejects it at processing (PI_2229). Write ${w.whole}${w.fraction}.`,
     commaAsDecimal: w => `${label(w)}: Waarde '${w.value}' was written as '${w.converted}' (comma read as decimal). If the comma is a thousand separator, write ${w.whole}${w.fraction}.`,
-    dotDecimal: w => `${label(w)}: Waarde '${w.value}' is read by Beaufort as ${w.asComma} in a numeric rubriek. If the dot is a thousand separator, write it without the dot.`,
+    leadingDot: w => `${label(w)}: Waarde '${w.value}' has no digit before the decimal point. Written as typed; a numeric rubriek may reject it. Write ${w.suggested}.`,
+    dotDecimal: w =>`${label(w)}: Waarde '${w.value}' is read by Beaufort as ${w.asComma} in a numeric rubriek. If the dot is a thousand separator, write it without the dot.`,
     separator: w => `${label(w)}: Waarde '${w.value}' looks like an amount with a thousand separator. A numeric rubriek rejects it at processing (PI_2229); write it without, e.g. 1234.56.`,
     truncated: w => `${label(w)}: Waarde was truncated from ${w.length} to 50 chars:\n    Original : '${w.original}'\n    Truncated: '${w.truncated}'`,
     emptyValue: w => `Waarde is empty in ${w.rows.length} row(s): ${examples(w.rows.map(x => `row ${x.row} (Pers. Nr: ${x.persNr})`))}. An empty Waarde deletes the current value of the rubriek in Beaufort. Fill in the value if that is not intended.`,
@@ -67,7 +68,7 @@
   }
 
   function formatMessage(conversions) {
-    return `Date or time written in the shape of the rubriek in ${conversions.length} Waarde value(s): ${conversionExamples(conversions)}.`;
+    return `Date, time or number written in the shape of the rubriek in ${conversions.length} Waarde value(s): ${conversionExamples(conversions)}.`;
   }
 
   const PROMPT_WARNINGS = {

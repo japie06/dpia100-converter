@@ -88,6 +88,9 @@
        '3.250', '12.345'         as typed, warning      as typed, no warning     as typed, warning
        '1.234,56', '1,234.56',   as typed, warning      as typed, warning        as typed, warning
        '1.234.567'
+       '.50', '-.50'             as typed, warning      as typed, warning        as typed, warning
+       A standard numeric rubriek writes '.50' as '0.50', reported with the date and time shapes (decision
+       20); an eigen rubriek may be text, and Beaufort was not probed with '.50'.
        Comma conversions are listed together (one line or one warning). 'Reported' means printed without
        asking for confirmation. Beaufort processes '3.250' silently as 3,25, which is right in an English
        file and probably a formatted 3250 in a Dutch one. Dates with dots ('1.11.2026') are not amounts.
@@ -164,7 +167,8 @@
          number after the comma conversion (text, NULL, 1.234,56, an English 1,234), more significant
          decimals than the rubriek has (Beaufort cuts 12.345 to 12.34, probe round 4), more digits before the
          decimal point than the length allows (length includes the decimal point and the decimals; confirmed
-         in the Beaufort GUI, tests/beaufort/findings.md).
+         in the Beaufort GUI, tests/beaufort/findings.md). A leading-dot amount ('.50', '-.50') is written
+         as '0.50', reported with the date and time shapes.
        - D (date): must be a date as accepted for Ingangsdatum; written as dd-mm-yyyy, as the Excel tool did.
          The rewrite is reported, not a warning. Not a date (1/11/26, 46327, text) is an error.
        - T (time hh:mm) and U (time hh:mm:ss): must be a time; written in the type's shape (8:30 -> 08:30),
@@ -220,7 +224,7 @@ param (
 )
 
 # NOTE: Bump together with a new section in docs/CHANGELOG.md and a git tag vX.Y.Z (see CLAUDE.md).
-$ScriptVersion = '1.4.0'
+$ScriptVersion = '1.4.1'
 
 
 # -------------------------------------------------------------------------
@@ -383,12 +387,17 @@ function Detect-CsvDelimiter([string]$text) {
     if ($k -ge $lines.Count) {
         throw "The CSV file is empty."
     }
-    # An odd number of quotes means a quoted name continues on the next line.
-    $header = $lines[$k]
-    while ((($header.Split([char]'"').Count - 1) % 2) -eq 1 -and $k + 1 -lt $lines.Count) {
+    # An odd number of quotes means a quoted name continues on the next line. The quotes are counted per
+    # line and the lines joined once, so a stray quote in a large file stays linear, not quadratic.
+    $headerLines = [System.Collections.Generic.List[string]]::new()
+    $headerLines.Add($lines[$k])
+    $quotes = $lines[$k].Split([char]'"').Count - 1
+    while (($quotes % 2) -eq 1 -and $k + 1 -lt $lines.Count) {
         $k++
-        $header += "`n" + $lines[$k]
+        $headerLines.Add($lines[$k])
+        $quotes += $lines[$k].Split([char]'"').Count - 1
     }
+    $header = $headerLines -join "`n"
     $parts = $header.Trim([char]0xFEFF).Trim().Split([char]'"')
     $unquoted = -join $(for ($p = 0; $p -lt $parts.Count; $p += 2) { $parts[$p] })
 
@@ -5070,6 +5079,18 @@ foreach ($row in $rows) {
             $commaConversions.Add("row $rowNumber '$cleanWaarde' -> '$converted'")
         }
         $cleanWaarde = $converted
+    } elseif ($isNumberLike -and $cleanWaarde -match '^(\-)?\s*\.(\d+)$') {
+        # DECISION (owner): A leading-dot amount ('.50', '-.50') in a standard numeric rubriek gets a 0 before
+        # the dot, reported like the date and time shapes (decision 20). For an eigen rubriek it is written as
+        # typed with a warning (decision 8): the rubriek may be text, and Beaufort was not probed with '.50'.
+        $sign = if ($Matches[1] -eq '-') { "-" } else { "" }
+        if ($waardeType -eq 'N') {
+            $shaped = "${sign}0.$($Matches[2])"
+            $formatConversions.Add("row $rowNumber '$cleanWaarde' -> '$shaped'")
+            $cleanWaarde = $shaped
+        } else {
+            $warnings.Add("${rowLabel}: Waarde '$cleanWaarde' has no digit before the decimal point. Written as typed; a numeric rubriek may reject it. Write ${sign}0.$($Matches[2]).")
+        }
     } elseif ($isNumberLike -and $numberNotation -ne 'en' -and $cleanWaarde -match '^\-?\s*[1-9]\d{0,2}\.\d{3}$') {
         # In English notation '3.250' is a plain decimal (3,25), as Beaufort reads it: no warning.
         $warnings.Add("${rowLabel}: Waarde '$cleanWaarde' is read by Beaufort as $($cleanWaarde -replace '\.', ',') in a numeric rubriek. If the dot is a thousand separator, write it without the dot.")
@@ -5214,7 +5235,7 @@ if ($commaConversions.Count -gt 0) {
 # DECISION (owner): A date or time in a standard date or time rubriek gets the rubriek's shape; that is
 # certain, so it is only reported, like the Dutch comma conversion (decision 20).
 if ($formatConversions.Count -gt 0) {
-    Write-Host "`nDate or time written in the shape of the rubriek in $($formatConversions.Count) Waarde value(s): $(Join-Examples $formatConversions)." -ForegroundColor Gray
+    Write-Host "`nDate, time or number written in the shape of the rubriek in $($formatConversions.Count) Waarde value(s): $(Join-Examples $formatConversions)." -ForegroundColor Gray
 }
 
 if ($warnings.Count -gt 0) {

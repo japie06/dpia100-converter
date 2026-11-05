@@ -1,0 +1,4 @@
+CMTE00101   123   1                                        S   07102026         TSTUSER.50                                                  01112026                              NOR      
+CMTE00101   123   1                                        S   07102026         TSTUSER-.50                                                 02112026                              NOR      
+CMTP00001   123   1                                        V   07102026         TSTUSER0.50                                                 03112026                              NOR      
+CMTP00001   123   1                                        V   07102026         TSTUSER-0.5                                                 04112026                              NOR      
