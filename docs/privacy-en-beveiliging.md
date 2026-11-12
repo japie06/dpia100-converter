@@ -8,10 +8,6 @@
 100254). Het is één statisch HTML-bestand dat volledig in de browser van de medewerker draait, lokaal
 of via GitHub Pages.
 
-**Reikwijdte.** Dit document gaat over de webversie: dat is de versie voor medewerkers. Het
-PowerShell-script in dezelfde repository (`dpia100.ps1` met `dpia100.bat`) is een hulpmiddel voor de
-beheerder. Het hoeft niet te worden uitgerold en valt buiten dit document.
-
 ## Gegevensverwerking
 
 | | |
