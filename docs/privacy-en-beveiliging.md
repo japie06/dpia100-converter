@@ -1,12 +1,16 @@
 # Privacy en beveiliging: webversie DPIA100 converter
 
-**Voor:** CISO, IT-beheer en functionaris gegevensbescherming. **Versie:** 1.4.0.
+**Voor:** CISO, IT-beheer en functionaris gegevensbescherming. **Versie:** 1.4.1.
 **Broncode:** <https://github.com/japie06/dpia100-converter> (MIT).
 
 ## Doel en werking
 `dpia100.html` zet een CSV-bestand met HR-mutaties om naar een importbestand voor Beaufort (functie
 100254). Het is één statisch HTML-bestand dat volledig in de browser van de medewerker draait, lokaal
 of via GitHub Pages.
+
+**Reikwijdte.** Dit document gaat over de webversie: dat is de versie voor medewerkers. Het
+PowerShell-script in dezelfde repository (`dpia100.ps1` met `dpia100.bat`) is een hulpmiddel voor de
+beheerder. Het hoeft niet te worden uitgerold en valt buiten dit document.
 
 ## Gegevensverwerking
 
@@ -19,7 +23,7 @@ of via GitHub Pages.
 
 ## Maatregelen
 - **Privacy by design en by default (AVG art. 25, art. 5 lid 1c).** Er wordt niets verzameld, gelogd
-  of bewaard. Onthouden gebeurt alleen na een expliciet vinkje.
+  of bewaard.
 - **Netwerkisolatie via Content Security Policy (W3C CSP Level 3).** `default-src 'none'` en
   `connect-src 'none'`: de pagina kan technisch geen verbinding maken en geen externe bronnen laden.
   Formulierverzending is uitgeschakeld (`form-action 'none'`).
