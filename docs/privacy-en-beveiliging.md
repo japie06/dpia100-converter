@@ -1,6 +1,6 @@
 # Privacy en beveiliging: webversie DPIA100 converter
 
-**Voor:** CISO, IT-beheer en functionaris gegevensbescherming. **Versie:** 1.4.1.
+**Voor:** CISO, IT-beheer en functionaris gegevensbescherming.
 **Broncode:** <https://github.com/japie06/dpia100-converter> (MIT).
 
 ## Doel en werking
@@ -12,10 +12,13 @@ of via GitHub Pages.
 
 | | |
 |---|---|
-| Gegevens | Mutaties uit de CSV: persoonsnummer, dienstverband, rubriek, waarde (zoals salarisbedragen), datums |
-| Verwerking | Alleen in het werkgeheugen van de browser, op de werkplek |
-| Opslag | Geen. Alleen het importbestand dat de gebruiker zelf opslaat, en optioneel (opt-in) procescode en gebruikersnaam in de browser (`localStorage`) |
-| Doorgifte | Geen. Er zijn geen servers, geen derde partijen en dus geen verwerker |
+| Persoonsgegevens | Mutaties uit de CSV: persoonsnummer, dienstverband, rubriek, waarde (zoals salarisbedragen), datums. Daarnaast de Beaufort-gebruikersnaam die de medewerker intypt |
+| Doel | Het importbestand maken voor een bestaande verwerking (personeels- en salarisadministratie in Beaufort). De pagina voegt geen nieuwe verwerking toe |
+| Plaats van verwerking | Alleen het werkgeheugen van de browser, op de werkplek. Na het sluiten van het tabblad is alles weg |
+| Wat de pagina bewaart | Niets uit de CSV. Alleen als de medewerker *Onthoud* aanvinkt: procescode en gebruikersnaam, in de browser op die werkplek (`localStorage`) |
+| Wat de medewerker bewaart | Het importbestand, op de plek die de medewerker bij het opslaan kiest |
+| Ontvangers | Geen. Er is geen server en geen derde partij, en dus geen verwerker |
+| Doorgifte buiten de EER | Geen |
 
 ## Maatregelen
 - **Privacy by design en by default (AVG art. 25, art. 5 lid 1c).** Er wordt niets verzameld, gelogd

@@ -5,114 +5,184 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Dit hulpmiddel zet een CSV-bestand met mutaties om naar een bestand `DPIA100_<naam>.txt` dat je in
-Beaufort / HR Core kunt importeren (functie *Import externe indirecte mutaties*, 100254). Het doet
-hetzelfde als de knop **Maak DPIA100** in het Excel-hulpmiddel, maar controleert de gegevens strenger
-voordat er een bestand wordt gemaakt.
+Beaufort / HR Core kunt importeren (functie *Import externe indirecte mutaties*, 100254).
 
-Er zijn twee manieren, die precies hetzelfde doen en hetzelfde bestand maken:
+Deze handleiding heeft drie delen:
 
-- **In de browser** (aanbevolen): een webpagina, `dpia100.html`.
-- **Met een script**: sleep de CSV op `dpia100.bat` (PowerShell).
+- **[Voor gebruikers](#voor-gebruikers)**: de webpagina `dpia100.html`. Dit is wat de meeste mensen
+  gebruiken.
+- **[Scriptversie](#scriptversie-dpia100ps1)**: hetzelfde met `dpia100.ps1` of `dpia100.bat`.
+- **[Voor beheerders](#voor-beheerders)**: de bestanden bijwerken en testen.
 
-## Wat het doet
+# Voor gebruikers
 
-- Leest een CSV-bestand dat je vanuit Excel hebt opgeslagen. (scheidingsteken ;, , of tab wordt automatisch herkend).
-- Controleert elke regel. Bij één of meer fouten wordt **geen** bestand gemaakt en zie je een lijst met
-  alle fouten. Kent het de rubriek (een [standaardrubriek](#standaardrubrieken)), dan controleert het ook
-  het dienstverband, S of V en de waarde tegen die rubriek.
-- Maakt het importbestand in het vaste formaat dat Beaufort verwacht. De technische details staan in
-  `field-layout.md`.
-
-## Installeren
-
-Voor de browserversie via internet hoef je niets te installeren: open
-<https://japie06.github.io/dpia100-converter/>. Wil je de bestanden zelf hebben (bijvoorbeeld op een
-netwerkschijf, of om zonder internet te werken):
-
-1. Download het zip-bestand `dpia100-converter-vX.Y.Z.zip` van de nieuwste versie onder
-   [**Releases**](https://github.com/japie06/dpia100-converter/releases/latest).
-2. Klik met de rechtermuisknop op het zip-bestand → *Eigenschappen* → vink *Blokkering opheffen* aan →
-   *OK*. Zie je dat vinkje niet, dan is deze stap niet nodig.
-3. Pak het zip-bestand uit in een eigen map. Daarin staan:
-   - `dpia100.html`: de browserversie. Dubbelklik erop om hem te openen.
-   - `dpia100.bat`: het startbestand voor de scriptversie.
-   - `dpia100.ps1`: het script zelf. Laat dit in **dezelfde map** staan als `dpia100.bat`.
-   - `voorbeeld.csv`: een voorbeeld van een goed CSV-bestand.
-   - `README.md` en `LICENSE`: deze handleiding en de licentie.
-
-Het versienummer staat onderaan de webpagina en bovenaan in het venster van het script.
-
-## Gebruik in de browser
+## Zo werkt het
 
 1. Sla je gegevens in Excel op als CSV (*CSV (gescheiden door lijstscheidingsteken)* of *CSV UTF-8*).
    Open `voorbeeld.csv` in Excel om te zien hoe het eruit moet zien.
-2. Open de pagina in **Microsoft Edge** of **Google Chrome**: via
-   <https://japie06.github.io/dpia100-converter/>, of dubbelklik op `dpia100.html`.
-3. **Stap 1, Kies je CSV-bestand**: sleep het bestand op de pagina, of klik op het vak om het te kiezen.
-4. **Stap 2, Controle**: de pagina controleert meteen het hele bestand.
-   - Zijn er **fouten**, dan zie je een tabel met de regel, de kolom, de waarde en wat er mis is, met een
-     tip. Er wordt dan geen bestand gemaakt. Pas de regels aan in Excel, sla de CSV op en klik op
-     **Opnieuw controleren**. Je hoeft het bestand niet opnieuw te kiezen.
-   - Onder *Welke kolom is gebruikt?* zie je welke kolom uit je CSV bij welk veld hoort. Let vooral op
-     *Mutatiewaarde*: bij een eigen rubriek kan die kolom niet worden gecontroleerd.
-   - **Waarschuwingen** (zie [Bedragen](#bedragen), [Lege waarden, datums en tijden](#lege-waarden-datums-en-tijden)
-     en [Standaardrubrieken](#standaardrubrieken)) blokkeren niet, maar je moet ze bij stap 3 bevestigen.
+2. Open `dpia100.html` in **Microsoft Edge** of **Google Chrome**.  
+Via internet kan ook: <https://japie06.github.io/dpia100-converter/>.
+3. **Stap 1 op de pagina**: sleep je CSV-bestand op de pagina, of klik op het vak om het te kiezen.
+4. **Stap 2**: de pagina controleert meteen het hele bestand.
+   - Zijn er **fouten**, dan wordt er geen bestand gemaakt. Je ziet per fout de regel, de kolom, de
+     waarde en een tip. Pas de regels aan in Excel, sla de CSV op en klik op **Opnieuw controleren**.
+   - Kijk onder *Welke kolom is gebruikt?* of elke kolom bij het goede veld hoort.
    - Met *Bekijk de mutaties* zie je precies wat er in het bestand komt.
-5. **Stap 3, Bestand maken** (alleen als er geen fouten zijn): vul de **procescode** (meestal `CMT`), de
-   **creatiedatum** (standaard vandaag) en je **gebruikersnaam in Beaufort** in. Vink *Onthoud* aan, dan
-   hoef je procescode en gebruikersnaam de volgende keer niet opnieuw te typen. Klik op **Maak
-   DPIA100_&lt;naam&gt;.txt**.
-   - In Edge en Chrome verschijnt een venster *Opslaan als*: kies de map, bijvoorbeeld de
-     *Bestandsuitwisseling*. De naam moet met `DPIA100` beginnen, anders slaat de pagina niets op.
-   - In andere browsers (of als het opslagvenster op jouw pc is uitgezet) komt het bestand in de map
-     *Downloads*. Stond daar al een bestand met dezelfde naam, dan heet het nieuwe bestand bijvoorbeeld
-     `DPIA100_mutaties (1).txt`. Gebruik dan dat nieuwste bestand en gooi het oude weg.
+5. **Stap 3**: vul de **procescode** (bijv. `CMT`), de **creatiedatum** (standaard op vandaag) en je
+   **gebruikersnaam in Beaufort** in. Met *Onthoud* hoef je procescode en gebruikersnaam de volgende keer
+   niet opnieuw te typen. Waren er [waarschuwingen](#fouten-waarschuwingen-en-meldingen), dan vink je aan
+   dat je ze hebt gezien. Klik op **Maak DPIA100_&lt;naam&gt;.txt** en kies de map, bijvoorbeeld de
+   *Bestandsuitwisseling*.
 6. Importeer het bestand in HR Core met functie 100254, beoordeel de mutaties (100251) en verwerk ze
    (100252).
 
+**De bestandsnaam moet met `DPIA100` beginnen**, anders vindt HR Core het bestand niet. Het bestand
+bekijken mag, maar sla het niet op in Kladblok of een andere editor: opslaan kan de tekens of regeleinden
+veranderen.
+
 **Privacy.** De pagina werkt volledig op je eigen computer: je CSV-bestand wordt niet verstuurd, ook niet
-als je de pagina via internet opent. Een beveiligingsregel in de pagina blokkeert elk netwerkverkeer;
-de pagina werkt ook zonder internetverbinding. Gebruik op de pagina geen vertaalfunctie of AI-assistent
-(zoals Copilot), want die sturen de inhoud wel door. Uitleg voor IT en privacy:
+als je de pagina via internet opent. Gebruik op de pagina geen vertaalfunctie of AI-assistent (zoals
+Copilot), want die sturen de inhoud wel door. Uitleg voor IT en privacy:
 [docs/privacy-en-beveiliging.md](docs/privacy-en-beveiliging.md).
 
-## Gebruik met dpia100.bat
+## Kolommen in de CSV
 
-1. Sla je gegevens in Excel op als CSV (*CSV (gescheiden door lijstscheidingsteken)* of *CSV UTF-8*).
-   Gebruik **niet** *CSV (MS-DOS)* of *CSV (Macintosh)*. Open `voorbeeld.csv` in Excel om te zien hoe
-   het eruit moet zien.
-2. **Sleep het CSV-bestand op `dpia100.bat`.** Dubbelklikken op `dpia100.bat` kan ook: je kunt dan zelf
-   een bestand kiezen.
-3. Het script controleert eerst het hele CSV-bestand. Zijn er fouten, dan zie je meteen de lijst met
-   fouten (zie [Als er iets misgaat](#als-er-iets-misgaat)) en worden er geen vragen gesteld.
-4. Controleer onder *Column mapping* welke kolom voor welk veld is gebruikt. Het script herkent de
-   kolommen aan de kopregel (de eerste regel, met de kolomnamen). Links staat het veld, rechts de
-   kolomnaam uit jouw CSV. Klopt een koppeling niet, sluit het venster, pas de kolomnaam in Excel aan
-   en probeer het opnieuw. Let vooral op *Mutatiewaarde*: die kolom kan het script niet controleren.
-5. Staat er **[OK]**, dan beantwoord je de drie vragen:
-   - **Procescode**: druk op Enter voor `CMT`, of typ een andere code (max. 3 tekens). Deze moet in
-     Beaufort bestaan als aanleverend proces.
-   - **Creatiedatum**: druk op Enter voor vandaag, of typ een datum (`dd mm jjjj`).
+Zo ziet `voorbeeld.csv` eruit in Excel:
+
+| Rubriek | Pers. Nr | Dienstv | S of V | Mutatiewaarde | Ingangsdatum | Productiesoort |
+|---|---|---|---|---|---|---|
+| E00101 | 123456 | | S | Café de Brug | 1-11-2026 | NOR |
+| E00205 | 123456 | 1 | V | 125,50 | 1-11-2026 | NOR |
+| E00310 | 2345 | 2 | S | 36 | 1-12-2026 | |
+
+De eerste regel is een persoonsmutatie (*Dienstv* is leeg), de andere twee zijn
+dienstverbandmutaties. De kolommen worden herkend aan de kopregel. De volgorde maakt niet uit en extra
+kolommen worden genegeerd.
+
+| Kolom (voorbeeldkop) | Verplicht | Toelichting |
+|---|---|---|
+| Rubriek | ja | Maximaal 6 letters/cijfers, bijvoorbeeld `E00101`. |
+| Pers. Nr | ja | Alleen cijfers, max. 6. Voorloopnullen worden weggehaald. |
+| Dienstv | nee | Alleen cijfers, max. 3. **Leeg = persoonsmutatie**, gevuld = dienstverbandmutatie. |
+| S of V | ja | `S` (stam) of `V` (variabel). |
+| Mutatiewaarde | nee | Max. 50 tekens. Zie [Bedragen](#bedragen) en [Datums, tijden en lege waarden](#datums-tijden-en-lege-waarden). |
+| Ingangsdatum | ja | Bijvoorbeeld `1 11 2026`, `01-11-2026`, `01/11/2026`, `2026-11-01` of `01112026`. |
+| Productiesoort | nee | `NOR` of `COR`. Leeg wordt `NOR`. |
+
+## Fouten, waarschuwingen en meldingen
+
+- Een **fout** blokkeert: er wordt geen bestand gemaakt tot alle fouten zijn opgelost. Regel 1 is de
+  kopregel; de eerste regel met gegevens is regel 2.
+- Een **waarschuwing** blokkeert niet, maar je moet haar bevestigen voordat het bestand wordt gemaakt.
+  Je krijgt er een bij een waarde die Beaufort anders kan lezen dan jij bedoelt.
+- Een **melding** vertelt wat het hulpmiddel zelf heeft aangepast, bijvoorbeeld een komma die een punt
+  is geworden. Er wordt nooit iets ongemerkt veranderd.
+
+Hoe streng de controle is, hangt af van de rubriek:
+
+- Een **standaardrubriek** komt met Beaufort mee. Het hulpmiddel kent er ruim 4.200 (persoon en
+  dienstverband) en weet wat erin hoort. Het controleert dan ook het dienstverband, S of V en de waarde,
+  en geeft een fout als iets niet past. Zie [Standaardrubrieken](#standaardrubrieken).
+- Een **eigen rubriek** is elke code die niet in die lijst staat. Die is gewoon toegestaan. Het
+  hulpmiddel weet niet of er een bedrag, datum of tekst in hoort. Daarom schrijft het de waarde zoals je
+  hem typt en waarschuwt het alleen bij twijfel; Beaufort controleert de rest.
+
+### Bedragen
+
+- Typ bedragen **zonder punt voor duizendtallen**: `3250` of `3250,50`, niet `3.250` of `3.250,50`.
+  Beaufort leest `3.250` als 3,25. Zo'n punt komt er ongemerkt in als de cel in Excel is opgemaakt *met
+  scheidingsteken voor duizendtallen*; kies dan een opmaak zonder.
+- Een decimale komma wordt een punt (`12,50` wordt `12.50`), want Beaufort accepteert alleen een punt.
+  Dat wordt gemeld.
+- Typ een **0 voor het decimaalteken**: `0,50`, niet `,50`.
+- Komt je CSV uit een Excel met Engelse instellingen (scheidingsteken `,`), dan is de punt het
+  decimaalteken en geeft een komma in een bedrag een waarschuwing.
+
+### Datums, tijden en lege waarden
+
+- Schrijf een **datum** in de mutatiewaarde als `dd-mm-jjjj` (`01-11-2026`). Tip: geef de kolom in Excel
+  de aangepaste opmaak `dd-mm-jjjj`.
+- Schrijf een **tijd** als `uu:mm` (`08:30`) of, in een rubriek met seconden, `uu:mm:ss`.
+- Een andere vorm, zoals `1-11-2026` of `8:30`, geeft bij een eigen rubriek een waarschuwing. Bij een
+  standaardrubriek zet het hulpmiddel de waarde zelf in de goede vorm en meldt dat.
+- Een **lege mutatiewaarde verwijdert** de huidige waarde van de rubriek in Beaufort. Dat kan de
+  bedoeling zijn, maar ook een vergeten cel. Daarom krijg je altijd een waarschuwing.
+- Een waarde van meer dan 50 tekens wordt afgekapt, met een waarschuwing.
+
+### Standaardrubrieken
+
+Voor een standaardrubriek controleert het hulpmiddel:
+
+- **Dienstverband**: een dienstverbandrubriek heeft een dienstverband nodig (leeg of `0` is een fout),
+  een persoonsrubriek mag er geen hebben.
+- **S of V**: een rubriek die alleen stam of alleen variabel is, accepteert alleen `S` of alleen `V`.
+- **Mutatiewaarde**, naar het soort rubriek:
+  - getal: moet een getal zijn met niet meer cijfers en decimalen dan de rubriek heeft (`12.345` in een
+    rubriek met 2 decimalen is een fout, want Beaufort zou er 12,34 van maken);
+  - datum of tijd: moet een datum of tijd zijn;
+  - tekst: precies zoals je hem typt (ook `12,50`), en niet langer dan de rubriek toestaat.
+- **Geblokkeerd voor indirect muteren** (*Blok ind mut*): zo'n rubriek kan niet met DPIA100 worden
+  geïmporteerd. Je krijgt een waarschuwing; voer de mutatie in Beaufort zelf in.
+
+Het aantal standaardrubrieken en de datum van de lijst staan onderaan de pagina. Minimum- en
+maximumwaarden en de waarden van referentietabellen controleert alleen Beaufort. Eigen rubrieken kunnen
+(nog) niet worden opgegeven ([#24](https://github.com/japie06/dpia100-converter/issues/24)).
+
+### Bijzondere tekens
+
+HR Core accepteert alleen tekens die in de in Windows-1252 (ook wel ANSI of CP1252) tekenset staat. In Excel heet het "West-Europees (Windows)".
+
+Letters met accenten (`é ë ö ç à ü` enz.), `€`, krullende aanhalingstekens (`’ “ ”`),
+gedachtestreepjes (`– —`) en `…` zijn geen probleem: Beaufort slaat ze goed op.
+
+Tekens die Beaufort niet kent, geven een fout. Bijvoorbeeld een pijl `→` (Word maakt die soms van `->`),
+een vinkje `✓`, Poolse of Turkse letters (`ł`, `ş`) en emoji. 
+
+## Als er iets misgaat
+
+- **De pagina meldt *Deze pagina kan niet starten***: JavaScript is uitgeschakeld of geblokkeerd, of het
+  bestand `dpia100.html` is gewijzigd. Gebruik Edge of Chrome en vraag anders je beheerder om een nieuw
+  exemplaar.
+- **Er komt geen venster *Opslaan als***: in andere browsers, of als het venster op jouw pc is uitgezet,
+  komt het bestand in de map *Downloads*. Stond daar al een bestand met dezelfde naam, dan heet het
+  nieuwe bijvoorbeeld `DPIA100_mutaties (1).txt`. Gebruik het nieuwste en gooi het oude weg.
+- **Opnieuw controleren vraagt om het bestand**: in sommige browsers kan de pagina een gewijzigd bestand
+  niet opnieuw lezen. Kies het dan nog een keer.
+- **Iets anders, of een fout in het hulpmiddel zelf**: meld het bij je beheerder. Stuur nooit een CSV of
+  importbestand met echte gegevens mee naar iemand buiten je organisatie.
+
+## Wat het (nog) niet doet
+
+Alleen persoons- en dienstverbandmutaties (PS en DV) met productiesoort NOR of COR. Andere soorten
+mutaties (zoals bankgiro, loonverdeling en ziektegevallen), JWP en de verrekenperiode worden niet
+ondersteund. Zie `field-layout.md` voor de technische details.
+
+# Scriptversie (dpia100.ps1)
+
+Het script doet precies hetzelfde als de pagina en maakt hetzelfde bestand. Alles onder
+[Kolommen in de CSV](#kolommen-in-de-csv) en
+[Fouten, waarschuwingen en meldingen](#fouten-waarschuwingen-en-meldingen) geldt ook hier. De teksten in
+het venster zijn Engels.
+
+`dpia100.bat` en `dpia100.ps1` moeten in **dezelfde map** staan.
+
+1. **Sleep het CSV-bestand op `dpia100.bat`.** Dubbelklikken kan ook: je kiest dan zelf een bestand.
+   Gebruik in Excel **niet** *CSV (MS-DOS)* of *CSV (Macintosh)*.
+2. Controleer onder *Column mapping* welke kolom voor welk veld is gebruikt: links het veld, rechts de
+   kolomnaam uit jouw CSV.
+3. Staat er **[OK]**, dan beantwoord je de vragen:
+   - **Procescode**: Enter voor `CMT`, of een andere code die in Beaufort bestaat als
+     aanleverend proces.
+   - **Creatiedatum**: Enter voor vandaag, of een datum (`dd mm jjjj`).
    - **Creatiegebruiker**: je Beaufort-gebruikersnaam (verplicht, max. 16 tekens).
-
-   Waren er waarschuwingen (zie [Bedragen](#bedragen),
-   [Lege waarden, datums en tijden](#lege-waarden-datums-en-tijden) en
-   [Standaardrubrieken](#standaardrubrieken)), dan vraagt het script daarna nog of het bestand toch
-   gemaakt moet worden.
-6. Het bestand komt in **dezelfde map als je CSV-bestand**, met de naam van de CSV erin:
-   `mutaties oktober.csv` wordt `DPIA100_mutaties oktober.txt`. Het volledige pad staat in het venster
-   bij *Output file* en bij **[SUCCESS]**. Zet het bestand in de *Bestandsuitwisseling* naar HR Core en
-   importeer het met functie 100254. Beoordeel daarna de mutaties (100251) en verwerk ze (100252).
-
-   **Let op:** HR Core vindt alleen bestanden waarvan de naam begint met `DPIA100`. Wil je het
-   bestand hernoemen, laat de naam dan zo beginnen (bijvoorbeeld `DPIA100_oktober.txt`, niet
-   `mutaties.txt`). Het bestand bekijken mag, maar sla het niet op in Kladblok of een andere editor:
-   opslaan kan de tekens of regeleinden veranderen.
+   - Bij waarschuwingen: typ `Y` om het bestand toch te maken. Elk ander antwoord stopt zonder bestand.
+4. Het bestand komt in **dezelfde map als je CSV-bestand**: `mutaties oktober.csv` wordt
+   `DPIA100_mutaties oktober.txt`. Het volledige pad staat bij **[SUCCESS]**.
 
 Zo ziet het venster eruit bij `voorbeeld.csv` (jouw antwoorden staan achter de dubbele punt):
 
 ```text
-=== Beaufort DPIA100 Generator v1.2.0 ===
+=== Beaufort DPIA100 Generator v1.4.1 ===
 Input file        : H:\Mutaties\voorbeeld.csv
 Output file       : H:\Mutaties\DPIA100_voorbeeld.txt
 Input encoding    : Windows-1252
@@ -132,166 +202,55 @@ Column mapping:
 Comma changed to dot in 1 Waarde value(s), because a numeric rubriek in Beaufort only accepts a dot (a text rubriek that is not a standard rubriek gets the dot too): row 3 '125,50' -> '125.50'.
 
 Procescode [Press ENTER for 'CMT']:
-Creatiedatum (dd mm yyyy) [Press ENTER for '28 10 2026']:
-Creatiegebruiker [Mandatory]: JANSENP
+Creatiedatum (dd mm yyyy) [Press ENTER for '12 11 2026']:
+Creatiegebruiker [Mandatory]: TESTUSER
 
 [SUCCESS] File successfully created:
 H:\Mutaties\DPIA100_voorbeeld.txt
 ```
 
-## Kolommen in de CSV
+Als er iets misgaat met het script:
 
-Zo ziet `voorbeeld.csv` eruit in Excel:
-
-| Rubriek | Pers. Nr | Dienstv | S of V | Mutatiewaarde | Ingangsdatum | Productiesoort |
-|---|---|---|---|---|---|---|
-| E00101 | 123456 | | S | Café de Brug | 1-11-2026 | NOR |
-| E00205 | 123456 | 1 | V | 125,50 | 1-11-2026 | NOR |
-| E00310 | 2345 | 2 | S | 36 | 1-12-2026 | |
-
-De eerste regel is een persoonsmutatie (*Dienstv* is leeg), de andere twee zijn
-dienstverbandmutaties. De volgorde van de kolommen maakt niet uit. Extra kolommen worden genegeerd.
-
-| Kolom (voorbeeldkop) | Verplicht | Toelichting |
-|---|---|---|
-| Rubriek | ja | Maximaal 6 letters/cijfers, bijvoorbeeld `E00101`. |
-| Pers. Nr | ja | Alleen cijfers, max. 6. Voorloopnullen worden weggehaald. |
-| Dienstv | nee | Alleen cijfers, max. 3. **Leeg = persoonsmutatie**, gevuld = dienstverbandmutatie. Bij een standaardrubriek moet dat kloppen met de rubriek (zie [Standaardrubrieken](#standaardrubrieken)). |
-| S of V | ja | `S` (stam) of `V` (variabel). Bij een standaardrubriek moet de rubriek dat toestaan. |
-| Mutatiewaarde | nee | Max. 50 tekens; langer wordt afgekapt met een waarschuwing. Bedragen met een komma of punt als decimaalteken (`-12,50`), zonder scheidingsteken voor duizendtallen. Datums als `01-11-2026`, tijden als `08:30`. **Leeg = de huidige waarde verwijderen** (met een waarschuwing). Bij een standaardrubriek wordt de waarde gecontroleerd; bij een eigen rubriek doet Beaufort dat. |
-| Ingangsdatum | ja | Bijvoorbeeld `1 11 2026`, `01-11-2026`, `01/11/2026`, `2026-11-01` of `01112026`. |
-| Productiesoort | nee | `NOR` of `COR`. Leeg wordt `NOR`. |
-
-### Bedragen
-
-Typ bedragen **zonder punt voor duizendtallen**: schrijf `3250` of `3250,50`, niet `3.250` of
-`3.250,50`. Beaufort leest `3.250` als 3,25.
-
-Zo'n punt komt er ongemerkt in als de cel in Excel is opgemaakt *met scheidingsteken voor
-duizendtallen*. Kies in dat geval een opmaak zonder dat scheidingsteken.
-
-Bij een **eigen rubriek** kan het hulpmiddel niet zien of de rubriek een bedrag of een tekst bevat.
-Daarom weigert het zulke waarden niet, maar geeft het een **waarschuwing**. Zijn er waarschuwingen, dan
-wordt het bestand pas gemaakt als je dat bevestigt: in de browser met het vinkje bij stap 3, in het
-script door `Y` te typen (elk ander antwoord stopt zonder bestand).
-
-Een decimale komma wordt een punt (`12,50` wordt `12.50`), want Beaufort accepteert alleen een punt. Dat
-wordt altijd gemeld.
-
-Typ een **0 voor de punt**: schrijf `0.50`, niet `.50`. Bij een eigen rubriek blijft `.50` staan, met een
-waarschuwing; bij een numerieke standaardrubriek wordt het `0.50`, en dat wordt gemeld.
-
-Bij een **standaardrubriek** weet het hulpmiddel het wel: een numerieke standaardrubriek krijgt dezelfde
-controles en daarnaast een foutmelding voor alles wat geen getal is, en een tekstrubriek krijgt de
-waarde precies zoals je hem typt (ook `12,50`). Zie [Standaardrubrieken](#standaardrubrieken).
-
-> **Voor wie het precies wil weten:** het script kijkt naar het scheidingsteken van de CSV. Een CSV met
-> `;` (Excel met Nederlandse instellingen) gebruikt de komma als decimaalteken. Een CSV met `,` (Excel
-> met Engelse instellingen) gebruikt de punt: daar is `3.250` gewoon 3,25 en geeft `1,234` een
-> waarschuwing.
-
-### Lege waarden, datums en tijden
-
-Een **lege mutatiewaarde verwijdert** de huidige waarde van de rubriek in Beaufort. Dat kan de bedoeling
-zijn, maar ook een vergeten cel. Daarom krijg je een waarschuwing met de regels waar de waarde leeg is.
-
-Schrijf een **datum** in de mutatiewaarde als `dd-mm-jjjj` (`01-11-2026`) en een **tijd** als `uu:mm`
-(`08:30`) of, in een rubriek met seconden, `uu:mm:ss` (`08:30:00`), zoals Beaufort ze bewaart. Bij een
-eigen rubriek wordt een andere vorm, zoals `1-11-2026`, `2026-11-01` of `8:30`, geschreven zoals je hem
-typt, met een waarschuwing: in een datum- of tijdrubriek kan Beaufort die anders lezen. Tip: geef de
-kolom in Excel de aangepaste opmaak `dd-mm-jjjj`.
-
-Ook deze waarschuwingen moet je bevestigen voordat het bestand wordt gemaakt. Bij een standaardrubriek
-zet het hulpmiddel de datum of tijd zelf in de goede vorm en meldt dat.
-
-### Standaardrubrieken
-
-Het hulpmiddel kent de **standaardrubrieken** van Beaufort voor persoon en dienstverband (ruim 4.200,
-de rubrieken die met Beaufort meekomen). Het aantal en de datum van de lijst staan in het venster bij
-*Standard rubrieken* en onderaan de webpagina. Voor zo'n rubriek controleert het:
-
-- **Dienstverband**: een dienstverbandrubriek heeft een dienstverband nodig (leeg of `0` geeft een
-  foutmelding), een persoonsrubriek mag er geen hebben.
-- **S of V**: een rubriek die alleen stam of alleen variabel is, accepteert alleen `S` of alleen `V`.
-- **Mutatiewaarde**, naar het soort rubriek:
-  - getal: moet een getal zijn met niet meer decimalen en cijfers dan de rubriek heeft (`12.345` in een
-    rubriek met 2 decimalen geeft een foutmelding, want Beaufort zou er 12,34 van maken);
-  - datum: wordt `dd-mm-jjjj` (`1-11-2026` wordt `01-11-2026`, en dat wordt gemeld); geen datum is een fout;
-  - tijd: wordt `uu:mm` of `uu:mm:ss`, zoals de rubriek het wil; geen tijd is een fout;
-  - tekst: precies zoals je hem typt, en niet langer dan de rubriek toestaat.
-- **Geblokkeerd voor indirect muteren** (*Blok ind mut*): zo'n rubriek kan niet met DPIA100 worden
-  geïmporteerd. Je krijgt een waarschuwing; voer de mutatie in Beaufort zelf in.
-
-Een rubriekcode die niet in de lijst staat, is een **eigen rubriek**. Die is gewoon toegestaan, zonder
-melding, en wordt gecontroleerd zoals hierboven bij bedragen en datums staat; Beaufort controleert de
-rest. Eigen rubrieken kunnen (nog) niet worden opgegeven
-([#24](https://github.com/japie06/dpia100-converter/issues/24)).
-
-### Bijzondere tekens
-
-Letters met accenten (`é ë ö ç à ü` enz.), `€`, krullende aanhalingstekens (`’ “ ”`),
-gedachtestreepjes (`– —`) en het weglatingsteken `…` zijn geen probleem: getest in Beaufort, ze worden
-goed opgeslagen.
-
-Let op: in het *Uitgebreid foutverslag* van de verwerking laat Beaufort `€`, krullende
-aanhalingstekens, gedachtestreepjes, `…` en een paar zeldzame tekens (zoals `Š ž ™ ÿ`) weg (`d’Ancona`
-staat er als `dAncona`). Dat zit alleen in het verslag; de opgeslagen waarde is goed
-([#20](https://github.com/japie06/dpia100-converter/issues/20)).
-
-Tekens die Beaufort helemaal niet kent, worden door het script geweigerd met een foutmelding. Bijvoorbeeld een pijl `→` (Word maakt die soms automatisch van `->`),
-een vinkje `✓`, Poolse of Turkse letters (`ł`, `ş`) en emoji.
-
-## Als er iets misgaat
-
-- **Foutenlijst**: pas de genoemde regels aan in de CSV (of in het Excel-bestand) en probeer het
-  opnieuw. Regel 1 is de kopregel; de eerste regel met gegevens is regel 2.
-- **Oud bestand hernoemd** (script): na een mislukte poging wordt een eerder gemaakte
-  `DPIA100_<naam>.txt` hernoemd naar `DPIA100_<naam>.txt.old`. Zo kun je niet per ongeluk een oud
-  bestand importeren. De browserversie raakt geen bestaande bestanden aan; zij slaat pas iets op als jij
-  op de knop klikt.
-- **De pagina meldt *Deze pagina kan niet starten***: JavaScript is uitgeschakeld of geblokkeerd in de
-  browser. Gebruik Edge of Chrome, of vraag je IT-afdeling. Het kan ook betekenen dat het bestand
-  `dpia100.html` is gewijzigd; download het dan opnieuw.
-- **Opnieuw controleren vraagt om het bestand**: in sommige browsers kan de pagina een gewijzigd bestand
-  niet opnieuw lezen. Kies het dan nog een keer.
+- **Oud bestand hernoemd**: na een mislukte poging wordt een eerder gemaakte `DPIA100_<naam>.txt`
+  hernoemd naar `DPIA100_<naam>.txt.old`. Zo kun je niet per ongeluk een oud bestand importeren.
 - **Script start niet** (*"is not digitally signed"*): je start `dpia100.ps1` vanuit een
-  PowerShell-venster terwijl de bestanden nog geblokkeerd zijn, omdat ze van internet komen. Start het
-  script met `dpia100.bat`, of hef de blokkering op zoals bij [Installeren](#installeren), stap 2. Heb
-  je de zip al uitgepakt, doe het dan bij `dpia100.ps1`: klik met de rechtermuisknop →
-  *Eigenschappen* → vink *Blokkering opheffen* aan.
+  PowerShell-venster terwijl het bestand nog geblokkeerd is, omdat het van internet komt. Start het met
+  `dpia100.bat`, of klik met de rechtermuisknop op `dpia100.ps1` → *Eigenschappen* → vink *Blokkering
+  opheffen* aan.
 - **Melding over *ConstrainedLanguage***: PowerShell is op deze pc dichtgezet. Neem contact op met IT.
 
-## Wat het (nog) niet doet
+# Voor beheerders
 
-Alleen persoons- en dienstverbandmutaties (PS en DV) met productiesoort NOR of COR. Bankgiro, inzet,
-loonverdeling, speciale doorbelasting, ziektegevallen, JWP en de verrekenperiode worden niet
-ondersteund. Eigen rubrieken worden niet aan een lijst getoetst; Beaufort keurt een onjuiste rubriek af
-bij het importeren. Minimum- en maximumwaarden en de waarden van referentietabellen controleert alleen
-Beaufort. Zie `field-layout.md` voor de technische details.
+## Bijwerken
 
-## Voor beheerders
+Een nieuwe versie zet je op dezelfde manier over de oude heen. Het versienummer staat onderaan de
+webpagina en bovenaan in het venster van het script. Wat er is veranderd, staat in `docs/CHANGELOG.md`.
 
-- Wijzigingen staan in `docs/CHANGELOG.md`; notities voor ontwikkelaars in `CLAUDE.md`. Openstaand
-  werk staat in de [Issues](https://github.com/japie06/dpia100-converter/issues).
+De lijst met standaardrubrieken bijwerken (bijvoorbeeld na een nieuwe Beaufort-versie): maak het
+overzicht met functie 210006 en draai `pwsh tools\update-standard-rubrieken.ps1 -InputPath <overzicht>`.
+Uitleg in [docs/rubrieken-export.md](docs/rubrieken-export.md). Zet het overzicht zelf nooit in de
+repository.
+
+## Ontwikkelen en testen
+
+- Notities voor ontwikkelaars staan in `CLAUDE.md`, het bestandsformaat in `field-layout.md`. Openstaand
+  werk staat in de [Issues](https://github.com/japie06/dpia100-converter/issues). Zet daar nooit
+  persoonsgegevens in.
 - Na elke wijziging: `pwsh tests\run-tests.ps1`. Dit test alle gevallen in `tests\cases` op
   PowerShell 5.1, PowerShell 7 en de webpagina (in Edge, zonder venster) en vergelijkt de uitvoer byte
   voor byte. Het controleert ook de beveiliging van de pagina.
 - De webpagina heeft daarnaast unit- en klikroutetests: `npm ci` en dan `npm test` (Node.js LTS nodig,
-  gebruikt de geïnstalleerde Edge; niet nodig om de converter te gebruiken).
+  gebruikt de geïnstalleerde Edge).
 - Een regel aanpassen doe je altijd in **beide** bestanden: `dpia100.ps1` en `dpia100.html`.
   `pwsh tests\web\differential.ps1` vergelijkt beide op willekeurige CSV-bestanden.
 - Na een wijziging in een script- of stijlblok van `dpia100.html`: `pwsh tests\web\update-csp.ps1`.
   Anders weigert de browser de gewijzigde code (zie
   [docs/privacy-en-beveiliging.md](docs/privacy-en-beveiliging.md)).
 - `tests\demo\` bevat CSV-bestanden die elke fout, waarschuwing en melding laten zien, met per regel een
-  opmerking. Handig om de converter te bekijken of te laten zien; uitleg in `tests\demo\README.md`.
-- `tests\beaufort\` bevat testbestanden om na te gaan wat Beaufort zelf accepteert (bijzondere tekens,
-  regeleinden), met de resultaten in `findings.md`.
-- De lijst met standaardrubrieken bijwerken (bijvoorbeeld na een nieuwe Beaufort-versie): maak het
-  overzicht met functie 210006 en draai `pwsh tools\update-standard-rubrieken.ps1 -InputPath <overzicht>`.
-  Uitleg in [docs/rubrieken-export.md](docs/rubrieken-export.md). Zet het overzicht zelf nooit in de
-  repository.
+  opmerking. Uitleg in `tests\demo\README.md`.
+- `tests\beaufort\` bevat testbestanden om na te gaan wat Beaufort zelf accepteert, met de resultaten in
+  `findings.md`.
 
-## Licentie
+# Licentie
 
 [MIT](LICENSE). Dit is geen product van Visma of Youforce en wordt niet door hen ondersteund.
