@@ -3,7 +3,7 @@
     Cleans the Beaufort report "Overzicht rubrieken" (function 210006) into one CSV row per rubriek.
 .DESCRIPTION
     The report is a printed page layout: a page header, a column header and a footer on every page, and
-    per rubriek one fixed-width record line (optionally followed by a wrapped Omschrijving line) plus a
+    per rubriek one fixed-width record line (optionally followed by wrapped Omschrijving lines) plus a
     detail block of six lines. This script drops the page furniture and everything customer-specific
     (municipality, user name, print date), and writes the attributes that matter for dpia100:
 
@@ -15,7 +15,7 @@
     T (time hh:mm), U (time hh:mm:ss), ...; Len includes the comma and decimals; Dec is the number of
     decimals (numeric only). Stam and Var say whether the rubriek is a stamgegeven and/or a variabel gegeven.
     See docs/rubrieken-export.md. tools/update-standard-rubrieken.ps1 uses this script to embed the standard
-    PS/DV rubrieken in dpia100.ps1 and dpia100.html.
+    PS/DV/IZ rubrieken in dpia100.ps1 and dpia100.html.
 
     The column positions are read from the column header line of the report, not hard-coded. The script
     aborts (exit 1, no output file) on anything it does not recognise: no column header, a header that
@@ -23,7 +23,7 @@
     that differs from the number of records.
 
     The export holds the rubriek set of one customer and a user name. Keep it, and the CSV made from it,
-    out of the repository (both are git-ignored). Only the generated table of standard PS/DV codes and their
+    out of the repository (both are git-ignored). Only the generated table of standard PS/DV/IZ codes and their
     fixed attributes is committed, inside dpia100.ps1 and dpia100.html.
 .PARAMETER InputPath
     The exported report (.txt, UTF-8).
@@ -31,7 +31,7 @@
     The CSV to write (UTF-8 with BOM, ';' as delimiter, CRLF, as Dutch Excel opens it). Default:
     rubrieken.csv next to this script.
 .PARAMETER OnlyScope
-    Keep only gegevenssoort PS and DV, the object types dpia100 writes.
+    Keep only gegevenssoort PS, DV and IZ (inzet), the object types dpia100 writes.
 .PARAMETER OnlyStandard
     Keep only standard rubrieken (Fix = J).
 .EXAMPLE
@@ -94,6 +94,7 @@ function Get-Column([string]$Line, [int]$Index) {
 # Column indexes
 $cCode = 0; $cOmsch = 1; $cFix = 2; $cPrompt = 3; $cRsoort = 4; $cGsoort = 5; $cTyp = 6; $cLen = 7; $cDec = 8; $cStam = 10; $cVar = 11; $cBlokInd = 16
 
+
 # --- Records and detail blocks ------------------------------------------------------------------------
 function Test-RecordLine([string]$Line) {
     if ($Line.Length -lt 2 -or $Line[0] -ne ' ' -or $Line[1] -eq ' ') { return $false }
@@ -101,7 +102,58 @@ function Test-RecordLine([string]$Line) {
         (Get-Column $Line $cTyp) -match '^[A-Z]$'
 }
 
+# --- Page breaks --------------------------------------------------------------------------------------
+# NOTE: In the export of 2026-11-27 a page break can fall inside a rubriek (the 2026-10-30 export never did):
+# - inside its detail block (e.g. P01126): the page furniture is removed, from the footer box ("-----" +
+#   "| HR Core - ...") up to and including the column header of the next page;
+# - inside its record line (e.g. P01514, P92497): the page ends with ' <code>  <start of omschrijving>',
+#   possibly followed by wrapped omschrijving lines, and the next page starts with the rest of the
+#   omschrijving and all the columns, code blank. The code line and that line are merged when the result is
+#   a valid record line; $descPrefix keeps the first part of the omschrijving.
+# Lines that overflow a page can be printed over the next page header (P01132: Exportkenmerken), so the column
+# header is matched on its start only. The furniture is never longer than $maxFurniture lines: a longer skip
+# is a problem, so rubrieken are never dropped silently. $lineNo keeps the line number in the file.
 $problems = New-Object Collections.Generic.List[string]
+$body = New-Object Collections.Generic.List[string]
+$lineNo = New-Object Collections.Generic.List[int]
+$descPrefix = @{}
+$descStart = $col[$cOmsch][0]
+$maxFurniture = 25
+$skipFrom = -1
+for ($n = 0; $n -lt $lines.Count; $n++) {
+    $line = $lines[$n]
+    if ($skipFrom -ge 0) {
+        if ($line -match '^ Code\s+Omschrijving\s') {
+            $skipFrom = -1
+            $next = if ($n + 1 -lt $lines.Count) { $lines[$n + 1] } else { '' }
+            # The code line, then only wrapped omschrijving lines up to the break.
+            $k = $body.Count - 1
+            while ($k -ge 0 -and $body[$k] -match '^\s{9}\S') { $k-- }
+            if ($k -ge 0 -and $body[$k] -match '^ \S' -and -not (Test-RecordLine $body[$k]) -and
+                $next.Length -gt $descStart -and $next.Substring(0, $descStart).Trim() -eq '') {
+                $merged = $body[$k].PadRight($descStart).Substring(0, $descStart) + $next.Substring($descStart)
+                if (Test-RecordLine $merged) {
+                    $parts = @(Get-Column $body[$k] $cOmsch)
+                    for ($w = $k + 1; $w -lt $body.Count; $w++) { $parts += $body[$w].Trim() }
+                    $descPrefix[$k] = ($parts -join ' ').Trim()
+                    $body[$k] = $merged
+                    while ($body.Count - 1 -gt $k) { $body.RemoveAt($body.Count - 1); $lineNo.RemoveAt($lineNo.Count - 1) }
+                    $n++
+                }
+            }
+        }
+        elseif ($n - $skipFrom -gt $maxFurniture) {
+            $problems.Add("line $($skipFrom + 1): page break without a column header in the next $maxFurniture lines")
+            $skipFrom = -1
+            $n--
+        }
+        continue
+    }
+    if ($line -match '^-{20,}$' -and $n + 1 -lt $lines.Count -and $lines[$n + 1] -match '^\|\s*HR Core - ') { $skipFrom = $n; continue }
+    $body.Add($line); $lineNo.Add($n + 1)
+}
+$lines = $body.ToArray()
+
 $records = New-Object Collections.Generic.List[object]
 $blockCount = 0
 $current = $null
@@ -109,32 +161,32 @@ for ($n = 0; $n -lt $lines.Count; $n++) {
     $line = $lines[$n]
     if (Test-RecordLine $line) {
         $current = [ordered]@{
-            Code = Get-Column $line $cCode; Omschrijving = Get-Column $line $cOmsch; Fix = Get-Column $line $cFix
+            Code = Get-Column $line $cCode; Omschrijving = ("$($descPrefix[$n]) " + (Get-Column $line $cOmsch)).Trim(); Fix = Get-Column $line $cFix
             Prompt = Get-Column $line $cPrompt; Gegsoort = Get-Column $line $cGsoort; Typ = Get-Column $line $cTyp
             Len = Get-Column $line $cLen; Dec = Get-Column $line $cDec
             Stam = Get-Column $line $cStam; Var = Get-Column $line $cVar
             BlokIndMut = ''; Referentie = ''; RefTabel = ''; Minimum = ''; Maximum = ''; Bereik = ''
-            Line = $n + 1; Blocks = 0; Wrapped = $false
+            Line = $lineNo[$n]; Blocks = 0; Wrapped = $false
         }
         $flag = Get-Column $line $cBlokInd
         # NOTE: older standard rubrieken have blank flags (15 in the 2026-10-30 export, e.g. P00633). Blank is
         # kept blank, not turned into N: the report does not say what it means.
-        if ($flag -notmatch '^[JN]?$') { $problems.Add("line $($n + 1): $($current.Code): Blok ind mut is '$flag', expected J, N or blank") }
+        if ($flag -notmatch '^[JN]?$') { $problems.Add("line $($lineNo[$n]): $($current.Code): Blok ind mut is '$flag', expected J, N or blank") }
         $current.BlokIndMut = $flag
         if ($current.Stam -notmatch '^[JN]?$' -or $current.Var -notmatch '^[JN]?$') {
-            $problems.Add("line $($n + 1): $($current.Code): Stam '$($current.Stam)' or Var '$($current.Var)' is not J, N or blank")
+            $problems.Add("line $($lineNo[$n]): $($current.Code): Stam '$($current.Stam)' or Var '$($current.Var)' is not J, N or blank")
         }
-        if ($current.Code -notmatch '^\S{1,7}$') { $problems.Add("line $($n + 1): unreadable code '$($current.Code)'") }
+        if ($current.Code -notmatch '^\S{1,7}$') { $problems.Add("line $($lineNo[$n]): unreadable code '$($current.Code)'") }
         if ($current.Len -notmatch '^\d*$' -or $current.Dec -notmatch '^\d*$') {
-            $problems.Add("line $($n + 1): $($current.Code): Len '$($current.Len)' or Dec '$($current.Dec)' is not a number")
+            $problems.Add("line $($lineNo[$n]): $($current.Code): Len '$($current.Len)' or Dec '$($current.Dec)' is not a number")
         }
         $records.Add([pscustomobject]$current)
         $current = $records[$records.Count - 1]
         continue
     }
     if ($null -eq $current) { continue }
-    # Wrapped Omschrijving: the first line after the record, indented to the Omschrijving column.
-    if (-not $current.Wrapped -and $current.Blocks -eq 0 -and $line -match '^\s{9}\S' -and $line -notmatch '^\s+(Ingedeeld|Tabel|Veld)\s') {
+    # Wrapped Omschrijving: the lines after the record, indented to the Omschrijving column (PI0029 has two).
+    if ($current.Blocks -eq 0 -and $line -match '^\s{9}\S' -and $line -notmatch '^\s+(Ingedeeld|Tabel|Veld)\s') {
         $current.Wrapped = $true
         $current.Omschrijving = ($current.Omschrijving + ' ' + $line.Trim()).Trim()
         continue
@@ -145,7 +197,7 @@ for ($n = 0; $n -lt $lines.Count; $n++) {
         # The next lines hold Tabel/Veld/Logging/Groep code/Exportkenmerken; the labels are fixed text.
         $b = @($lines[($n + 1)..([Math]::Min($n + 5, $lines.Count - 1))])
         if ($b[0] -match '^\s+Tabel\b.*?\bTabel(?:\s+(\S+)(?=\s+Minimum))?') { if ($Matches[1]) { $current.RefTabel = $Matches[1] } }
-        else { $problems.Add("line $($n + 2): $($current.Code): no Tabel line in the detail block") }
+        else { $problems.Add("line $($lineNo[$n + 1]): $($current.Code): no Tabel line in the detail block") }
         if ($b[0] -match 'Minimum\s+(\S*?)\s+TWK vanaf') { $current.Minimum = $Matches[1] }
         if ($b[1] -match 'Maximum\s+(\S*?)\s+DIW') { $current.Maximum = $Matches[1] }
         if ($b[2] -match 'Bereik\s+(\S*?)\s+TWK huidig') { $current.Bereik = $Matches[1] }
@@ -169,11 +221,11 @@ if ($criteria.Count -gt 0) { Write-Host "[WARN] The report was run with selectio
 Write-Host "Read $($records.Count) rubrieken from $($headerLines.Count) pages."
 Write-Host ('  Fix:      ' + (($records | Group-Object Fix | Sort-Object Name -Descending | ForEach-Object { "$($_.Name)=$($_.Count)" }) -join '  ') + '   (J standard, N eigen)')
 Write-Host ('  Gegsoort: ' + (($records | Group-Object Gegsoort | Sort-Object Count -Descending | Select-Object -First 8 | ForEach-Object { "$($_.Name)=$($_.Count)" }) -join '  ') + '  ...')
-$scope = @($records | Where-Object { $_.Gegsoort -in 'PS', 'DV' })
-Write-Host "  PS+DV:    $($scope.Count), of which Typ $((($scope | Group-Object Typ | Sort-Object Count -Descending | ForEach-Object { "$($_.Name)=$($_.Count)" }) -join ' ')); Blok ind mut J=$(@($scope | Where-Object BlokIndMut -eq 'J').Count) N=$(@($scope | Where-Object BlokIndMut -eq 'N').Count) blank=$(@($scope | Where-Object BlokIndMut -eq '').Count)"
+$scope = @($records | Where-Object { $_.Gegsoort -in 'PS', 'DV', 'IZ' })
+Write-Host "  PS+DV+IZ: $($scope.Count), of which Typ $((($scope | Group-Object Typ | Sort-Object Count -Descending | ForEach-Object { "$($_.Name)=$($_.Count)" }) -join ' ')); Blok ind mut J=$(@($scope | Where-Object BlokIndMut -eq 'J').Count) N=$(@($scope | Where-Object BlokIndMut -eq 'N').Count) blank=$(@($scope | Where-Object BlokIndMut -eq '').Count)"
 
 $out = $records
-if ($OnlyScope) { $out = @($out | Where-Object { $_.Gegsoort -in 'PS', 'DV' }) }
+if ($OnlyScope) { $out = @($out | Where-Object { $_.Gegsoort -in 'PS', 'DV', 'IZ' }) }
 if ($OnlyStandard) { $out = @($out | Where-Object { $_.Fix -eq 'J' }) }
 
 function ConvertTo-CsvField([string]$Value) {

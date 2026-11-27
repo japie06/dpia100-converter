@@ -1,0 +1,15 @@
+CSV kind          : inzetregels (IZ)
+  Pers. Nr        <- 'Pers.nr.'
+  Dienstverband   <- 'Dvb'
+  OE sleutel      <- 'OU_Key'
+  Functie         <- 'Functie code inzet'
+  Datum vanaf     <- 'Startdatum'
+  Datum t/m       <- 'Einddatum'
+  Uren            <- 'Uren per week inzet'
+  Soort inzet     <- (not found, optional)
+  Productiesoort  <- (not found, optional)
+  Not used: 'OE code inzet' (OE code; the key uses the OE sleutel)
+row 3 '32,5' -> '32.5'
+row 2 '1-12-2026' -> '01-12-2026'
+Functie is digits only in 2 row(s): row 2 '412460', row 3 '412460'.
+[SUCCESS]

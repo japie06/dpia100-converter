@@ -1,0 +1,4 @@
+CSV kind          : inzetregels (IZ)
+[OK] 2 row(s) checked, no errors found.
+Functie is digits only in 2 row(s): row 2 '412460', row 3 '412460'.
+[SUCCESS]

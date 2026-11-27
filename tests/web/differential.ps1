@@ -77,6 +77,35 @@ $headerVariants = @{
 }
 $fieldOrder = @('Rubriek', 'PersNr', 'Dienstv', 'SofV', 'Waarde', 'Ingang', 'Productie')
 $poolKey = @{ Rubriek = 'Rubriek'; PersNr = 'PersNr'; Dienstv = 'Dienstv'; SofV = 'SofV'; Waarde = 'Waarde'; Ingang = 'Ingang'; Productie = 'Productie' }
+$extras = @(@(), @(), @('Opmerking'), @(''), @('Opmerking', 'Opmerking'), @('Advies'), @('Persoonswaarde'))
+
+# Inzetregels CSV (decisions 21-23), about a quarter of the files: the key, the three values (P01123 S 3,
+# P01124 N 5,2, P01126 D) and the column variants of HR Core and Power BI. A broken file may lose the OE
+# sleutel (an OE code column remains: oeCodeOnly), a required column, or every value column.
+$inzetPools = @{
+    PersNr    = $pools.PersNr
+    Dienstv   = @{ ok = @('1', '001', ' 2 ', '999'); bad = @('', '0', '1a', '1234') }
+    OeSleutel = @{ ok = @('314', '0314', '2964', '1234567890', ' 77 '); bad = @('', '0', '31x', '12345678901', '3 14', 'OE-1') }
+    Functie   = @{ ok = @('020', '412460', 'f20a', 'ABCDEFG', ' 020 ', 'Café'); bad = @('', '02 0', '12345678', "$([char]0x133)20", "a$([char]0xA0)b") }
+    Vanaf     = $pools.Ingang
+    Tm        = @{ ok = @('', '', '01-12-2027', '1-1-2028', '2028-01-01', '31-12-9999', '01012028'); bad = @('eind', '31-12-2025', '1-13-2026', '1-11-26') }
+    Uren      = @{ ok = @('', '36', '32,5', '0.5', '.5', '24,00', '7', ' 36 ', '99.99', '1,234', '3.250', '- 7,5'); bad = @('100', '36.125', 'veel', '1.234,5', "3`n6") }
+    Soort     = @{ ok = @('', 'VST', 'ext', 'A', ' AB '); bad = @('ABCD', "$([char]0x133)", 'a;b;c') }
+    Productie = $pools.Productie
+}
+$inzetHeaders = @{
+    PersNr    = @('Pers. Nr', 'Pers.nr.', 'Persoonsnummer')
+    Dienstv   = @('Dienstverband', 'Dvb', 'Dv')
+    OeSleutel = @('OE sleutel', 'OU_Key', 'oe_oper_sl', 'Sleutel')
+    Functie   = @('Functie', 'Functie code inzet', 'Functiecode')
+    Vanaf     = @('Datum vanaf', 'Startdatum')
+    Tm        = @('Datum t/m', 'Einddatum')
+    Uren      = @('Uren', 'Uren per week inzet')
+    Soort     = @('Soort inzet', 'Soort')
+    Productie = @('Productiesoort', 'Productie')
+}
+$inzetOrder = @('PersNr', 'Dienstv', 'OeSleutel', 'Functie', 'Vanaf', 'Tm', 'Uren', 'Soort', 'Productie')
+$inzetExtras = @(@(), @('Ind. Afw.'), @('OE code inzet'), @('Org. Eenh.', 'Ind. Afw.'), @('Functie Inzet'), @('Opmerking'))
 
 # A CSV cell: quoted when needed (or at random), sometimes with the quirks ConvertFrom-Csv tolerates.
 function Format-Cell([string]$Value, [string]$Delim) {
@@ -94,16 +123,24 @@ function New-Csv([int]$Index) {
     $delim = Pick @(';', ';', ';', ',', ',', "`t")
     $nl = if (Chance 0.8) { "`r`n" } else { "`n" }
     $broken = Chance 0.5
+    $inzet = Chance 0.25
+    $order = if ($inzet) { $inzetOrder } else { $fieldOrder }
+    $variants = if ($inzet) { $inzetHeaders } else { $headerVariants }
     $fields = [System.Collections.Generic.List[string]]::new()
-    foreach ($f in $fieldOrder) { $fields.Add($f) }
+    foreach ($f in $order) { $fields.Add($f) }
+    if ($inzet) {
+        # Optional columns come and go; a broken file may drop all three values (noInzetValues).
+        foreach ($f in @('Tm', 'Uren', 'Soort', 'Productie')) { if (Chance 0.3) { [void]$fields.Remove($f) } }
+        if (-not ($fields.Contains('Tm') -or $fields.Contains('Uren') -or $fields.Contains('Soort')) -and -not ($broken -and (Chance 0.3))) { $fields.Add('Uren') }
+    }
     if ($broken -and (Chance 0.08)) { $fields.RemoveAt($rng.Next($fields.Count)) }
-    $extra = @(Pick @(@(), @(), @('Opmerking'), @(''), @('Opmerking', 'Opmerking'), @('Advies'), @('Persoonswaarde')))
-    if (-not $broken) { $extra = @($extra | Where-Object { $_ -ne 'Persoonswaarde' }) }
+    $extra = @(Pick $(if ($inzet) { $inzetExtras } else { $extras }))
+    if (-not $broken) { $extra = @($extra | Where-Object { $_ -ne 'Persoonswaarde' -and $_ -ne 'Org. Eenh.' }) }
     $columns = @($fields) + @($extra | ForEach-Object { "#extra:$_" })
     if (Chance 0.5) { $columns = @($columns | Sort-Object { $rng.Next() }) }
 
     $header = foreach ($c in $columns) {
-        $name = if ($c.StartsWith('#extra:')) { $c.Substring(7) } else { Pick $headerVariants[$c] }
+        $name = if ($c.StartsWith('#extra:')) { $c.Substring(7) } else { Pick $variants[$c] }
         Format-Cell $name $delim
     }
     $lines = [System.Collections.Generic.List[string]]::new()
@@ -113,10 +150,10 @@ function New-Csv([int]$Index) {
         if (Chance 0.06) { $lines.Add('') }
         if (Chance 0.04) { $lines.Add('   ') }
         if (Chance 0.06) { $lines.Add(($columns | ForEach-Object { '' }) -join $delim) }
-        $standard = if (Chance 0.3) { Pick $standardProfiles } else { $null }
+        $standard = if (-not $inzet -and (Chance 0.3)) { Pick $standardProfiles } else { $null }
         $cells = foreach ($c in $columns) {
-            if ($c.StartsWith('#extra:')) { Format-Cell (Pick @('', 'x', 'opmerking; met puntkomma', '12,5')) $delim; continue }
-            $pool = $pools[$poolKey[$c]]
+            if ($c.StartsWith('#extra:')) { Format-Cell (Pick @('', 'x', 'opmerking; met puntkomma', '12,5', 'N', '4711')) $delim; continue }
+            $pool = if ($inzet) { $inzetPools[$c] } else { $pools[$poolKey[$c]] }
             $value = if ($broken -and (Chance 0.12)) { Pick $pool.bad } elseif ($standard -and $standard[$c]) { Pick $standard[$c] } else { Pick $pool.ok }
             if ($r -eq 0 -and $c -eq 'Rubriek' -and (Chance 0.04)) { $value = '#N/B' }
             if ($delim -eq "`t" -and $value.Contains("`t")) { $value = $value.Replace("`t", ' ') }
@@ -143,12 +180,12 @@ function New-Csv([int]$Index) {
 }
 
 # The console lines both sides must share, and the row/column keys of the validation errors.
-$fieldLabel = 'Rubriek|Pers\. Nr|Dienstverband|S of V|Mutatiewaarde|Ingangsdatum|Productiesoort'
+$fieldLabel = 'Rubriek|Pers\. Nr|Dienstverband|S of V|Mutatiewaarde|Ingangsdatum|Productiesoort|OE sleutel|Functie|Datum vanaf|Datum t/m|Uren|Soort inzet|Inzetregel'
 function Get-Summary([string]$Console, [string]$CsvPath) {
     $text = $Console.Replace($CsvPath, [IO.Path]::GetFileName($CsvPath))
     $lines = @($text -split '\r?\n')
     $keep = @($lines | Where-Object {
-        $_ -match '^(Input encoding|Detected delimiter|\[OK\]|\[WARNINGS\]|\[FATAL ERROR\]|\[ERROR\]|Comma changed|  - |    Original|    Truncated|Records parsed|Empty rows skipped|Written with)' -or
+        $_ -match '^(Input encoding|Detected delimiter|CSV kind|  Not used:|\[OK\]|\[WARNINGS\]|\[FATAL ERROR\]|\[ERROR\]|Comma changed|  - |    Original|    Truncated|Records parsed|Empty rows skipped|Written with)' -or
         $_ -match "^  ($fieldLabel)\s+<- "
     } | ForEach-Object { $_.TrimEnd() })
     $errors = @($lines | Where-Object { $_ -match "^\s*(\d+)\s+($fieldLabel)\s" } | ForEach-Object { "$($Matches[1]):$($Matches[2])" } | Sort-Object)

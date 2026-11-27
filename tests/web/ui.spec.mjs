@@ -105,6 +105,34 @@ test.describe('file input and download (works everywhere)', () => {
     await expect(page.locator('#step-make')).toBeHidden();
   });
 
+  test('inzetregels: kind, mapping with optional and unused columns, preview with the key, exact bytes (decisions 21-22)', async ({ page }, testInfo) => {
+    await chooseFile(page, fixture(testInfo, casePath('ok-inzet-powerbi-headers/input.csv'), 'inzet.csv'));
+    await expect(page.locator('#file-details')).toContainText('soort bestand: inzetregels');
+    await expect(page.locator('#check-status')).toContainText('2 regels gecontroleerd, geen fouten');
+    await expect(page.locator('#check-status')).toContainText('Inzetregels: 2 mutaties');
+    await expect(page.locator('.tbl-mapping th[scope="col"]')).toHaveCount(9);
+    await expect(page.locator('.tbl-mapping')).toContainText('(geen kolom)');
+    await expect(page.locator('#check-body')).toContainText("Niet gebruikt: 'OE code inzet'");
+    await expect(page.locator('.tbl-preview thead')).toContainText('OE sleutel');
+    await expect(page.locator('.tbl-preview tbody tr').first()).toContainText('P01126 (Datum t/m)');
+    // Functie 412460 is digits only: Excel may have dropped a leading zero (decision 22).
+    await expect(page.locator('.warn-list li')).toHaveCount(1);
+    await expect(page.locator('.warn-list')).toContainText('Functie bestaat alleen uit cijfers in 2 regels: regel 2: 412460, regel 3: 412460');
+    await expect(page.locator('#confirm-box')).toBeVisible();
+
+    await fillForm(page);
+    await page.check('#f-confirm');
+    const file = await downloadFile(page);
+    expect(file.name).toBe('DPIA100_inzet.txt');
+    expect(file.bytes.equals(bytesOf(casePath('ok-inzet-powerbi-headers/expected.txt')))).toBe(true);
+  });
+
+  test('inzetregels with only an OE code column: explained, no step 3', async ({ page }, testInfo) => {
+    await chooseFile(page, fixture(testInfo, casePath('err-inzet-oe-code-only/input.csv'), 'inzet-code.csv'));
+    await expect(page.locator('#check-status')).toContainText("De kolom 'Org. Eenh.' bevat de OE-code");
+    await expect(page.locator('#step-make')).toBeHidden();
+  });
+
   test('standard rubrieken: list in the footer, date rewrite reported, errors with the rubriek (decisions 17-20)', async ({ page }, testInfo) => {
     const core = loadCore();
     const info = `${core.standardRubriekCount} standaardrubrieken, Beaufort-export van ${core.STANDARD_RUBRIEKEN_DATE}`;

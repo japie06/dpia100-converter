@@ -1,0 +1,2 @@
+CSV kind          : rubriek mutations (PS/DV)
+An inzetregels CSV has no Rubriek column but Pers. Nr, Dienstverband, OE sleutel, Functie, Datum vanaf and Uren, Soort inzet or Datum t/m.

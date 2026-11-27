@@ -5,10 +5,10 @@
 .DESCRIPTION
     Runs both tools on Windows PowerShell 5.1 and PowerShell 7 (when installed). The good converter cases
     must produce the expected CSV byte for byte; the bad cases must exit 1 and write no output file.
-    The generator writes the standard PS/DV rubrieken into two stub files with the markers of dpia100.ps1
+    The generator writes the standard PS/DV/IZ rubrieken into two stub files with the markers of dpia100.ps1
     and dpia100.html; it must keep their encoding and line endings, and change nothing on an error.
     The sample is invented (fake municipality and user) and has the line layout of the real report:
-    two pages, a wrapped Omschrijving, Min/Max, a reference table, a blank flag, stam/variabel variants,
+    two pages (and variants with the page break inside a rubriek), a wrapped Omschrijving, Min/Max, a reference table, a blank flag, stam/variabel variants,
     a code shorter than 6, an accent and a ';'. Never put rows of a real export in this folder.
 .EXAMPLE
     pwsh tests\rubrieken\run-tests.ps1
@@ -29,14 +29,35 @@ $sampleText = [IO.File]::ReadAllText($sample, $utf8)
 # name, input text (null = the sample file itself), extra switches, expected file or $null (must fail)
 $colHeader = ' Code    Omschrijving              Fix Prompt               soort   soort Typ Len Dec trm  Stam Var Verv Rubr toek Mut mut'
 $secondHeader = $sampleText.IndexOf($colHeader, $sampleText.IndexOf($colHeader) + 1)
+# The page break between page 1 and 2 (footer box up to the next column header) moved into the detail block
+# of ZZ0002, between its Ingedeeld and Tabel lines, as in the export of 2026-11-27. Same result as 'all'.
+$breakStart = $sampleText.IndexOf("`r`n-----", $sampleText.IndexOf(' ZZ0002 ')) + 2
+$breakEnd = $secondHeader + $colHeader.Length + 2
+$pageBreak = $sampleText.Substring($breakStart, $breakEnd - $breakStart)
+$unbroken = $sampleText.Remove($breakStart, $breakEnd - $breakStart)
+$afterIngedeeld = $unbroken.IndexOf("`r`n", $unbroken.IndexOf('Ingedeeld', $unbroken.IndexOf(' ZZ0002 '))) + 2
+$breakInBlock = $unbroken.Insert($afterIngedeeld, $pageBreak)
+# The same page break inside the record line of ZZ0002, after two lines of its omschrijving (P92497 in the
+# export of 2026-11-27), with the column header overprinted by overflowing text (P01132). Same result as 'all'.
+$recStart = $unbroken.IndexOf(' ZZ0002 ')
+$recEnd = $unbroken.IndexOf("`r`n", $unbroken.IndexOf("`r`n", $recStart) + 2) + 2
+$recLine = $unbroken.Substring($recStart, $unbroken.IndexOf("`r`n", $recStart) - $recStart)
+$garbled = $pageBreak.Replace($colHeader, ' Code    Omschrijving     02805 N3 Fi02805mN3   02805 N3   Stam Var Verv Rubr toek Mut mut')
+$splitRecord = " ZZ0002  Voorbeeld met`r`n         lange`r`n" + $garbled + ('         omschrijving'.PadRight(35) + $recLine.Substring(35)) + "`r`n"
+$breakInRecord = $unbroken.Remove($recStart, $recEnd - $recStart).Insert($recStart, $splitRecord)
+# A footer box with no column header after it: rubrieken could be lost, so the cleaner stops.
+$noHeaderAfterBreak = $sampleText.Remove($secondHeader, $colHeader.Length + 2)
 $cases = @(
     @{ Name = 'all'; Text = $null; Args = @(); Expected = 'expected-all.csv' }
+    @{ Name = 'page-break-in-block'; Text = $breakInBlock; Args = @(); Expected = 'expected-all.csv' }
+    @{ Name = 'page-break-in-record'; Text = $breakInRecord; Args = @(); Expected = 'expected-all.csv' }
     @{ Name = 'scope-standard'; Text = $null; Args = @('-OnlyScope', '-OnlyStandard'); Expected = 'expected-scope-standard.csv' }
     @{ Name = 'err-no-column-header'; Text = $sampleText.Replace($colHeader, ''); Args = @(); Expected = $null }
     @{ Name = 'err-header-differs-per-page'; Text = $sampleText.Remove($secondHeader, $colHeader.Length).Insert($secondHeader, $colHeader.Replace(' Dec ', ' Dex ')); Args = @(); Expected = $null }
     @{ Name = 'err-duplicate-code'; Text = $sampleText.Replace(' ZZ0004 ', ' ZZ0003 '); Args = @(); Expected = $null }
     @{ Name = 'err-missing-detail-block'; Text = [regex]::Replace($sampleText, '(?m)^\s+Ingedeeld  N                  Referentie    J[^\r\n]*\r\n', ''); Args = @(); Expected = $null }
     @{ Name = 'err-unknown-flag'; Text = $sampleText.Replace('Voorbeeld tekst                DV   S   50            J   N    J    N   N    J   N', 'Voorbeeld tekst                DV   S   50            J   N    J    N   N    J   X'); Args = @(); Expected = $null }
+    @{ Name = 'err-page-break-without-header'; Text = $noHeaderAfterBreak; Args = @(); Expected = $null }
     @{ Name = 'err-not-utf8'; Text = $null; Bytes = $true; Args = @(); Expected = $null }
 )
 
@@ -78,8 +99,8 @@ foreach ($e in $engines) {
 $generator = Join-Path $root 'tools\update-standard-rubrieken.ps1'
 $stubScript = "# before`r`n# BEGIN STANDARD RUBRIEKEN: old`r`n`$StandardRubriekenDate = ''`r`n`$StandardRubriekenTable = @'`r`nOLD    DV N  1 - SV N`r`n'@`r`n# END STANDARD RUBRIEKEN`r`n# after`r`n"
 $stubPage = "<script>`n  // BEGIN STANDARD RUBRIEKEN: old`n  const STANDARD_RUBRIEKEN_DATE = '';`n  const STANDARD_RUBRIEKEN_TABLE = String.raw```n``;`n  // END STANDARD RUBRIEKEN`n</script>`n"
-# The standard PS/DV rubrieken of the sample: code, gegevenssoort, type, length, decimals, S/V, Blok ind mut.
-$table = @('ZZ0003 PS N  1 0 SV J', 'ZZ0004 DV D 11 - S- -', 'ZZ08   DV T  5 - S- N')
+# The standard PS/DV/IZ rubrieken of the sample: code, gegevenssoort, type, length, decimals, S/V, Blok ind mut.
+$table = @('ZZ0003 PS N  1 0 SV J', 'ZZ0004 DV D 11 - S- -', 'ZZ0009 IZ N  5 2 S- N', 'ZZ08   DV T  5 - S- N')
 $note = 'BEGIN STANDARD RUBRIEKEN: generated by tools/update-standard-rubrieken.ps1 from the Beaufort export of 01-01-2026, do not edit (decision 17)'
 $expectScript = "# before`r`n# $note`r`n`$StandardRubriekenDate = '01-01-2026'`r`n`$StandardRubriekenTable = @'`r`n" + (($table | ForEach-Object { "$_`r`n" }) -join '') + "'@`r`n# END STANDARD RUBRIEKEN`r`n# after`r`n"
 $expectPage = "<script>`n  // $note`n  const STANDARD_RUBRIEKEN_DATE = '01-01-2026';`n  const STANDARD_RUBRIEKEN_TABLE = String.raw```n" + (($table | ForEach-Object { "$_`n" }) -join '') + "``;`n  // END STANDARD RUBRIEKEN`n</script>`n"

@@ -12,7 +12,8 @@ const html = readFileSync(pagePath, 'utf8');
 const source = /<script id="dpia100-core">([\s\S]*?)<\/script>/.exec(html)[1];
 
 const all = new Set();
-for (const m of source.matchAll(/err\(rowNumber, '([^']+)', '(\w+)'/g)) all.add(`error ${m[1]}: ${m[2]}`);
+// checkWaarde takes the field as a parameter: its codes count as Mutatiewaarde (a rubriek CSV shows them all).
+for (const m of source.matchAll(/err\(rowNumber, (?:'([^']+)'|field), '(\w+)'/g)) all.add(`error ${m[1] || 'Mutatiewaarde'}: ${m[2]}`);
 for (const m of source.matchAll(/warn\('(\w+)'/g)) all.add(`warning ${m[1]}`);
 for (const m of source.matchAll(/r\.warnings\.(?:push|unshift)\(\{ code: '(\w+)'/g)) all.add(`warning ${m[1]}`);
 for (const m of source.matchAll(/r\.fatal = \{ code: '(\w+)'/g)) all.add(`file ${m[1]}`);
@@ -26,7 +27,7 @@ const exempt = new Map([
   ['error Mutatiewaarde: unicode', 'a lone surrogate; a file decoder replaces it']
 ]);
 const table = /STANDARD_RUBRIEKEN_TABLE = String\.raw`([\s\S]*?)`/.exec(source)[1];
-if (!/^\S+ +(PS|DV) [TU] /m.test(table)) exempt.set('error Mutatiewaarde: notTime', 'no standard time rubriek (T, U) in the list');
+if (!/^\S+ +(PS|DV|IZ) [TU] /m.test(table)) exempt.set('error Mutatiewaarde: notTime', 'no standard time rubriek (T, U) in the list');
 
 const seen = new Set();
 const problems = [];
@@ -41,16 +42,17 @@ for (const file of files) {
   const summary = r.fatal ? `${r.fatal.code}${r.errors.length ? ` (${r.errors.length} errors)` : ''}` : `ok, ${r.warnings.length} warning(s)`;
   console.log(`${file.padEnd(34)} ${summary}`);
 
-  if (file === '1-fouten.csv') {
+  if (/^\d-(inzet-)?fouten\.csv$/.test(file)) {
     // Row 2 is the good row; every other row shows exactly one error, so the remark matches the message.
+    // A row with an error may write no record (an inzetregel), so the rows come from the data lines.
     const perRow = new Map();
     for (const e of r.errors) perRow.set(e.row, (perRow.get(e.row) || 0) + 1);
     for (const [row, n] of perRow) {
-      if (row === 2) problems.push('1-fouten.csv: row 2 should have no error');
-      else if (n !== 1) problems.push(`1-fouten.csv: row ${row} has ${n} errors, expected 1`);
+      if (row === 2) problems.push(`${file}: row 2 should have no error`);
+      else if (n !== 1) problems.push(`${file}: row ${row} has ${n} errors, expected 1`);
     }
-    for (const rec of r.records) if (rec.row !== 2 && !perRow.has(rec.row)) problems.push(`1-fouten.csv: row ${rec.row} has no error`);
-  } else if (/^\d-waarschuwingen/.test(file) && r.fatal) {
+    for (let row = 3; row <= r.rowsChecked + 1; row++) if (!perRow.has(row)) problems.push(`${file}: row ${row} has no error`);
+  } else if (/^\d-(waarschuwingen|inzet-meldingen)/.test(file) && r.fatal) {
     problems.push(`${file}: expected no errors, got ${r.fatal.code}`);
   }
 }

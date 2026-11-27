@@ -24,7 +24,7 @@ en *Blok ind mut* liggen vast. Alleen die komen in de converter:
 
 | Gegeven | Gebruik in de converter |
 |---|---|
-| `Geg.soort` PS of DV | Dienstverband moet erbij passen; anders een fout (beslissing 18). Een DV-rubriek zonder dienstverband keurt Beaufort af (PI_1650). |
+| `Geg.soort` PS, DV of IZ | Dienstverband moet erbij passen; anders een fout (beslissing 18). Een DV-rubriek zonder dienstverband keurt Beaufort af (PI_1650). IZ-rubrieken (inzetregels) horen in een inzetregels-CSV (beslissingen 21-23). |
 | `Stam`, `Var` | S of V moet door de rubriek zijn toegestaan; anders een fout (beslissing 18). |
 | `Blok ind mut` = `J` | De rubriek is geblokkeerd voor indirect muteren, dus **niet te importeren met DPIA100** (eigenaar: geen Beaufort-test nodig). Een waarschuwing, geen fout (beslissing 19). Leeg telt als niet geblokkeerd. |
 | `Typ`, `Len`, `Dec` | De waarde wordt per type gecontroleerd: getal (`N`), datum (`D`), tijd (`T` `uu:mm`, `U` `uu:mm:ss`) of tekst (beslissing 20). |
@@ -39,18 +39,18 @@ gemaakt.
 
 In Beaufort functie **210006 Overzicht rubrieken** starten, zonder selectiecriteria (de converter waarschuwt als er
 wel criteria waren ingevuld, want dan is de lijst niet compleet) en als tekstbestand opslaan. Het bestand is groot
-(8,9 MB, 106.000 regels voor 7.942 rubrieken) en bevat de rubrieken van deze ene installatie. **Zet het niet in de
+(8,2 MB, 100.000 regels voor 7.952 rubrieken) en bevat de rubrieken van deze ene installatie. **Zet het niet in de
 repository**; `.gitignore` sluit `Overzicht*Rubrieken*.txt` en `rubrieken*.csv` uit.
 
 ## Hoe het bestand eruitziet
 
 UTF-8 zonder BOM, CRLF. Het is een afdruk in pagina's: per pagina een kop (gemeente, titel, paginanummer), bij de
 eerste pagina het selectievak, de kolomkop, de rubrieken en een voet (`HR Core - OPIA003 - <gebruiker> <datum>`).
-In het voorbeeld 1.608 pagina's.
+In het voorbeeld 1.515 pagina's.
 
 Per rubriek:
 
-1. Een **recordregel** met vaste kolommen. Is de omschrijving te lang, dan staat de rest op een vervolgregel
+1. Een **recordregel** met vaste kolommen. Is de omschrijving te lang, dan staat de rest op een of meer vervolgregels
    (9 spaties inspringen).
 2. Een **detailblok** van zes regels (Ingedeeld, Tabel, Veld, Logging, Groep code, Exportkenmerken, met aan de
    rechterkant Referentie, Min/Max, Salarisaanlev, TWK ...).
@@ -89,7 +89,11 @@ pwsh tools\convert-rubrieken.ps1 -InputPath C:\Temp\OverzichtRubrieken.txt -Only
 - Werkt op Windows PowerShell 5.1 en 7 met dezelfde uitvoer.
 - Schrijft `;`-gescheiden UTF-8 met BOM, zodat Excel het goed opent. Kolommen: `Code;Omschrijving;Fix;Prompt;
   Gegsoort;Typ;Len;Dec;Stam;Var;BlokIndMut;Referentie;RefTabel;Minimum;Maximum;Bereik`, gesorteerd op code.
-- `-OnlyScope`: alleen `PS` en `DV`. `-OnlyStandard`: alleen *Fix* = `J`.
+- `-OnlyScope`: alleen `PS`, `DV` en `IZ`. `-OnlyStandard`: alleen *Fix* = `J`.
+- Een paginaovergang midden in een rubriek (sinds het overzicht van 2026-11-27) wordt opgevangen: in het detailblok,
+  in de recordregel (de code op de ene pagina, de kolommen op de volgende) en met een kolomkop waar tekst van de
+  vorige pagina overheen is gedrukt. Volgt er op een paginavoet binnen 25 regels geen kolomkop, dan stopt het script,
+  zodat er nooit stilzwijgend rubrieken wegvallen.
 - **Stopt zonder uitvoer** (exit 1) bij alles wat het niet herkent: geen kolomkop, een kolomkop die per pagina
   verschilt, geen geldige UTF-8, een recordregel die niet te lezen is, een onbekende waarde in `Blok ind mut`,
   `Stam` of `Var`, dubbele codes, of een ander aantal detailblokken dan rubrieken. Zo verandert er niets
@@ -98,22 +102,25 @@ pwsh tools\convert-rubrieken.ps1 -InputPath C:\Temp\OverzichtRubrieken.txt -Only
 - Tests: `pwsh tests\rubrieken\run-tests.ps1`. Het voorbeeldbestand `tests/rubrieken/sample-export.txt` is
   verzonnen (gemeente *Voorbeeldstad*, gebruiker *TESTUSER*); zet er nooit regels uit een echt overzicht in.
 
-## Wat erin zit (overzicht van 2026-10-30, Beaufort-productie)
+## Wat erin zit (overzicht van 2026-11-27, Beaufort-productie)
 
 Meetwaarden van het script, ter controle bij een volgende export:
 
 | | Aantal |
 |---|---|
-| Rubrieken | 7.942 (geen dubbele codes), 1.608 pagina's |
-| Standaard (*Fix* = J) / eigen (N) | 7.433 / 509 |
-| Gegevenssoort | DV 4.332, RG 2.498, PS 370, IN 123, ZG 117, ZS 36, PL 33, KU 28 ... |
-| **PS + DV** | **4.702** (standaard 4.227, eigen 475) |
-| PS + DV naar Typ | N 3.198, S 803, D 691, H 7, T 2, I 1 |
-| PS + DV met Referentie J / Min-Max | 679 / 801 |
-| **PS + DV met Blok ind mut J / N / leeg** | **579 / 4.113 / 10** (alle 579 en alle 10 lege zijn standaard; geen enkele eigen rubriek is geblokkeerd) |
-| Standaard PS + DV naar Stam / Var | alleen stam 2.092, alleen variabel 428, beide 1.707 |
-| Standaard PS + DV naar Typ | N 3.035, D 603, S 586, H 2, I 1 (geen `T` of `U`; de eigen rubrieken hebben wel `T`) |
+| Rubrieken | 7.952 (geen dubbele codes), 1.515 pagina's |
+| Standaard (*Fix* = J) / eigen (N) | 7.443 / 509 |
+| Gegevenssoort | DV 4.339, RG 2.501, PS 370, IN 123, ZG 117, ZS 36, PL 33, KU 28 ... IZ 9 |
+| **PS + DV + IZ** | **4.718** (standaard 4.243, eigen 475) |
+| PS + DV + IZ naar Typ | N 3.204, S 810, D 694, H 7, T 2, I 1 |
+| PS + DV + IZ met Referentie J / Min-Max | 687 / 802 |
+| **PS + DV + IZ met Blok ind mut J / N / leeg** | **582 / 4.126 / 10** (alle 582 en alle 10 lege zijn standaard; geen enkele eigen rubriek is geblokkeerd) |
+| Standaard PS + DV + IZ naar Stam / Var | alleen stam 2.107, alleen variabel 429, beide 1.707 |
+| Standaard PS + DV + IZ naar Typ | N 3.041, D 606, S 593, H 2, I 1 (geen `T` of `U`; de eigen rubrieken hebben wel `T`) |
+| IZ (inzetregels) | P01121-P01129, alle standaard en alleen stam; P01121 (OE-sleutel), P01122 (functie) en P01125 (ingang) geblokkeerd |
 
+Ten opzichte van het overzicht van 2026-10-30 (4.227 standaardrubrieken) zijn er 7 standaard DV-rubrieken bij
+(P03420-P03423, P05031, P13295, PI0453) en de 9 IZ-rubrieken; er is niets vervallen of gewijzigd.
 Opvallend:
 
 - Codes zijn niet altijd 6 tekens: 59 rubrieken hebben 3 tot 5 tekens (31 daarvan PS of DV, 1 standaard:
@@ -121,7 +128,7 @@ Opvallend:
   (eigenaar). Beaufort verwerkt dat goed, net als rechts uitgelijnd (probe P09, issue #25).
 - 10 standaardrubrieken in PS/DV (en 5 daarbuiten) hebben een lege `Blok ind mut`, bijvoorbeeld P00633. Het
   overzicht zegt niet wat dat betekent; de converter behandelt leeg als niet geblokkeerd (eigenaar).
-- Standaardcodes in PS/DV beginnen met `P` (4.215), `R` (11) of `S` (1), maar ook 3 eigen rubrieken beginnen
+- Standaardcodes in PS/DV/IZ beginnen met `P` (4.231), `R` (11) of `S` (1), maar ook 3 eigen rubrieken beginnen
   met `R`. De converter leidt dus niets af uit de eerste letter: alleen de lijst telt.
 - Alle datumrubrieken hebben lengte 11.
 
@@ -146,7 +153,7 @@ pwsh tools\update-standard-rubrieken.ps1 -InputPath C:\Temp\OverzichtRubrieken.t
 - De test `page-rubrieken` (`tests/run-tests.ps1`) controleert dat de lijst en de datum in beide bestanden
   gelijk zijn.
 
-Het script toont `Standard rubrieken: 4227 (Beaufort export 30-10-2026)`; de pagina toont hetzelfde onderaan
+Het script toont `Standard rubrieken: 4243 (Beaufort export 27-11-2026)`; de pagina toont hetzelfde onderaan
 en bij de controle. Er is geen waarschuwing voor een oude lijst: een nieuwere standaardrubriek wordt dan
 behandeld als eigen rubriek, dus toegestaan. Bij een nieuwe Beaufort-versie: overzicht opnieuw maken,
 script draaien, de aantallen vergelijken met de tabel hierboven, tests draaien en een regel in

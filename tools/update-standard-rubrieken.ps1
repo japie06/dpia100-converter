@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Embeds the standard PS/DV rubrieken of a Beaufort "Overzicht rubrieken" export (function 210006) in
+    Embeds the standard PS/DV/IZ rubrieken of a Beaufort "Overzicht rubrieken" export (function 210006) in
     dpia100.ps1 and dpia100.html (decision 17).
 .DESCRIPTION
     Runs tools\convert-rubrieken.ps1 -OnlyScope -OnlyStandard on the export, takes the export date from the
@@ -11,7 +11,7 @@
 
         P00001 DV N  6 2 SV N
 
-    code (1-6 characters), gegevenssoort (PS or DV), type (N numeric, S text, D date, T time hh:mm, U time
+    code (1-6 characters), gegevenssoort (PS, DV or IZ), type (N numeric, S text, D date, T time hh:mm, U time
     hh:mm:ss, ...), length, decimals ('-' = blank), stam/variabel allowed ('S-' stam only, '-V' variabel
     only, 'SV' both) and Blok ind mut ('J' blocked, 'N', '-' = blank, which counts as not blocked).
 
@@ -71,7 +71,7 @@ if (-not $ExportDate) {
 }
 if ($ExportDate -notmatch '^\d{2}-\d{2}-\d{4}$') { Stop-WithError "ExportDate '$ExportDate' is not dd-MM-yyyy." }
 
-# --- Standard PS/DV rubrieken via the cleaner ------------------------------------------------------------
+# --- Standard PS/DV/IZ rubrieken via the cleaner ------------------------------------------------------------
 $tmp = Join-Path ([IO.Path]::GetTempPath()) ('dpia100-standard-' + [guid]::NewGuid().ToString('N') + '.csv')
 try {
     # 'exit 1' in the cleaner sets the exit code; a successful run leaves it as it was, so reset it first.
@@ -82,14 +82,14 @@ try {
 } finally {
     Remove-Item -LiteralPath $tmp -ErrorAction SilentlyContinue
 }
-if ($rows.Count -eq 0) { Stop-WithError 'The export has no standard PS/DV rubrieken.' }
+if ($rows.Count -eq 0) { Stop-WithError 'The export has no standard PS/DV/IZ rubrieken.' }
 
 $problems = New-Object Collections.Generic.List[string]
 $entries = New-Object Collections.Generic.List[string]
 foreach ($r in $rows) {
     $bad = @()
     if ($r.Code -cnotmatch '^[A-Z0-9]{1,6}$') { $bad += "code" }
-    if ($r.Gegsoort -cnotmatch '^(PS|DV)$') { $bad += "gegevenssoort '$($r.Gegsoort)'" }
+    if ($r.Gegsoort -cnotmatch '^(PS|DV|IZ)$') { $bad += "gegevenssoort '$($r.Gegsoort)'" }
     if ($r.Typ -cnotmatch '^[A-Z]$') { $bad += "type '$($r.Typ)'" }
     if ($r.Len -notmatch '^[1-9][0-9]?$') { $bad += "length '$($r.Len)'" }
     if ($r.Dec -notmatch '^[0-9]?$') { $bad += "decimals '$($r.Dec)'" }
@@ -147,7 +147,7 @@ foreach ($f in $scriptFile, $pageFile) {
 }
 
 $blocked = @($sorted | Where-Object { $_.EndsWith(' J') }).Count
-Write-Host "Standard PS/DV rubrieken: $($sorted.Count) (Blok ind mut J: $blocked), export date $ExportDate"
+Write-Host "Standard PS/DV/IZ rubrieken: $($sorted.Count) (Blok ind mut J: $blocked), export date $ExportDate"
 Write-Host "  $ScriptPath $(if ($scriptFile.Changed) { 'updated' } else { 'unchanged' })"
 Write-Host "  $PagePath $(if ($pageFile.Changed) { 'updated' } else { 'unchanged' })"
 if (-not $SkipCsp) {

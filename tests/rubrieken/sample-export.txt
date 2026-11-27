@@ -103,6 +103,14 @@
          Groep code                    Ext_ref naam                     Syntax                     TWK vorig jaar N
          Exportkenmerken                                                                           Autom. corr.   N
 
+ ZZ0009  Voorbeeld inzet uren       J  Inzet uren                     IZ   N   5   2         J   N    J    N   N    J   N
+         Ingedeeld  N                  Referentie    N                  Min/Max  N                 Salarisaanlev  N
+         Tabel      DPIA032            Tabel                            Minimum                   TWK vanaf (WG) N
+         Veld       WAARDE             Ref_key naam                     Maximum                  DIW <> begindt N
+         Logging    J                  Ref_oms naam                     Bereik                     TWK huidig jr  N
+         Groep code                    Ext_ref naam                     Syntax                     TWK vorig jaar N
+         Exportkenmerken                                                                           Autom. corr.   N
+
 ---------------------------------------------------------------------------------------------------------------------------------
 | HR Core - OPIA000 - TESTUSER                                                                               01 jan 2026 12:00  |
 ---------------------------------------------------------------------------------------------------------------------------------

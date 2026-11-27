@@ -257,6 +257,117 @@ file). Every raw record has its own ingangsdatum (`$IngangRaw` = 01-04-2021, the
 - **#1 leftovers settled:** every ASCII punctuation character and an accented character in the last
   position are stored as sent.
 
+## Round 6 (2026-11-27): inzetregels, gegevenssoort IZ
+Reports: `Findings 20261127/` (not in git); the three imported files are byte-identical to the generated ones.
+Order of import and processing: W08 (round 6c) at 15:33, then 6a at 15:36, then 6b at 15:37. Every import
+created all its records (6a 11, 6b 3, W08 7); the rejections below are from processing.
+
+Total hours as reported by PI_0254 (*Totaal uren inzet op 27 nov 2026*) after each run: W08 140.5, 6a 356.5,
+6b 352.5. The sums fit what was sent:
+- W08: 36 + 32.5 + 36 + 36 = 140.5. W08-2 ended 31-07-2023 and is not counted, so the end date sent at
+  creation works, and `32.5` is stored as 32,5.
+- 6a: 140.5 + 6 × 36 = 356.5 (P10-1a, -1b, -2, -3, -4, -5). P10-1c ended at creation and is not counted. So
+  P10-2 and P10-3 (other key-date shapes) did create a regel that is valid today.
+- 6b: 356.5 − 4 = 352.5. The uren change (36 → 32) explains the −4. The rest is either nothing (P10-9 and
+  P10-11 did nothing) or −36 + 36 (P10-9 closed regel 1a and P10-11 reopened 1c). The Inzet tab shows the second.
+
+The HR Core Inzet tab after all three runs (owner, 2026-11-27) lists ten regels, all with an empty Datum t/m and
+together 352.5 hours, the PI_0254 total. So the tab lists only the regels that are valid today. Missing are
+1 feb 2023 (W08-2, ended 31-07-2023) and 1 jan 2022 (P10-1a, ended by P10-9). 1 mrt 2022 (P10-1c) is listed
+without its end date, so P10-11 removed it. Org.eenh. shows `3710000` on every regel: that is the OE code of
+sleutel 314, so the two really differ and only the sleutel finds the OE (decision 22).
+
+Messages on every new regel, none of them a rejection: PI_9386 (*al een geldende inzetregel met dezelfde
+organisatorische eenheid en functie*), PI_0254 (total hours differ from the dienstverband) and PI_9387 (a
+regel in the past may change the historic loonverdeling).
+Run with `pwsh tests\beaufort\make-probes.ps1 -Inzet [-SoortInzet <code>] [-OeCode <code>] [-Kostensoort <code>]`.
+It writes two files of raw records:
+- Import and process `DPIA100_probes-iz-a.txt` first; it creates the regels.
+- Then import and process `DPIA100_probes-iz-b.txt`; it changes those regels.
+
+`probes\index-iz.txt` lists the key, rubriek, value and ingangsdatum of every ID.
+
+Test data (owner):
+- pers 10000, dv 1, OE **sleutel** 314 (oe_oper_sl, the technical key, not the OE code), functie `020`, uren 36.
+- Each regel has its own Datum vanaf: 01-01-2022, then one month later per regel.
+
+The IZ rubrieken (export 27-11-2026) are all stam only:
+- P01121 OE, P01122 functie and P01125 ingang have *Blok ind mut* J. They exist only in the key.
+- These can be mutated:
+  - P01123 soort inzet (S 3)
+  - P01124 uren (N 5,2; min 0, max 99,99)
+  - P01126 einde (D)
+  - P01127-P01129 kostensoort/-plaats/-drager (S 7)
+
+The Object_id is the one the Excel tool built: pers 6, dv space + 3, OE space + 10, functie space + 7, and the
+date in 11, each part right-aligned. Example: `10000···1········314·····020···1-1-2022`. Paul's working file had
+`   1-2-2026` there.
+
+| ID | Probe | Import | Inzet tab (HR Core) | Consequence |
+|---|---|---|---|---|
+| P10-1a/b/c | New regel with only P01124 (36), key date `d-M-yyyy` (Excel tool) | created | **processed: PI_0824 new regel** `1-1-2022`, `1-2-2022`, `1-3-2022` | None: default confirmed. Uren alone creates a regel |
+| P10-1c | The same regel also gets P01126 at creation | created | processed; not in today's total, so the end date holds | None |
+| P10-2 | Key date `   ddMMyyyy` | created | **processed: regel starts 01 apr 2022** | None: the script keeps the Excel-tool shape |
+| P10-3 | Key date ` dd-MM-yyyy` | created | **processed: regel starts 01 mei 2022** | idem |
+| P10-4 | New regel with P01123 soort + P01124 (`-SoortInzet 6a`) | created | P01124 processed (new regel `1-6-2022`); P01123 `6a` **PI_0797** *Waarde komt niet voor in de referentietabel* | Test slip: the soort was not yet in the sandbox's referentietabel. **Rerun 2026-11-27: processed**, see below |
+| P10-5 | Mutation ingangsdatum 15-07-2022, key date 1-7-2022 | created | processed: **regel starts 01 jul 2022**, the key date | None: the key date is the start of the regel. The script uses Datum vanaf for both |
+| P10-6 | Functie `20` instead of `020` | created | **PI_0802** *Bovenliggende object van de mutatie is niet aanwezig* | Functie is matched as typed: `20` is not `020`. The script is right not to strip zeros; Beaufort rejects a wrong functie at processing |
+| P10-7 | OE code instead of the sleutel | skipped (no `-OeCode`) | | Sleutel only (owner) |
+| P10-8 | Blocked rubriek P01121 | created | **PI_0794** *rubriek waarvoor ind. muteren niet is toegestaan* | Expected; the script stops it first (decision 19) |
+| P10-9 | 6b: close regel P10-1a with P01126 31-03-2022 (Paul's first record) | created | processed: **regel ended** (no longer in the tab) | None: closing a regel works as in the Excel tool |
+| P10-10 | 6b: uren 36 -> 32 on regel P10-1b | created | **processed**, total −4 | None |
+| P10-11 | 6b: empty P01126 on regel P10-1c | created | processed: **end date removed**, the regel is valid again | None: an empty Datum t/m reopens a regel. The script warns about an empty value (decision 16); an empty cell in an inzet CSV writes no record |
+| P10-12 | 6b: P01127 kostensoort | skipped (no `-Kostensoort`) | | Kosten out of scope |
+
+### Round 6c (2026-11-27): inzetregels through the web app (W08)
+Imported and processed before round 6a (the report is saved as `Verwerking web-probes.txt`). The file was made
+with the placeholder soort `VST`.
+Run with `pwsh tests\beaufort\make-probes.ps1 -Web -Inzet -SoortInzet <code>`. It writes `web-probes-iz.csv`, an
+inzetregels CSV as made from the HR Core Inzet tab, and lets the page's core turn it into
+`DPIA100_web-probes-iz.txt`; `index-web-iz.txt` lists the rows. Recreate the file in the real page from the CSV
+and compare (`fc /b`). Import and process it after round 6a. Its regels start at 01-01-2023, one month apart.
+
+| ID | Probe | Import | Inzet tab (HR Core) | Consequence |
+|---|---|---|---|---|
+| W08-1 | New regel, uren only, vanaf typed `d-M-yyyy` (as Paul) | created | **processed: new regel `1-1-2023`** | None |
+| W08-2 | New regel with uren and an end date typed `d-M-yyyy` (written `dd-mm-yyyy`) | created | **processed: new regel `1-2-2023`**; not in today's total, so the end date holds | None |
+| W08-3 | Uren `32,5` (written `32.5`), vanaf typed `yyyy-MM-dd` | created | **processed: new regel `1-3-2023`**; 32,5 in the total | None: decision 8 confirmed for Uren |
+| W08-4 | Leading zeros and spaces around pers, dv, OE sleutel and functie (written without them) | created | **processed: new regel `1-4-2023`** | None |
+| W08-5 | Soort inzet `VST` and uren on one new regel | created | P01124 processed (new regel `1-5-2023`); P01123 `VST` **PI_0797** (not in the referentietabel) | Test slip: placeholder code. **Rerun 2026-11-27: processed**, see below |
+
+**Summary of round 6:**
+- **The converter's IZ records work.** The Excel-tool key (`d-M-yyyy` in 11) finds and creates regels, uren
+  alone creates a regel, an end date at creation holds, a decimal comma in Uren arrives as 32,5, and a change
+  of uren on an existing regel is processed. No change to the script.
+- **Functie must match exactly** (P10-6): `20` does not find `020`. Excel drops leading zeros when it opens a
+  CSV with a numeric-looking functie, so users must keep the column as text. Beaufort rejects a wrong functie
+  with PI_0802.
+- **Beaufort also accepts other key-date shapes** (P10-2, P10-3). The script keeps the Excel-tool shape (docs
+  leading).
+- **The key date is the start of the regel** (P10-2, P10-3, P10-5): Beaufort reads it as a date in each shape,
+  and the mutation ingangsdatum does not move it. **Closing a regel works** (P10-9), and an empty P01126
+  removes the end date (P10-11).
+- **The OE sleutel is not the OE code:** sleutel 314 shows as Org.eenh. `3710000`.
+- **Soort inzet works** (rerun of P10-4 and W08-5, below): P01123 and P01124 on one new key create one regel
+  with both values.
+
+### Round 6 rerun (2026-11-27): soort inzet (P10-4, W08-5)
+Reports: `Findings 20261127-2/` (not in git), with a copy of the Inzet tab (`Inzetregels 10000 1.txt`). The owner
+first added soort `1` to the sandbox's referentietabel and deleted the regels of 01 jun 2022 and 01 mei 2023,
+so both probes create a new regel again. Made with `-Inzet -SoortInzet 1 -Only P10-4` and
+`-Web -Inzet -SoortInzet 1 -Only W08-5`: two records each (P01123 `1`, P01124 `36`); the imported files are
+byte-identical to the generated ones. W08-5 was processed at 16:00, P10-4 at 16:01.
+
+| ID | Probe | Import | Inzet tab (HR Core) | Consequence |
+|---|---|---|---|---|
+| P10-4 | P01123 `1` + P01124 36 on a new key, raw | 2 created | **PI_0824 new regel `1-6-2022`**, both processed; tab: 01 jun 2022, 36,00, Soort `1` | None |
+| W08-5 | The same from an inzetregels CSV through the page's core | 2 created | **PI_0824 new regel `1-5-2023`**, both processed; tab: 01 mei 2023, 36,00, Soort `1` | None: the converter's soort + uren records create one regel |
+
+The totals fit: 352.5 − 2 × 36 (the deleted regels) + 36 = 316.5 after W08-5, then 352.5 after P10-4. P01123 comes
+before P01124 in the file (the converter's rubriek order); the report shows one PI_0824 per regel.
+
+**Round 6 is complete.** Every probe that the converter's output depends on passed; nothing in the script changes.
+
 ## GUI checks (owner, 2026-10-30)
 - **Lengte of a numeric rubriek includes the decimal point and the decimals.** A numeric rubriek with
   Lengte 4 and 2 decimals rejects `12,34` in the Beaufort GUI, so it holds 1 digit before the point

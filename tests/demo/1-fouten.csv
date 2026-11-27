@@ -3,6 +3,7 @@ E00101;123456;1;V;100;1-11-2026;NOR;Goede regel ter vergelijking: geeft geen fou
 ;123456;1;V;100;1-11-2026;NOR;Rubriek is leeg
 #N/B;123456;1;V;100;1-11-2026;NOR;Rubriek met andere tekens dan letters en cijfers (foutwaarde uit Excel)
 E001011;123456;1;V;100;1-11-2026;NOR;Rubriek langer dan 6 tekens
+P01124;123456;1;S;36;1-11-2026;NOR;Rubriek van een inzetregel (IZ): hoort in een CSV met inzetregels
 E00101;;1;V;100;1-11-2026;NOR;Persoonsnummer is leeg
 E00101;12a456;1;V;100;1-11-2026;NOR;Persoonsnummer met een letter
 E00101;000;1;V;100;1-11-2026;NOR;Persoonsnummer is alleen nullen

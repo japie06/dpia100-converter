@@ -1,0 +1,3 @@
+CSV kind          : inzetregels (IZ)
+[OK] 2 row(s) checked, no errors found.
+[SUCCESS]

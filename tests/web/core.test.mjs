@@ -3,7 +3,7 @@
 // tested by tests/run-tests.ps1 (every case on PS 5.1, PS 7 and Edge) and tests/web/differential.ps1.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { loadCore, analyzeText, csv } from './core.mjs';
+import { loadCore, analyzeText, csv, inzetCsv, inzetRow } from './core.mjs';
 
 const core = loadCore();
 const row = (waarde, extra = {}) => [extra.rubriek ?? 'E00101', extra.persNr ?? '123', extra.dv ?? '1', extra.sv ?? 'V', waarde, extra.datum ?? '1-11-2026', extra.prod ?? 'NOR'];
@@ -358,6 +358,103 @@ describe('record layout (field-layout.md)', () => {
     const out = core.encodeOutput(core.buildLines(r.records, { procescode: 'CMT', creatiedatum: '07102026', gebruiker: 'ABCDEFGHIJKLMNOP' }));
     assert.equal(out.length, 2 * 189);
     assert.deepEqual([out[0], out[187], out[188], out[376], out[377]], [0x43, 13, 10, 13, 10]);
+  });
+});
+
+describe('inzetregels (decisions 21-23)', () => {
+  const meta = { procescode: 'CMT', creatiedatum: '07102026', gebruiker: 'TSTUSER' };
+  const lines = text => { const r = analyzeText(core, text); return core.buildLines(r.records, meta); };
+  const errs = r => r.errors.map(e => `${e.row} ${e.field} ${e.code}`);
+
+  test('kind: no Rubriek, a Functie and an OE sleutel column', () => {
+    assert.equal(analyzeText(core, inzetCsv([inzetRow({ uren: '36' })])).kind, 'inzet');
+    assert.equal(analyzeText(core, csv([row('x')])).kind, 'rubriek');
+    // A Rubriek column makes it a rubriek CSV, also with Functie and OE columns.
+    const both = csv([['E00101', '123', '1', 'S', 'x', '1-11-2026', 'NOR', '020', '314']], ';', [
+      'Rubriek', 'Pers. Nr', 'Dienstv', 'S of V', 'Waarde', 'Ingangsdatum', 'Productiesoort', 'Functie', 'OE sleutel']);
+    assert.equal(analyzeText(core, both).kind, 'rubriek');
+  });
+  test('only an OE code column: stop, the key needs the OE sleutel', () => {
+    const r = analyzeText(core, csv([['10000', '1', '4711', '020', '1-1-2027', '36']], ';', ['Pers. Nr', 'Dvb', 'Org. Eenh.', 'Functie', 'Datum vanaf', 'Uren']));
+    assert.deepEqual(r.fatal, { code: 'oeCodeOnly', column: 'Org. Eenh.' });
+  });
+  test('neither kind: missing headers with the inzetregels hint', () => {
+    const r = analyzeText(core, csv([['10000', '1', '36']], ';', ['Pers. Nr', 'Dienstverband', 'Uren']));
+    assert.equal(r.fatal.code, 'missingHeaders');
+    assert.equal(r.fatal.inzetHint, true);
+  });
+  test('no Uren, Soort inzet or Datum t/m column: noInzetValues', () => {
+    const r = analyzeText(core, csv([['10000', '1', '314', '020', '1-1-2027']], ';', ['Pers. Nr', 'Dienstverband', 'OE sleutel', 'Functie', 'Datum vanaf']));
+    assert.deepEqual(r.fatal, { code: 'noInzetValues' });
+  });
+  test('pattern priority: Functie code inzet over Functie Inzet, OE code listed as not used', () => {
+    const r = analyzeText(core, csv([['1', '1', '314', 'X', 'Naam', '020', '1-1-2027', '36', 'N']], ';',
+      ['Pers.nr.', 'Dvb', 'OU_Key', 'OE code inzet', 'Functie Inzet', 'Functie code inzet', 'Startdatum', 'Uren per week inzet', 'Ind. Afw.']));
+    const col = Object.fromEntries(r.mapping.map(m => [m.field, m.column]));
+    assert.equal(col.Functie, 'Functie code inzet');
+    assert.equal(col['OE sleutel'], 'OU_Key');
+    assert.equal(col['Datum vanaf'], 'Startdatum');
+    assert.equal(col.Uren, 'Uren per week inzet');
+    assert.equal(r.oeCodeColumn, 'OE code inzet');
+  });
+  test('Soort inzet skips the Productiesoort column', () => {
+    const r = analyzeText(core, csv([['10000', '1', '314', '020', '1-1-2027', 'COR', 'VST']], ';',
+      ['Pers. Nr', 'Dienstverband', 'OE sleutel', 'Functie', 'Datum vanaf', 'Productiesoort', 'Soort']));
+    const col = Object.fromEntries(r.mapping.map(m => [m.field, m.column]));
+    assert.deepEqual([col['Soort inzet'], col.Productiesoort], ['Soort', 'Productiesoort']);
+  });
+  test('key layout: pers 6, dv 4, OE 11, functie 8, key date d-M-yyyy in 11 (Excel tool, positions 10-59)', () => {
+    const [line] = lines(inzetCsv([inzetRow({ uren: '36' })]));
+    assert.equal(line.substring(9, 59), ' 10000   1        314     020   1-2-2027          ');
+    assert.equal(line.substring(3, 9), 'P01124');
+    assert.equal(line[59], 'S');
+    assert.equal(line.substring(137, 148), '   01022027');
+  });
+  test('one record per filled value, in rubriek order; an empty cell writes nothing', () => {
+    const r = analyzeText(core, inzetCsv([inzetRow({ tm: '31-12-2027', uren: '36', soort: 'VST' }), inzetRow({ uren: '32' })]));
+    assert.deepEqual(r.records.map(x => `${x.row} ${x.rubriek} ${x.waarde}`), ['2 P01123 VST', '2 P01124 36', '2 P01126 31-12-2027', '3 P01124 32']);
+    assert.equal(r.rowsChecked, 2);
+  });
+  test('leading zeros of pers, dv and OE are stripped; functie is written as typed', () => {
+    const r = analyzeText(core, inzetCsv([inzetRow({ persNr: '010000', dv: '01', oe: '0314', functie: 'f20a', uren: '36' })]));
+    assert.deepEqual([r.records[0].persNr, r.records[0].dienstv, r.records[0].oe, r.records[0].functie], ['10000', '1', '314', 'f20a']);
+  });
+  test('key errors', () => {
+    const r = analyzeText(core, inzetCsv([
+      inzetRow({ dv: '', uren: '36' }), inzetRow({ dv: '0', uren: '36' }), inzetRow({ oe: '31x', uren: '36' }),
+      inzetRow({ oe: '0', uren: '36' }), inzetRow({ oe: '12345678901', uren: '36' }), inzetRow({ functie: '02 0', uren: '36' }),
+      inzetRow({ functie: '12345678', uren: '36' }), inzetRow({ vanaf: '31-2-2027', uren: '36' })]));
+    assert.deepEqual(errs(r), ['2 Dienstverband empty', '3 Dienstverband zero', '4 OE sleutel digits', '5 OE sleutel zero',
+      '6 OE sleutel tooLong', '7 Functie spaces', '8 Functie tooLong', '9 Datum vanaf invalid']);
+  });
+  test('values are checked as their standard rubriek (decision 20); t/m before vanaf; nothing to change', () => {
+    const r = analyzeText(core, inzetCsv([
+      inzetRow({ uren: '100' }), inzetRow({ uren: '36.125' }), inzetRow({ soort: 'ABCD' }), inzetRow({ tm: '31-1-2027' }),
+      inzetRow({ tm: 'eind' }), inzetRow({})]));
+    assert.deepEqual(errs(r), ['2 Uren digits', '3 Uren decimals', '4 Soort inzet textTooLong', '5 Datum t/m beforeVanaf',
+      '6 Datum t/m notDate', '7 Inzetregel nothing']);
+  });
+  test('Uren: comma converted and reported in a ; file; Datum t/m shaped and reported', () => {
+    const r = analyzeText(core, inzetCsv([inzetRow({ uren: '32,5', tm: '1-12-2027' })]));
+    assert.deepEqual(r.records.map(x => x.waarde), ['32.5', '01-12-2027']);
+    assert.equal(r.commaReported, true);
+    assert.deepEqual(r.formatConversions.map(c => c.to), ['01-12-2027']);
+  });
+  test('an IZ rubriek in a rubriek CSV is an error (decision 23)', () => {
+    const r = analyzeText(core, csv([row('36', { rubriek: 'P01124', sv: 'S' })]));
+    assert.deepEqual(errs(r), ['2 Rubriek izRubriek']);
+  });
+  test('functie of digits only: one grouped warning, written as typed (decision 22)', () => {
+    const r = analyzeText(core, inzetCsv(['20', '020', 'A12', '412460', '0'].map(functie => inzetRow({ functie, uren: '36' }))));
+    // '020' and '0' start with 0, so they kept their zeros; 'A12' is no number.
+    assert.equal(r.fatal, null);
+    assert.deepEqual(r.warnings, [{ code: 'functieDigits', values: [{ row: 2, value: '20' }, { row: 5, value: '412460' }] }]);
+    assert.deepEqual(r.records.map(x => x.functie), ['20', '020', 'A12', '412460', '0']);
+  });
+  test('functie with an error gets no digits warning', () => {
+    const r = analyzeText(core, inzetCsv([inzetRow({ functie: '12345678', uren: '36' })]));
+    assert.deepEqual(errs(r), ['2 Functie tooLong']);
+    assert.deepEqual(r.warnings, []);
   });
 });
 
