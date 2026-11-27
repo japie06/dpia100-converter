@@ -69,8 +69,8 @@ as `E0010`, `M01` and `WS100`. A shorter code is **left-aligned** (owner; what v
 right-aligned it. Beaufort imports and processes both alignments (probe P09, round 5, #25).
 
 ### Standard rubrieken
-The script and the page contain the standard PS/DV rubrieken of Beaufort (decision 17): the rubrieken
-with *Fix* = `J` in the report *Overzicht rubrieken* (function 210006), about 4,200 of them. A
+The script and the page contain the standard PS, DV and IZ rubrieken of Beaufort (decision 17): the
+rubrieken with *Fix* = `J` in the report *Overzicht rubrieken* (function 210006), about 4,200 of them. A
 customer cannot change their gegevenssoort, type, length, decimals, stam/variabel or *Blok ind mut*
 (Beaufort help *Rubrieken wijzigen of verwijderen*), so the list holds only these. Min/max and the values
 of referentietabellen can be changed per customer and are left out. How the list is made and refreshed:
@@ -84,7 +84,8 @@ of referentietabellen can be changed per customer and are left out. How the list
 | Waarde | By type, see [Waarde](#waarde) (decision 20) | Decisions 8 and 16 |
 
 A code that is not in the list is allowed without any message. Eigen rubrieken cannot be supplied yet
-(#24).
+(#24). An IZ rubriek (P01121-P01129) in a rubriek CSV is an error: its key needs the OE sleutel, functie
+and Datum vanaf, which only an [inzetregels CSV](#inzetregels-csv) has (decision 23).
 
 ### Object_id
 Compound key; parts separated by **one space**, **no leading zeros**. Which parts are required
@@ -95,7 +96,7 @@ depends on the gegevenssoort of the rubriek:
 | PS Persoon | pers_nr | yes |
 | DV Dienstverband | pers_nr dv_vlgnr | yes |
 | BG Bank-giro | pers_nr dv_vlgnr bg_vlgnr | no |
-| IZ Inzet | pers_nr dv_vlgnr oe_oper_sl operfunc_kd ingang_dt | no |
+| IZ Inzet | pers_nr dv_vlgnr oe_oper_sl operfunc_kd ingang_dt | yes, from an [inzetregels CSV](#inzetregels-csv) |
 | IP Inpastabel | reg_sal_kd inpas_nr | no |
 | LV Loonverdeling | pers_nr dv_vlgnr lv_rglnr | no |
 | SD Speciale doorbelasting | pers_nr dv_vlgnr sd_rglnr | no |
@@ -125,12 +126,62 @@ adding). Each part is right-aligned in a fixed width that includes the separatin
 | BG | bg_vlgnr: space + 1 (list 1-8) |
 | LV | lv_rglnr: space + 2 (list 0-20) |
 | SD | sd_rglnr: space + 2 |
-| IZ | oe_oper_sl: space + 10, operfunc_kd: space + 7, ingang_dt: 11 positions |
 
 - These widths follow the 2005 handbook. The 2024 PDF allows bg_vlgnr 2 and lv_rglnr 3, which do not fit.
-- For IZ the tool took the **mutation's** ingangsdatum in the Windows short-date format as ingang_dt.
-  The PDF asks for the start date of the inzet in a Beaufort date format, so this is probably a bug.
 - The tool had no IP, ZG or ZT: there is no reference layout for those.
+
+**IZ key** (decision 22, from the Excel tool source and real Excel-tool output). After pers_nr (6) and
+dv_vlgnr (space + 3), each part right-aligned:
+
+| Part | Width | Content |
+|---|---|---|
+| oe_oper_sl | space + 10 | The **OE sleutel**: the technical key of the organisatorische eenheid, an integer that never changes. Not the OE code (*Org. eenheid*, can change) or the name. Leading zeros stripped, 1-10 digits |
+| operfunc_kd | space + 7 | The functie code (alphanumeric), written as typed: not uppercased, leading zeros kept. Beaufort matches it exactly (`20` does not find `020`: PI_0802, probe P10-6) |
+| ingang_dt | 11 | The Datum vanaf of the inzetregel as `d-M-yyyy` (the Windows short date of a Dutch PC, as the Excel tool wrote it) |
+
+| Key | Positions 10-59 |
+|---|---|
+| IZ 123456 / 3 / 2964 / 412460 / 1-2-2026 | `123456···3·······2964··412460···1-2-2026` + 10 spaces |
+
+- The Excel tool took the **mutation's** ingangsdatum as ingang_dt, so its users set the ingangsdatum to
+  the Datum vanaf of the regel. The script writes the Datum vanaf in both places.
+- The PDF asks for "a Beaufort date format" here. Whether `ddmmyyyy` or `dd-mm-yyyy` also find the regel
+  is probed in round 6 (P10-2, P10-3; `tests/beaufort/findings.md`).
+
+### Inzetregels CSV
+An inzetregels CSV (decision 21) has no Rubriek column; the converter recognises it by a Functie column and
+an OE sleutel column, and prints *CSV kind: inzetregels (IZ)*. One row is one inzetregel, as on the HR Core
+Inzet tab. Headers are matched by pattern, in the order below (the first pattern that matches any header
+wins, so `Functie code inzet` beats `Functie Inzet` in a Power BI export):
+
+| Field | Header patterns | Required | Written as |
+|---|---|---|---|
+| Pers. Nr | as in a rubriek CSV, and `Pers.nr` | yes | key |
+| Dienstverband | `Dienstv`, `Dienstverband`, `Dv`, `Dvb` | yes, not 0 | key |
+| OE sleutel | `OE sleutel`, `OE key`, `OU_Key`, `oe_oper_sl`, `Sleutel` | yes | key |
+| Functie | `Functie code`, `Functiecode`, `Functie` | yes | key |
+| Datum vanaf | `Datum vanaf`, `Startdatum` | yes | key date and ingangsdatum |
+| Soort inzet | `Soort inzet`, `Soort` (not the Productiesoort column) | optional column | P01123 (S 3) |
+| Uren | `Uren` | optional column | P01124 (N 5,2) |
+| Datum t/m | `Datum t/m`, `Einddatum` | optional column | P01126 (D) |
+| Productiesoort | `Productiesoort`, `Productie` | optional column | NOR when empty |
+
+- At least one of Soort inzet, Uren and Datum t/m must be a column. Every other column is ignored, also
+  *Ind. Afw.* and the kosten (P01127-P01129 are not written).
+- A CSV with only an OE code column (`Org. Eenh`, `Organisatie eenheid`, `Organisatorische eenheid`,
+  `OE code`, `OE`) and no OE sleutel stops: the key needs the sleutel. With both, the code column is listed
+  as not used.
+- Each filled value gives one record, in rubriek order (P01123, P01124, P01126), with S/V `S` and the Datum
+  vanaf as ingangsdatum. An **empty cell leaves the value unchanged**: no record, as in the Excel tool, where
+  a row was only added for a change. A row with none of the three filled is an error.
+- The values are checked as their standard rubriek (decision 20): Uren a number with at most 2 digits
+  before the point and 2 decimals (a comma becomes a dot), Soort inzet at most 3 characters, Datum t/m a
+  date, written `dd-mm-yyyy`, not before Datum vanaf.
+- A functie of digits only that does not start with 0 gets one grouped warning: Excel drops leading zeros
+  when it opens a CSV, and Beaufort rejects a functie that does not match exactly.
+- Closing a regel and starting a new one, as in the example below: one row with the Datum vanaf of the
+  current regel and its Datum t/m, and one row with the new Datum vanaf and the Uren (Beaufort creates a
+  regel for a key it does not know).
 
 ### Indicator stam/variabel
 `S` (stamgegeven) or `V` (variabel gegeven). It must match the rubriek in the Beaufort rubriektabel; a
@@ -263,6 +314,7 @@ rest are formulas on a hidden sheet, concatenated into one 187-character cell an
 | PS or DV key | from the rubriek list (a PS rubriek ignored a filled dv) | from Dienstverband being filled; for a standard rubriek a mismatch is an error |
 | Unknown rubriek | flagged (not in its list) | allowed without a message (eigen rubriek) |
 | Value by type | `N` numeric, `D` rewritten `dd-mm-yyyy`, `T` rewritten `hh:mm` | the same for a standard rubriek (also `U` `hh:mm:ss`), checked against its length and decimals; an eigen rubriek as typed with warnings |
+| IZ key | parts right-aligned, ingang_dt = the mutation's ingangsdatum as Windows short date | the same layout; ingang_dt = Datum vanaf as `d-M-yyyy`, leading zeros stripped from the OE sleutel |
 
 Bugs that make its output unfit as a reference beyond the plain cases:
 - **Encoding depends on the save path.** Accepting the suggested folder saved as `xlText` (ANSI, Windows-1252);
@@ -301,3 +353,26 @@ Field split of the first record:
 | 149-178 | (undocumented) | 30 spaces |
 | 179-181 | Productiesoort | `NOR` |
 | 182-187 | Verrekenperiode | 6 spaces |
+
+### Inzetregels
+
+Two Excel-tool records from a customer (pers_nr replaced), reproduced byte for byte by the script from an
+inzetregels CSV (`tests/cases/ok-inzet-reference-excel-tool`): close the current regel (P01126 Einde) and
+start a new one (P01124 Uren).
+
+```
+CMTP01126123456···3·······2964··412460···1-2-2026··········S···11112026············Paul01-12-2026···········································01022026······························NOR······
+CMTP01124123456···3·······2448··412460··1-12-2026··········S···11112026············Paul32···················································01122026······························NOR······
+```
+
+| Pos | Field | Content of the first record |
+|---|---|---|
+| 4-9 | Rubriek | `P01126` (Einde inzet) |
+| 10-15 | pers_nr | `123456` |
+| 16-19 | dv_vlgnr | `   3` |
+| 20-30 | oe_oper_sl | `       2964` |
+| 31-38 | operfunc_kd | `  412460` |
+| 39-49 | ingang_dt | `   1-2-2026` (Datum vanaf, `d-M-yyyy`) |
+| 50-59 | | 10 spaces |
+| 88-137 | Waarde | `01-12-2026` (Datum t/m) |
+| 138-148 | Ingangsdatum | `   01022026` (Datum vanaf) |

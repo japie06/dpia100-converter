@@ -69,6 +69,43 @@ kolommen worden genegeerd.
 | Ingangsdatum | ja | Bijvoorbeeld `1 11 2026`, `01-11-2026`, `01/11/2026`, `2026-11-01` of `01112026`. |
 | Productiesoort | nee | `NOR` of `COR`. Leeg wordt `NOR`. |
 
+## Inzetregels
+
+Inzetregels wijzig je met een eigen soort CSV, zoals het tabblad *Inzet* in HR Core: **één regel per
+inzetregel**, zonder kolom *Rubriek*. Het hulpmiddel herkent zo'n bestand aan de kolommen *Functie* en
+*OE sleutel* en toont bij stap 2 *soort bestand: inzetregels*.
+
+| Pers. Nr | Dienstverband | OE sleutel | Functie | Datum vanaf | Datum t/m | Uren | Soort inzet |
+|---|---|---|---|---|---|---|---|
+| 123456 | 3 | 2964 | 412460 | 1-2-2026 | 01-12-2026 | | |
+| 123456 | 3 | 2448 | 412460 | 1-12-2026 | | 32 | |
+
+De eerste regel sluit de huidige inzetregel af (*Datum t/m*), de tweede maakt een nieuwe aan met
+32 uur. Een inzetregel wordt gevonden aan persoon, dienstverband, OE sleutel, functie en *Datum vanaf*;
+bestaat die nog niet, dan maakt Beaufort hem aan.
+
+| Kolom | Verplicht | Toelichting |
+|---|---|---|
+| Pers. Nr | ja | Zoals hierboven. |
+| Dienstverband | ja | Een inzetregel hoort altijd bij een dienstverband: leeg of `0` is een fout. |
+| OE sleutel | ja | De **technische sleutel** van de organisatorische eenheid: een nummer dat nooit verandert. **Niet** de OE-code (*Org. eenheid*) en niet de naam. Ook herkend als `OU_Key`, `oe_oper_sl` of `Sleutel`. |
+| Functie | ja | De functiecode, max. 7 tekens, zonder spaties. Wordt geschreven zoals je hem typt (`020` blijft `020`). Beaufort zoekt de code precies: `20` vindt `020` niet. |
+| Datum vanaf | ja | De begindatum van de inzetregel. Ook herkend als `Startdatum`. |
+| Datum t/m | nee | Einddatum. Niet voor *Datum vanaf*. Ook herkend als `Einddatum`. |
+| Uren | nee | Uren per week, bijvoorbeeld `36` of `32,5` (max. 2 cijfers voor de komma en 2 decimalen). |
+| Soort inzet | nee | Max. 3 tekens. Ook herkend als `Soort`. |
+| Productiesoort | nee | Zoals hierboven. |
+
+- **Een lege cel laat de waarde in Beaufort ongewijzigd.** Elke ingevulde waarde wordt één mutatie. Vul
+  per regel minstens één van *Uren*, *Soort inzet* en *Datum t/m* in.
+- Heeft je bestand alleen een kolom met de OE-code, dan stopt het hulpmiddel: voeg een kolom *OE sleutel*
+  toe. Staan beide erin, dan wordt de OE-code niet gebruikt.
+- Andere kolommen, zoals *Ind. Afw.*, de naam van de functie of de kostenplaats, worden niet gebruikt.
+- **Let op voorloopnullen in de functie.** Excel haalt ze weg als het een CSV opent (`020` wordt `20`), en
+  dan keurt Beaufort de mutatie af. Bestaat een functie alleen uit cijfers en begint hij niet met `0`, dan
+  krijg je daarom een waarschuwing. Controleer de codes, en zet in Excel de kolom *Functie* op *Tekst*
+  voordat je plakt of typt.
+
 ## Fouten, waarschuwingen en meldingen
 
 - Een **fout** blokkeert: er wordt geen bestand gemaakt tot alle fouten zijn opgelost. Regel 1 is de
@@ -80,8 +117,8 @@ kolommen worden genegeerd.
 
 Hoe streng de controle is, hangt af van de rubriek:
 
-- Een **standaardrubriek** komt met Beaufort mee. Het hulpmiddel kent er ruim 4.200 (persoon en
-  dienstverband) en weet wat erin hoort. Het controleert dan ook het dienstverband, S of V en de waarde,
+- Een **standaardrubriek** komt met Beaufort mee. Het hulpmiddel kent er ruim 4.200 (persoon,
+  dienstverband en inzet) en weet wat erin hoort. Het controleert dan ook het dienstverband, S of V en de waarde,
   en geeft een fout als iets niet past. Zie [Standaardrubrieken](#standaardrubrieken).
 - Een **eigen rubriek** is elke code die niet in die lijst staat. Die is gewoon toegestaan. Het
   hulpmiddel weet niet of er een bedrag, datum of tekst in hoort. Daarom schrijft het de waarde zoals je
@@ -153,14 +190,14 @@ een vinkje `✓`, Poolse of Turkse letters (`ł`, `ş`) en emoji.
 
 ## Wat het (nog) niet doet
 
-Alleen persoons- en dienstverbandmutaties (PS en DV) met productiesoort NOR of COR. Andere soorten
-mutaties (zoals bankgiro, loonverdeling en ziektegevallen), JWP en de verrekenperiode worden niet
-ondersteund. Zie `field-layout.md` voor de technische details.
+Alleen persoons- en dienstverbandmutaties (PS en DV) en [inzetregels](#inzetregels) (IZ: soort inzet,
+uren en einddatum) met productiesoort NOR of COR. Andere soorten mutaties (zoals bankgiro, loonverdeling
+en ziektegevallen), de kosten van een inzetregel, JWP en de verrekenperiode worden niet ondersteund. Zie `field-layout.md` voor de technische details.
 
 # Scriptversie (dpia100.ps1)
 
 Het script doet precies hetzelfde als de pagina en maakt hetzelfde bestand. Alles onder
-[Kolommen in de CSV](#kolommen-in-de-csv) en
+[Kolommen in de CSV](#kolommen-in-de-csv), [Inzetregels](#inzetregels) en
 [Fouten, waarschuwingen en meldingen](#fouten-waarschuwingen-en-meldingen) geldt ook hier. De teksten in
 het venster zijn Engels.
 
@@ -182,12 +219,13 @@ het venster zijn Engels.
 Zo ziet het venster eruit bij `voorbeeld.csv` (jouw antwoorden staan achter de dubbele punt):
 
 ```text
-=== Beaufort DPIA100 Generator v1.4.1 ===
+=== Beaufort DPIA100 Generator v1.5.0 ===
 Input file        : H:\Mutaties\voorbeeld.csv
 Output file       : H:\Mutaties\DPIA100_voorbeeld.txt
 Input encoding    : Windows-1252
-Standard rubrieken: 4227 (Beaufort export 30-10-2026)
+Standard rubrieken: 4243 (Beaufort export 27-11-2026)
 Detected delimiter: ';'
+CSV kind          : rubriek mutations (PS/DV)
 Column mapping:
   Rubriek         <- 'Rubriek'
   Pers. Nr        <- 'Pers. Nr'

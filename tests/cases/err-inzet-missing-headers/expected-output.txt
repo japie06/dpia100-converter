@@ -1,0 +1,2 @@
+CSV kind          : inzetregels (IZ)
+mandatory column headers are missing from the input file: Dienstverband, Datum vanaf. Aborting.

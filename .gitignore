@@ -16,3 +16,5 @@ node_modules/
 Overzicht*Rubrieken*.txt
 rubrieken*.csv
 !tests/rubrieken/expected-*.csv
+# Inzetregels source material (mail, Excel file with real data): local only
+inzetregels/

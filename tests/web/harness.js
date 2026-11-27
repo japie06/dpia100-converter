@@ -15,10 +15,13 @@
     'Rubriek/empty': () => 'Field is empty',
     'Rubriek/tooLong': () => 'Exceeds max length of 6 chars',
     'Rubriek/chars': () => 'Contains invalid characters (alphanumeric only)',
+    'Rubriek/izRubriek': e => `Rubriek ${e.rubriek} belongs to an inzetregel (IZ): use an inzetregels CSV with OE sleutel, Functie and Datum vanaf`,
     'Pers. Nr/empty': () => 'Field is empty',
     'Pers. Nr/digits': () => 'Must contain digits only (no decimals, spaces or letters)',
     'Pers. Nr/zero': () => 'Cannot be zero',
     'Pers. Nr/tooLong': () => 'Exceeds max length of 6 digits',
+    'Dienstverband/empty': () => 'Field is empty',
+    'Dienstverband/zero': () => 'Cannot be zero',
     'Dienstverband/digits': () => 'Must contain digits only (no decimals, spaces or letters)',
     'Dienstverband/tooLong': () => 'Exceeds max length of 3 digits',
     'Dienstverband/dvRequired': e => `Rubriek ${e.rubriek} is a DV rubriek: fill in the dienstverband (empty or 0 gives a PS key, which Beaufort rejects)`,
@@ -37,8 +40,21 @@
     'Mutatiewaarde/digits': e => `Rubriek ${e.rubriek} allows at most ${e.max} digit(s) before the decimal point`,
     'Mutatiewaarde/notDate': e => `Rubriek ${e.rubriek} is a date: write dd-mm-yyyy, e.g. 01-11-2026`,
     'Mutatiewaarde/notTime': e => `Rubriek ${e.rubriek} is a time: write ${e.type === 'T' ? 'hh:mm, e.g. 08:30' : 'hh:mm:ss, e.g. 08:30:00'}`,
-    'Mutatiewaarde/textTooLong': e => `Rubriek ${e.rubriek} allows at most ${e.length} characters`
+    'Mutatiewaarde/textTooLong': e => `Rubriek ${e.rubriek} allows at most ${e.length} characters`,
+    // Inzetregels CSV (decisions 21 and 22). Uren, Soort inzet and Datum t/m use the Mutatiewaarde texts.
+    'OE sleutel/empty': () => 'Field is empty',
+    'OE sleutel/digits': () => 'Must contain digits only: the OE sleutel is a number (not the OE code or name)',
+    'OE sleutel/zero': () => 'Cannot be zero',
+    'OE sleutel/tooLong': () => 'Exceeds max length of 10 digits',
+    'Functie/empty': () => 'Field is empty',
+    'Functie/spaces': () => 'May not contain spaces, tabs or control characters',
+    'Functie/encoding': e => `Characters not available in Windows-1252: ${e.chars}`,
+    'Functie/tooLong': () => 'Exceeds max length of 7 chars',
+    'Datum vanaf/invalid': () => 'Invalid or unparseable date',
+    'Datum t/m/beforeVanaf': e => `Is before Datum vanaf (${e.vanaf})`,
+    'Inzetregel/nothing': () => 'Nothing to change: fill in Uren, Soort inzet or Datum t/m (an empty cell leaves the value unchanged)'
   };
+  const issue = e => (ISSUES[`${e.field}/${e.code}`] || ISSUES[`Mutatiewaarde/${e.code}`])(e);
 
   const label = w => `Row ${w.row} (Pers. Nr: ${w.persNr})`;
   const WARNINGS = {
@@ -52,7 +68,9 @@
     truncated: w => `${label(w)}: Waarde was truncated from ${w.length} to 50 chars:\n    Original : '${w.original}'\n    Truncated: '${w.truncated}'`,
     emptyValue: w => `Waarde is empty in ${w.rows.length} row(s): ${examples(w.rows.map(x => `row ${x.row} (Pers. Nr: ${x.persNr})`))}. An empty Waarde deletes the current value of the rubriek in Beaufort. Fill in the value if that is not intended.`,
     dateShape: w => `${w.values.length} Waarde value(s) look like a date but are not written as dd-mm-yyyy: ${examples(w.values.map(x => `row ${x.row} '${x.value}'`))}. The official Excel tool wrote dates as dd-mm-yyyy; in a date rubriek Beaufort may read another shape differently. Write e.g. 01-11-2026.`,
-    timeShape: w => `${w.values.length} Waarde value(s) look like a time but are not written as hh:mm or hh:mm:ss: ${examples(w.values.map(x => `row ${x.row} '${x.value}'`))}. A time rubriek in Beaufort holds hh:mm or hh:mm:ss; Beaufort may read another shape differently. Write e.g. 08:30.`
+    timeShape: w => `${w.values.length} Waarde value(s) look like a time but are not written as hh:mm or hh:mm:ss: ${examples(w.values.map(x => `row ${x.row} '${x.value}'`))}. A time rubriek in Beaufort holds hh:mm or hh:mm:ss; Beaufort may read another shape differently. Write e.g. 08:30.`,
+    functieDigits: w => `Functie is digits only in ${w.values.length} row(s): ${examples(w.values.map(x => `row ${x.row} '${x.value}'`))}. Excel drops leading zeros when it opens a CSV (020 becomes 20), and Beaufort then rejects the record (PI_0802). Check the codes against HR Core; in Excel, keep the column as text.`
+
   };
 
   // PS: Join-Examples.
@@ -86,8 +104,10 @@
     return btoa(s);
   };
 
+  // PS writes control runs as ' <line break/tab> ' for the codes control and spaces; Format-Table cuts any
+  // other multi-line value off at the line break ('3…'). The transcript keeps one line per error either way.
   function errorValue(e) {
-    return e.code === 'control' ? e.value.replace(/[\x00-\x1F\x7F]+/g, ' <line break/tab> ') : e.value;
+    return e.value.replace(/[\x00-\x1F\x7F]+/g, ' <line break/tab> ');
   }
 
   function runCase(c) {
@@ -113,10 +133,19 @@
     if (f && f.code === 'headerOnly') return fail(`The file '${c.fileName}' contains only headers and NO data rows. Aborting.`);
     out.push(`Detected delimiter: '${r.delimiter}'`);
     if (f && f.code === 'noRecords') return fail(`No data records could be parsed from '${c.fileName}'. Aborting.`);
+    if (r.kind) out.push(`CSV kind          : ${r.kind === 'inzet' ? 'inzetregels (IZ)' : 'rubriek mutations (PS/DV)'}`);
+    if (f && f.code === 'oeCodeOnly') {
+      return fail(`Column '${f.column}' holds the OE code (Org. eenheid). The key of an inzetregel needs the OE sleutel: the technical key of the organisatorische eenheid, a number that never changes. Add a column 'OE sleutel' with that key. Aborting.`);
+    }
     out.push('Column mapping:');
-    for (const m of r.mapping) out.push(`  ${m.field.padEnd(15)} <- ${m.column ? `'${m.column}'` : '(not found)'}`);
+    for (const m of r.mapping) out.push(`  ${m.field.padEnd(15)} <- ${m.column ? `'${m.column}'` : m.optional ? '(not found, optional)' : '(not found)'}`);
+    if (r.oeCodeColumn) out.push(`  Not used: '${r.oeCodeColumn}' (OE code; the key uses the OE sleutel)`);
     if (f && f.code === 'missingHeaders') {
-      return fail(`The following mandatory column headers are missing from the input file: ${f.fields.join(', ')}. Aborting.`);
+      const hint = f.inzetHint ? ' An inzetregels CSV has no Rubriek column but Pers. Nr, Dienstverband, OE sleutel, Functie, Datum vanaf and Uren, Soort inzet or Datum t/m.' : '';
+      return fail(`The following mandatory column headers are missing from the input file: ${f.fields.join(', ')}. Aborting.${hint}`);
+    }
+    if (f && f.code === 'noInzetValues') {
+      return fail('An inzetregels CSV needs at least one of the columns Uren, Soort inzet and Datum t/m: those are the values it changes. Aborting.');
     }
     if (f && f.code === 'doubleMapped') {
       const details = f.groups.map(g => `'${g.column}' -> ${g.fields.join(' and ')}`).join('; ');
@@ -126,13 +155,13 @@
       out.push(`[FATAL ERROR] ${r.errors.length} validation error(s) found. Process aborted!`);
       out.push('No export file was created. Please fix the issues below in your CSV:');
       out.push('Row Column Value Issue');
-      for (const e of r.errors) out.push(`${e.row} ${e.field} ${errorValue(e)} ${ISSUES[`${e.field}/${e.code}`](e)}`);
+      for (const e of r.errors) out.push(`${e.row} ${e.field} ${errorValue(e)} ${issue(e)}`);
       return result(1, null);
     }
     if (f && f.code === 'allEmpty') return fail(`No data rows found (all ${f.count} row(s) were empty). Aborting.`);
     if (f) return fail(`Unknown fatal code ${f.code}`);
 
-    out.push(`[OK] ${r.records.length} row(s) checked, no errors found.`);
+    out.push(`[OK] ${r.rowsChecked} row(s) checked, no errors found.`);
     if (r.commaReported) out.push(commaMessage(r.commaConversions));
     if (r.formatConversions.length > 0) out.push(formatMessage(r.formatConversions));
     if (r.warnings.length > 0) {

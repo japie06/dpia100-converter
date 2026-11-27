@@ -1,0 +1,10 @@
+12 validation error(s)
+Dienstverband
+Field is empty
+Cannot be zero
+Must contain digits only: the OE sleutel is a number (not the OE code or name)
+Exceeds max length of 10 digits
+May not contain spaces, tabs or control characters
+(U+0133)
+Exceeds max length of 7 chars
+Invalid or unparseable date

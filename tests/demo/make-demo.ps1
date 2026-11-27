@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Writes the demo CSV files in tests/demo: every error, warning and report line of the converter.
 .DESCRIPTION
@@ -40,6 +40,7 @@ Write-Csv '1-fouten.csv' $header -delim ';' -enc $utf8 -Bom -rows @(
     ,@('', '123456', '1', 'V', '100', '1-11-2026', 'NOR', 'Rubriek is leeg')
     ,@('#N/B', '123456', '1', 'V', '100', '1-11-2026', 'NOR', 'Rubriek met andere tekens dan letters en cijfers (foutwaarde uit Excel)')
     ,@('E001011', '123456', '1', 'V', '100', '1-11-2026', 'NOR', 'Rubriek langer dan 6 tekens')
+    ,@('P01124', '123456', '1', 'S', '36', '1-11-2026', 'NOR', 'Rubriek van een inzetregel (IZ): hoort in een CSV met inzetregels')
     # Pers. Nr
     ,@('E00101', '', '1', 'V', '100', '1-11-2026', 'NOR', 'Persoonsnummer is leeg')
     ,@('E00101', '12a456', '1', 'V', '100', '1-11-2026', 'NOR', 'Persoonsnummer met een letter')
@@ -103,7 +104,42 @@ Write-Csv '4-waarschuwingen-tab.csv' $header -delim "`t" -enc $ansi -rows @(
     ,@('E00101', '123456', '1', 'V', '1,234', '1-11-2026', 'NOR', 'Komma als decimaal of als duizendtal? Wordt 1.234')
 )
 
-# 5. File-level errors: each stops before the rows are checked, so each needs its own file.
+# 5. Inzetregels CSV (decisions 21-23): every row-level error, one per row (UTF-8 with BOM). The key is
+#    Pers. Nr, Dienstverband, OE sleutel, Functie and Datum vanaf; Uren, Soort inzet and Datum t/m are the
+#    values (P01124, P01123, P01126), checked as their standard rubriek.
+$inzetHeader = @('Pers. Nr', 'Dienstverband', 'OE sleutel', 'Functie', 'Datum vanaf', 'Datum t/m', 'Uren', 'Soort inzet', 'Opmerking')
+$ij = [string][char]0x0133
+Write-Csv '5-inzet-fouten.csv' $inzetHeader -delim ';' -enc $utf8 -Bom -rows @(
+    ,@('123456', '1', '314', '020', '1-1-2027', '', '36', '', 'Goede regel ter vergelijking: geeft geen fout')
+    ,@('123456', '', '314', '020', '1-1-2027', '', '36', '', 'Dienstverband is leeg: een inzetregel hoort bij een dienstverband')
+    ,@('123456', '0', '314', '020', '1-1-2027', '', '36', '', 'Dienstverband is 0')
+    ,@('123456', '1', '', '020', '1-1-2027', '', '36', '', 'OE sleutel is leeg')
+    ,@('123456', '1', 'OE-12', '020', '1-1-2027', '', '36', '', 'OE sleutel met letters (dit is de OE-code, niet de sleutel)')
+    ,@('123456', '1', '000', '020', '1-1-2027', '', '36', '', 'OE sleutel is alleen nullen')
+    ,@('123456', '1', '12345678901', '020', '1-1-2027', '', '36', '', 'OE sleutel langer dan 10 cijfers')
+    ,@('123456', '1', '314', '', '1-1-2027', '', '36', '', 'Functie is leeg')
+    ,@('123456', '1', '314', '02 0', '1-1-2027', '', '36', '', 'Functie met een spatie')
+    ,@('123456', '1', '314', "${ij}20", '1-1-2027', '', '36', '', 'Functie met een teken dat niet in Windows-1252 bestaat')
+    ,@('123456', '1', '314', 'Medewerker', '1-1-2027', '', '36', '', 'Functie langer dan 7 tekens (de naam in plaats van de code)')
+    ,@('123456', '1', '314', '020', '31-02-2027', '', '36', '', 'Datum vanaf bestaat niet')
+    ,@('123456', '1', '314', '020', '1-1-2027', '31-12-2026', '', '', 'Datum t/m ligt voor Datum vanaf')
+    ,@('123456', '1', '314', '020', '1-1-2027', 'eind', '', '', 'Datum t/m is geen datum')
+    ,@('123456', '1', '314', '020', '1-1-2027', '', '100', '', 'Uren (lengte 5, 2 decimalen) met 3 cijfers voor de komma')
+    ,@('123456', '1', '314', '020', '1-1-2027', '', '36,125', '', 'Uren met 3 decimalen')
+    ,@('123456', '1', '314', '020', '1-1-2027', '', 'veel', '', 'Uren is geen getal')
+    ,@('123456', '1', '314', '020', '1-1-2027', '', '', 'ABCD', 'Soort inzet langer dan 3 tekens')
+    ,@('123456', '1', '314', '020', '1-1-2027', '', '', '', 'Niets ingevuld bij Uren, Soort inzet en Datum t/m')
+)
+
+# 6. Inzetregels without errors: the report lines, one record per filled value, ignored columns.
+Write-Csv '6-inzet-meldingen.csv' @('Pers. Nr', 'Dienstverband', 'OE sleutel', 'Org. Eenh.', 'Functie', 'Datum vanaf', 'Datum t/m', 'Uren', 'Soort inzet', 'Ind. Afw.', 'Opmerking') -delim ';' -enc $ansi -rows @(
+    ,@('123456', '3', '2964', '4711', '020', '1-2-2026', '1-12-2026', '', '', 'N', 'Huidige inzetregel afsluiten: Datum t/m wordt dd-mm-jjjj, alleen gemeld')
+    ,@('123456', '3', '2448', '4712', '020', '2-12-2026', '', '32,5', '', 'N', 'Nieuwe inzetregel: komma wordt punt, alleen gemeld')
+    ,@('123456', '3', '2448', '4712', '020', '2-12-2026', '', '.5', 'VST', 'N', 'Uren met punt vooraan: wordt 0.5, alleen gemeld; Soort inzet geeft een tweede mutatie')
+    ,@('123456', '3', '2448', '4712', '20', '3-12-2026', '', '36', '', 'N', 'Functie alleen cijfers: waarschuwing, Excel kan een voorloopnul hebben weggehaald (020 wordt 20)')
+)
+
+# 7. File-level errors: each stops before the rows are checked, so each needs its own file.
 $plain = @('Rubriek', 'Pers. Nr', 'Dienstv', 'S of V', 'Mutatiewaarde', 'Ingangsdatum', 'Productiesoort')
 [IO.File]::WriteAllBytes((Join-Path $dir 'bestand-leeg.csv'), [byte[]]@())
 Write-Host 'bestand-leeg.csv (0 bytes)'
@@ -117,6 +153,12 @@ Write-Csv 'bestand-kolom-ontbreekt.csv' @('Rubriek', 'Pers. Nr', 'Dienstv', 'Mut
 )
 Write-Csv 'bestand-kolom-dubbel.csv' @('Rubriek', 'Persoonswaarde', 'Dienstv', 'S of V', 'Ingangsdatum', 'Productiesoort', 'Opmerking') -delim ';' -enc $ansi -rows @(
     ,@('E00101', '123456', '1', 'V', '1-11-2026', 'NOR', 'Persoonswaarde past bij Pers. Nr en bij Mutatiewaarde')
+)
+Write-Csv 'bestand-inzet-alleen-oe-code.csv' @('Pers. Nr', 'Dienstverband', 'Org. Eenh.', 'Functie', 'Datum vanaf', 'Uren', 'Opmerking') -delim ';' -enc $ansi -rows @(
+    ,@('123456', '1', '4711', '020', '1-1-2027', '36', 'Alleen de OE-code: de sleutel van een inzetregel heeft de OE sleutel nodig')
+)
+Write-Csv 'bestand-inzet-geen-waarden.csv' @('Pers. Nr', 'Dienstverband', 'OE sleutel', 'Functie', 'Datum vanaf', 'Ind. Afw.', 'Opmerking') -delim ';' -enc $ansi -rows @(
+    ,@('123456', '1', '314', '020', '1-1-2027', 'N', 'Geen kolom Uren, Soort inzet of Datum t/m: niets om te wijzigen')
 )
 # A UTF-8 BOM followed by an e-acute in Windows-1252 (0xE9): not valid UTF-8.
 $broken = $ansi.GetBytes("Rubriek;Pers. Nr;Dienstv;S of V;Mutatiewaarde;Ingangsdatum;Productiesoort`r`nE00101;123456;1;V;Caf$eAcute;1-11-2026;NOR`r`n")

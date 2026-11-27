@@ -4,6 +4,57 @@ All notable changes to `dpia100.ps1`, `dpia100.bat` and `dpia100.html`. Newest f
 [Keep a Changelog](https://keepachangelog.com/). Releases are numbered from v1.0.0 (tag `vX.Y.Z`,
 zip on the GitHub Releases page); older entries are dated.
 
+## v1.5.0 (unreleased)
+
+Inzetregels (gegevenssoort IZ). Work in progress on branch `feature/inzetregels`.
+
+### Added
+- **Inzetregels CSV** (decision 21), in the script and the page. A CSV without a Rubriek column but with a
+  Functie and an OE sleutel column is an inzetregels CSV, shaped like the HR Core Inzet tab: one row per
+  regel with Pers. Nr, Dienstverband, OE sleutel, Functie, Datum vanaf and the values Soort inzet, Uren
+  and Datum t/m. Each filled value gives one record (P01123, P01124, P01126, in that order); an empty cell
+  leaves the value unchanged. Power BI headers (`Pers.nr.`, `Dvb`, `OU_Key`, `Functie code inzet`,
+  `Startdatum`, `Einddatum`, `Uren per week inzet`) are recognised; other columns, also *Ind. Afw.*, are
+  ignored. The console prints `CSV kind`, the page shows *soort bestand* and an inzet preview.
+- **IZ Object_id** (decision 22): pers 6, dv 4, OE sleutel 11, functie 8 and Datum vanaf as `d-M-yyyy` in
+  11, right-aligned, byte-identical to the Excel tool. Datum vanaf is also the ingangsdatum.
+- Checks: Dienstverband required and not 0; OE sleutel digits only, 1-10, not 0; Functie 1-7 characters
+  without spaces, Windows-1252; Datum vanaf a date; Uren, Soort inzet and Datum t/m checked as their
+  standard rubriek (decision 20); Datum t/m not before Datum vanaf; a row that changes nothing is an error.
+- A CSV with only an OE code column stops and explains that the key needs the OE sleutel. A CSV without
+  value columns stops. A missing-columns message for a CSV without a Rubriek column names the inzetregels
+  columns.
+- An IZ rubriek in a rubriek CSV is an error that points to the inzetregels CSV (decision 23).
+- A functie of digits only that does not start with 0 gets one grouped warning: Excel drops leading zeros
+  when it opens a CSV, and Beaufort rejects a functie that does not match exactly (probe P10-6, PI_0802).
+
+### Changed
+- Standard rubrieken refreshed from the Beaufort export of 27-11-2026: 4,243 instead of 4,227. Seven new
+  standard DV rubrieken (P03420-P03423, P05031, P13295, PI0453) and the nine IZ rubrieken P01121-P01129;
+  nothing removed or changed. The table now holds PS, DV and IZ (decision 17).
+
+### Tools
+- `convert-rubrieken.ps1`: `-OnlyScope` keeps PS, DV and IZ. Handles a page break inside a rubriek (in its
+  detail block, or between the code and the columns of its record line), a column header overprinted by
+  text of the previous page, and an omschrijving that wraps over more than one line. A page footer without
+  a column header within 25 lines stops the cleaner, so no rubriek is dropped silently.
+- `update-standard-rubrieken.ps1` accepts gegevenssoort IZ.
+
+### Tests
+- `tests/rubrieken`: a synthetic IZ rubriek (ZZ0009) and the cases `page-break-in-block`,
+  `page-break-in-record` and `err-page-break-without-header`.
+- `make-probes.ps1 -Inzet`: Beaufort probe round 6 (P10) for inzetregels, results in `findings.md`.
+  `-Web -Inzet` (W08, round 6c): an inzetregels CSV through the page's core.
+- Cases `ok-inzet-*`, `err-inzet-*` and `err-iz-rubriek-in-normal-csv`; `ok-inzet-reference-excel-tool`
+  holds two real Excel-tool IZ records (pers_nr replaced). Unit tests (`describe('inzetregels')`), a UI
+  test with the exact download bytes, an inzet share of about 25% in `differential.ps1`, and the demo
+  files `5-inzet-fouten.csv`, `6-inzet-meldingen.csv` and `bestand-inzet-*.csv`.
+- The web harness writes control characters in every error value as `<line break/tab>`, so a multi-line
+  value no longer splits a console line (found by the differential test).
+- Headless Edge no longer runs with `--dump-dom`: in an interactive terminal it printed the whole harness
+  page into the console. The test helper now stops that Edge itself once the result is in.
+- Probe round 6 (2026-11-27): the IZ records work in Beaufort; results in `findings.md`.
+
 ## v1.4.1 (2026-11-05)
 
 Fixes from the code review of v1.4.0. Completes the #14 fix for leading-decimal amounts.

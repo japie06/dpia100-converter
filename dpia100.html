@@ -11,7 +11,7 @@
 <html lang="nl" translate="no">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-+wfvU2VDuskajnX9dwdkWin1+kCyGcKEl10KLyHOljY=' 'sha256-GV2JwX9EMJtZ9n3fTP1yTwIXcysTdoz99u6tctZ2qi8='; style-src 'sha256-V22O4laejLQ2OPxcAoI9UKPHbjw2czl6+bDs9TiZzhc='; connect-src 'none'; form-action 'none'; base-uri 'none'; require-trusted-types-for 'script'; trusted-types 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-bChX93y5ojcUvf2U5MU1SXRlIZa3n8CNBVhVchKzRxM=' 'sha256-f7SdH5yPbv87KkbO9/hOMxM/cng0fxqhP90PAzbEiFk='; style-src 'sha256-V22O4laejLQ2OPxcAoI9UKPHbjw2czl6+bDs9TiZzhc='; connect-src 'none'; form-action 'none'; base-uri 'none'; require-trusted-types-for 'script'; trusted-types 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
@@ -225,7 +225,7 @@ details.privacy[open] > summary { margin-bottom: 16px; }
       <span class="drop-sub">of klik hier om een bestand te kiezen</span>
     </div>
     <input type="file" id="file-input" accept=".csv,.txt,text/csv,text/plain" hidden>
-    <p id="drop-help" class="help">Sla je gegevens in Excel op als <em>CSV (gescheiden door lijstscheidingsteken)</em> of <em>CSV UTF-8</em>. Het bestand wordt alleen in deze browser gelezen.</p>
+    <p id="drop-help" class="help">Sla je gegevens in Excel op als <em>CSV (gescheiden door lijstscheidingsteken)</em> of <em>CSV UTF-8</em>. Het bestand wordt alleen in deze browser gelezen. Twee soorten CSV worden herkend aan de kolommen: rubriekmutaties (met een kolom Rubriek) en inzetregels (met OE sleutel, Functie en Datum vanaf).</p>
     <div id="file-bar" class="file-bar" hidden>
       <div class="file-meta">
         <span class="file-name" id="file-name"></span>
@@ -309,7 +309,7 @@ const DPIA100 = (() => {
   'use strict';
 
   // NOTE: Keep equal to $ScriptVersion in dpia100.ps1 (checked by tests/run-tests.ps1 and CI).
-  const VERSION = '1.4.1';
+  const VERSION = '1.5.0';
 
   // ---------------------------------------------------------------------------------------------
   // .NET string semantics
@@ -602,6 +602,26 @@ const DPIA100 = (() => {
     return null;
   }
 
+  // PS: Find-PropertyByPriority. Every header is tried with the first pattern before the next pattern, so
+  // the pattern order decides (decision 21). Same matching as findColumn; columns in exclude are skipped.
+  function findColumnByPriority(headerNames, patterns, exclude = []) {
+    for (const p of patterns) {
+      const lp = p.toLowerCase();
+      for (const name of headerNames) {
+        if (exclude.includes(name)) continue;
+        const clean = trim(name.replace(/[\r\n"]/g, ' ')).toLowerCase();
+        if (p.length <= 2 ? clean === lp : clean.includes(lp)) return name;
+      }
+    }
+    return null;
+  }
+
+  // Inzetregels CSV (decisions 21 and 22): the patterns of the kind detection, and the values in rubriek order.
+  const FUNCTIE_PATTERNS = ['Functie code', 'Functiecode', 'Functie'];
+  const OE_SLEUTEL_PATTERNS = ['OE sleutel', 'OE key', 'OU_Key', 'oe_oper_sl', 'Sleutel'];
+  const OE_CODE_PATTERNS = ['Org. Eenh', 'Organisatie eenheid', 'Organisatorische eenheid', 'OE code', 'OE'];
+  const INZET_VALUES = [['Soort inzet', 'P01123'], ['Uren', 'P01124'], ['Datum t/m', 'P01126']];
+
   // Field labels as used in all messages (CLAUDE.md conventions), with the header patterns.
   const FIELDS = [
     ['Rubriek', ['Rubriek']],
@@ -640,18 +660,19 @@ const DPIA100 = (() => {
   // analyze: everything up to and including the row validation (decision 14: before the prompts)
   // ---------------------------------------------------------------------------------------------
 
-  // Returns the outcome of reading, mapping and validating the CSV. fatal is null when a file can be
-  // made; otherwise { code, ... } with code read, empty, headerOnly, noRecords, missingHeaders,
-  // doubleMapped, validation (see errors) or allEmpty. Errors are { row, field, code, value, ... } with
+  // Returns the outcome of reading, mapping and validating the CSV. kind is 'rubriek' or 'inzet' (decision
+  // 21). fatal is null when a file can be made; otherwise { code, ... } with code read, empty, headerOnly,
+  // noRecords, oeCodeOnly, missingHeaders, noInzetValues, doubleMapped, validation (see errors) or allEmpty.
+  // Records of an inzetregels CSV have kind 'IZ', field, oe, functie and keyDate. Errors are { row, field, code, value, ... } with
   // the raw cell value; warnings are { code, row, persNr, ... }, or for a group (commaChanged, blocked,
-  // emptyValue, dateShape, timeShape) { code, conversions | rows | values }. formatConversions lists the
+  // emptyValue, dateShape, timeShape, functieDigits) { code, conversions | rows | values }. formatConversions lists the
   // dates and times rewritten for a standard rubriek (decision 20, always reported). Renderers turn codes
   // into text.
   function analyze(bytes, fileName) {
     const r = {
-      fileName, encodingName: null, delimiter: null, notation: null, headerNames: [], mapping: [], fatal: null,
-      errors: [], warnings: [], commaConversions: [], commaReported: false, formatConversions: [], records: [],
-      skippedEmptyRows: 0
+      fileName, encodingName: null, delimiter: null, notation: null, headerNames: [], kind: null, oeCodeColumn: null,
+      mapping: [], fatal: null, errors: [], warnings: [], commaConversions: [], commaReported: false,
+      formatConversions: [], records: [], rowsChecked: 0, skippedEmptyRows: 0
     };
     let text;
     try {
@@ -675,12 +696,44 @@ const DPIA100 = (() => {
     const rows = parseRecords('\r\n' + header.rest, r.delimiter);
     if (rows.length === 0) { r.fatal = { code: 'noRecords' }; return r; }
 
-    r.mapping = FIELDS.map(([field, patterns]) => ({ field, column: findColumn(r.headerNames, patterns) }));
-    const missing = r.mapping.filter(m => !m.column).map(m => m.field);
-    if (missing.length > 0) { r.fatal = { code: 'missingHeaders', fields: missing }; return r; }
+    // The kind of CSV follows from the headers (decision 21). PS: $isInzet. The key of an inzetregel needs the
+    // OE sleutel (decision 22): with only an OE code column the page stops and explains the difference.
+    const colRubriek = findColumn(r.headerNames, ['Rubriek']);
+    const colFunctie = findColumnByPriority(r.headerNames, FUNCTIE_PATTERNS);
+    const colOeSleutel = findColumnByPriority(r.headerNames, OE_SLEUTEL_PATTERNS);
+    const colOeCode = findColumnByPriority(r.headerNames, OE_CODE_PATTERNS, [colOeSleutel]);
+    r.kind = !colRubriek && colFunctie && (colOeSleutel || colOeCode) ? 'inzet' : 'rubriek';
+    if (r.kind === 'inzet' && !colOeSleutel) { r.fatal = { code: 'oeCodeOnly', column: colOeCode }; return r; }
+    if (r.kind === 'inzet') {
+      r.oeCodeColumn = colOeCode;
+      // 'soort' alone also matches Productiesoort, so that column is found first and skipped for Soort inzet.
+      const colProductie = findColumnByPriority(r.headerNames, ['Productiesoort', 'Productie']);
+      const required = (field, column) => ({ field, column, optional: false });
+      const optional = (field, column) => ({ field, column, optional: true });
+      r.mapping = [
+        required('Pers. Nr', findColumn(r.headerNames, ['Pers. Nr', 'Pers_nr', 'PersNr', 'Persoon', 'Persoonsnummer', 'Pers.nr'])),
+        required('Dienstverband', findColumn(r.headerNames, ['Dienstv', 'Dienstverband', 'Dv', 'Dvb'])),
+        required('OE sleutel', colOeSleutel),
+        required('Functie', colFunctie),
+        required('Datum vanaf', findColumnByPriority(r.headerNames, ['Datum vanaf', 'Startdatum'])),
+        optional('Datum t/m', findColumnByPriority(r.headerNames, ['Datum t/m', 'Einddatum'])),
+        optional('Uren', findColumnByPriority(r.headerNames, ['Uren'])),
+        optional('Soort inzet', findColumnByPriority(r.headerNames, ['Soort inzet', 'Soort'], [colProductie])),
+        optional('Productiesoort', colProductie)
+      ];
+    } else {
+      r.mapping = FIELDS.map(([field, patterns]) => ({ field, column: findColumn(r.headerNames, patterns), optional: false }));
+    }
+    const missing = r.mapping.filter(m => !m.column && !m.optional).map(m => m.field);
+    // A CSV without a Rubriek column may have been meant as an inzetregels CSV: the message names its columns.
+    if (missing.length > 0) { r.fatal = { code: 'missingHeaders', fields: missing, inzetHint: r.kind === 'rubriek' && !colRubriek }; return r; }
+    if (r.kind === 'inzet' && !r.mapping.some(m => m.optional && m.column && m.field !== 'Productiesoort')) {
+      r.fatal = { code: 'noInzetValues' };
+      return r;
+    }
     // One CSV column may not feed two fields (PS: Group-Object -Property Column).
     const groups = [];
-    for (const m of r.mapping) {
+    for (const m of r.mapping.filter(x => x.column)) {
       let g = groups.find(x => x.column === m.column);
       if (!g) groups.push(g = { column: m.column, fields: [] });
       g.fields.push(m.field);
@@ -688,16 +741,20 @@ const DPIA100 = (() => {
     const doubles = groups.filter(g => g.fields.length > 1);
     if (doubles.length > 0) { r.fatal = { code: 'doubleMapped', groups: doubles }; return r; }
 
-    const grouped = validateRows(r, rows);
+    const grouped = { blocked: [], empty: [], dates: [], times: [], functies: [] };
+    if (r.kind === 'inzet') validateInzetRows(r, rows, grouped);
+    else validateRows(r, rows, grouped);
 
     if (r.errors.length > 0) { r.fatal = { code: 'validation', count: r.errors.length }; return r; }
-    if (r.records.length === 0) { r.fatal = { code: 'allEmpty', count: r.skippedEmptyRows }; return r; }
+    if (r.rowsChecked === 0) { r.fatal = { code: 'allEmpty', count: r.skippedEmptyRows }; return r; }
     // Blocked rubrieken (decision 19), empty values, dates and times (decision 16): one warning per kind,
     // after the row warnings.
     if (grouped.blocked.length > 0) r.warnings.push({ code: 'blocked', rows: grouped.blocked });
     if (grouped.empty.length > 0) r.warnings.push({ code: 'emptyValue', rows: grouped.empty });
     if (grouped.dates.length > 0) r.warnings.push({ code: 'dateShape', values: grouped.dates });
     if (grouped.times.length > 0) r.warnings.push({ code: 'timeShape', values: grouped.times });
+    // A functie of digits only: Excel may have dropped a leading zero (decision 22).
+    if (grouped.functies.length > 0) r.warnings.push({ code: 'functieDigits', values: grouped.functies });
     // Comma conversions are listed together; in a ';' file only reported, otherwise the first warning.
     if (r.commaConversions.length > 0) {
       if (r.notation === 'nl') r.commaReported = true;
@@ -706,10 +763,161 @@ const DPIA100 = (() => {
     return r;
   }
 
+  // Checks shared by both kinds of CSV. err is the error collector of the row loop; each returns the value
+  // to write.
+
+  // PS: Get-CleanPersNr. Digits only (decision 5), no leading zeros (decision 4), max 6.
+  function checkPersNr(err, rowNumber, rawPersNr) {
+    let cleanPersNr = '';
+    const trimPersNr = trim(rawPersNr);
+    if (isBlank(trimPersNr)) err(rowNumber, 'Pers. Nr', 'empty', rawPersNr);
+    else if (!/^[0-9]+$/.test(trimPersNr)) err(rowNumber, 'Pers. Nr', 'digits', rawPersNr);
+    else {
+      cleanPersNr = trimPersNr.replace(/^0+/, '');
+      if (cleanPersNr.length === 0) err(rowNumber, 'Pers. Nr', 'zero', rawPersNr);
+      else if (cleanPersNr.length > 6) err(rowNumber, 'Pers. Nr', 'tooLong', rawPersNr);
+    }
+    return cleanPersNr;
+  }
+
+  // PS: Get-CleanDienstv. Empty or all zeros = PS mutation (issue #13), digits only, max 3.
+  function checkDienstv(err, rowNumber, rawDienstv) {
+    let clean = '';
+    let valid = true;
+    const trimDienstv = trim(rawDienstv);
+    if (trimDienstv.length > 0) {
+      if (!/^[0-9]+$/.test(trimDienstv)) { valid = false; err(rowNumber, 'Dienstverband', 'digits', rawDienstv); }
+      else {
+        clean = trimDienstv.replace(/^0+/, '');
+        if (clean.length > 3) { valid = false; err(rowNumber, 'Dienstverband', 'tooLong', rawDienstv); }
+      }
+    }
+    return { clean, valid };
+  }
+
+  // PS: Get-CleanProductie. NOR or COR, empty means NOR (decision 11).
+  function checkProductie(err, rowNumber, rawProductie) {
+    const cleanProductie = isBlank(rawProductie) ? 'NOR' : toUpper(trim(rawProductie));
+    if (cleanProductie === 'JWP') err(rowNumber, 'Productiesoort', 'jwp', rawProductie);
+    else if (cleanProductie !== 'NOR' && cleanProductie !== 'COR') err(rowNumber, 'Productiesoort', 'invalid', rawProductie);
+    return cleanProductie;
+  }
+
+  // PS: Test-Waarde. The checks of a Waarde (decisions 3, 7, 8, 16 and 20), for a rubriek CSV and for the
+  // values of an inzetregel (decision 21). field is the column label of the errors; standard is the standard
+  // rubriek or null (an eigen rubriek), cleanRubriek its code. Returns { value, waardeIn }.
+  function checkWaarde(r, grouped, err, rowNumber, field, rawWaarde, standard, cleanRubriek, cleanPersNr) {
+    // Waarde: no control characters, NFC, Windows-1252 only (decision 7); amounts (decision 8);
+    //    truncated over 50 characters with a warning (decision 3).
+    let cleanWaarde = trim(rawWaarde);
+    const waardeIn = cleanWaarde;
+    if (reControl.test(cleanWaarde)) {
+      err(rowNumber, field, 'control', cleanWaarde);
+      cleanWaarde = cleanWaarde.replace(reControlRun, ' ');
+    }
+    if (reLoneSurrogate.test(cleanWaarde)) err(rowNumber, field, 'unicode', rawWaarde); // .NET Normalize throws
+    else cleanWaarde = cleanWaarde.normalize('NFC');
+    const badChars = unencodableChars(cleanWaarde);
+    if (badChars) err(rowNumber, field, 'encoding', rawWaarde, { chars: badChars });
+
+    const warn = (code, extra) => r.warnings.push(Object.assign({ code, row: rowNumber, persNr: cleanPersNr }, extra));
+    // The type of a standard rubriek decides the checks (decision 20): N numeric, D date, T and U time;
+    // any other type (S, H, I) is text. '' = not a standard rubriek (an eigen rubriek).
+    const waardeType = !standard ? '' : ['N', 'D', 'T', 'U'].includes(standard.type) ? standard.type : 'S';
+    // Number-like: only digits, dots and commas with an optional minus. A date with dots is not an amount.
+    // Amounts (decision 8) only for an eigen rubriek or a standard numeric one: text is written as typed.
+    const isNumberLike = (waardeType === '' || waardeType === 'N') &&
+      reNumberLike.test(cleanWaarde) && reHasDigit.test(cleanWaarde) && !reDottedDate.test(cleanWaarde);
+    const m = isNumberLike ? reCommaAmount.exec(cleanWaarde) : null;
+    if (m) {
+      const sign = m[1] === '-' ? '-' : '';
+      // A leading-decimal amount (',50', '-,50') gets a 0 before the dot (issue #14).
+      const whole = m[2] || '0';
+      const fraction = m[3];
+      let converted = fraction ? `${sign}${whole}.${fraction}` : `${sign}${whole}`;
+      const thousandShape = !!fraction && reThousandWhole.test(whole) && fraction.length === 3;
+      if (thousandShape && r.notation === 'en') {
+        // English notation: '1,234' is 1234. Not converted, because '1.234' would be read as 1,234.
+        warn('thousandEn', { value: cleanWaarde, whole, fraction });
+        converted = cleanWaarde;
+      } else if (thousandShape && !r.notation) {
+        warn('commaAsDecimal', { value: cleanWaarde, converted, whole, fraction });
+      } else if (fraction) {
+        r.commaConversions.push({ row: rowNumber, from: cleanWaarde, to: converted });
+      }
+      cleanWaarde = converted;
+    } else if (isNumberLike && reLeadingDot.test(cleanWaarde)) {
+      // A leading-dot amount ('.50', '-.50'): a standard numeric rubriek gets a 0 before the dot, reported
+      // like the date and time shapes (decision 20); an eigen rubriek keeps it, with a warning (decision 8).
+      const d = reLeadingDot.exec(cleanWaarde);
+      const shaped = `${d[1] === '-' ? '-' : ''}0.${d[2]}`;
+      if (waardeType === 'N') {
+        r.formatConversions.push({ row: rowNumber, from: cleanWaarde, to: shaped });
+        cleanWaarde = shaped;
+      } else {
+        warn('leadingDot', { value: cleanWaarde, suggested: shaped });
+      }
+    } else if (isNumberLike && r.notation !== 'en' && reDotThousand.test(cleanWaarde)) {
+      // In English notation '3.250' is a plain decimal (3,25), as Beaufort reads it: no warning.
+      warn('dotDecimal', { value: cleanWaarde, asComma: cleanWaarde.replace(/\./g, ',') });
+    } else if (isNumberLike && reTwoSeparators.test(cleanWaarde)) {
+      warn('separator', { value: cleanWaarde });
+    }
+
+    // Standard rubriek: the value against its type, length and decimals (decision 20). Errors for what
+    // Beaufort rejects or would change; dates and times get the rubriek's shape, which is reported.
+    const rub = { rubriek: cleanRubriek };
+    const reshape = shaped => {
+      if (shaped !== cleanWaarde) r.formatConversions.push({ row: rowNumber, from: cleanWaarde, to: shaped });
+      cleanWaarde = shaped;
+    };
+    if (waardeType === 'N' && cleanWaarde.length > 0) {
+      if (!reNumber.test(cleanWaarde)) err(rowNumber, field, 'notNumber', rawWaarde, rub);
+      else {
+        const parts = cleanWaarde.replace(/^-/, '').split('.');
+        const wholeDigits = parts[0].replace(/^0+/, '').length;
+        const decimals = parts.length > 1 ? parts[1].replace(/0+$/, '').length : 0;
+        // The length of a numeric rubriek includes the decimal point and the decimals.
+        const maxWhole = standard.length - standard.decimals - (standard.decimals > 0 ? 1 : 0);
+        if (decimals > standard.decimals) {
+          const kept = cleanWaarde.split('.')[0] + (standard.decimals > 0 ? '.' + parts[1].substring(0, standard.decimals) : '');
+          err(rowNumber, field, 'decimals', rawWaarde, { rubriek: cleanRubriek, decimals: standard.decimals, kept });
+        } else if (wholeDigits > maxWhole) {
+          err(rowNumber, field, 'digits', rawWaarde, { rubriek: cleanRubriek, max: maxWhole });
+        }
+      }
+    } else if (waardeType === 'D' && cleanWaarde.length > 0) {
+      const d = parseDate(cleanWaarde); // PS: Test-And-ParseDate, then ToString('dd-MM-yyyy')
+      if (d) reshape(`${d.substring(0, 2)}-${d.substring(2, 4)}-${d.substring(4)}`);
+      else err(rowNumber, field, 'notDate', rawWaarde, rub);
+    } else if ((waardeType === 'T' || waardeType === 'U') && cleanWaarde.length > 0) {
+      // T holds hh:mm, U hh:mm:ss. Seconds other than 00 do not fit a T rubriek.
+      const t = reTime.exec(cleanWaarde);
+      if (t && +t[1] <= 23 && +t[2] <= 59 && (!t[3] || +t[3] <= 59) && !(waardeType === 'T' && t[3] && t[3] !== '00')) {
+        reshape(`${pad2(+t[1])}:${t[2]}${waardeType === 'U' ? ':' + (t[3] || '00') : ''}`);
+      } else {
+        err(rowNumber, field, 'notTime', rawWaarde, { rubriek: cleanRubriek, type: waardeType });
+      }
+    } else if (waardeType === 'S' && standard.length < 50 && cleanWaarde.length > standard.length) {
+      err(rowNumber, field, 'textTooLong', rawWaarde, { rubriek: cleanRubriek, length: standard.length });
+    }
+
+    // Empty = a deliberate delete in Beaufort (every rubriek). For an eigen rubriek dates and times not as
+    // the Excel tool wrote them, or as Beaufort type U holds them (hh:mm:ss), get a warning (decision 16).
+    if (cleanWaarde.length === 0) grouped.empty.push({ row: rowNumber, persNr: cleanPersNr });
+    else if (waardeType === '' && reDateLike.test(cleanWaarde) && !reDateExcel.test(cleanWaarde)) grouped.dates.push({ row: rowNumber, value: cleanWaarde });
+    else if (waardeType === '' && reTimeLike.test(cleanWaarde) && !reTimeBeaufort.test(cleanWaarde)) grouped.times.push({ row: rowNumber, value: cleanWaarde });
+    if (cleanWaarde.length > 50) {
+      const original = cleanWaarde;
+      cleanWaarde = cleanWaarde.substring(0, 50);
+      warn('truncated', { length: original.length, original, truncated: cleanWaarde });
+    }
+    return { value: cleanWaarde, waardeIn };
+  }
+
   // PS: the per-row validation loop. Row 1 is the header; every parsed record counts, also empty ones.
-  // Returns the rows for the grouped warnings (PS: $blockedRows, $emptyWaardes, $dateWaardes, $timeWaardes).
-  function validateRows(r, rows) {
-    const grouped = { blocked: [], empty: [], dates: [], times: [] };
+  // Fills grouped, the rows for the grouped warnings (PS: $blockedRows, $emptyWaardes, $dateWaardes, $timeWaardes).
+  function validateRows(r, rows, grouped) {
     const col = {};
     for (const m of r.mapping) col[m.field] = r.headerNames.indexOf(m.column);
     const err = (row, field, code, value, extra) => r.errors.push(Object.assign({ row, field, code, value }, extra));
@@ -720,6 +928,7 @@ const DPIA100 = (() => {
       const cells = r.headerNames.map((_, i) => (i < values.length ? values[i] : ''));
       // Rows where every cell is blank (trailing ';;;;;;' lines from Excel) are skipped.
       if (cells.every(isBlank)) { r.skippedEmptyRows++; continue; }
+      r.rowsChecked++;
       const raw = field => cells[col[field]];
       const rawRubriek = raw('Rubriek');
       const rawPersNr = raw('Pers. Nr');
@@ -736,31 +945,20 @@ const DPIA100 = (() => {
       if (isBlank(cleanRubriek)) err(rowNumber, 'Rubriek', 'empty', rawRubriek);
       else if (!/^[A-Z0-9]+$/i.test(cleanRubriek)) err(rowNumber, 'Rubriek', 'chars', rawRubriek);
       else if (cleanRubriek.length > 6) err(rowNumber, 'Rubriek', 'tooLong', rawRubriek);
-      else standard = standardRubriek(cleanRubriek);
-
-      // 2. Pers. Nr: digits only (decision 5), no leading zeros (decision 4), max 6.
-      let cleanPersNr = '';
-      const trimPersNr = trim(rawPersNr);
-      if (isBlank(trimPersNr)) err(rowNumber, 'Pers. Nr', 'empty', rawPersNr);
-      else if (!/^[0-9]+$/.test(trimPersNr)) err(rowNumber, 'Pers. Nr', 'digits', rawPersNr);
       else {
-        cleanPersNr = trimPersNr.replace(/^0+/, '');
-        if (cleanPersNr.length === 0) err(rowNumber, 'Pers. Nr', 'zero', rawPersNr);
-        else if (cleanPersNr.length > 6) err(rowNumber, 'Pers. Nr', 'tooLong', rawPersNr);
+        standard = standardRubriek(cleanRubriek);
+        // An IZ rubriek needs the key of an inzetregel, which this CSV has not (decision 23).
+        if (standard && standard.gegsoort === 'IZ') { err(rowNumber, 'Rubriek', 'izRubriek', rawRubriek, { rubriek: cleanRubriek }); standard = null; }
       }
 
-      // 3. Dienstverband: optional (empty or all zeros = PS mutation, issue #13), digits only, max 3. For a standard
-      //    rubriek the key must match its gegevenssoort (decision 18, step 4b).
-      let cleanDienstv = '';
-      let dienstvValid = true;
-      const trimDienstv = trim(rawDienstv);
-      if (trimDienstv.length > 0) {
-        if (!/^[0-9]+$/.test(trimDienstv)) { dienstvValid = false; err(rowNumber, 'Dienstverband', 'digits', rawDienstv); }
-        else {
-          cleanDienstv = trimDienstv.replace(/^0+/, '');
-          if (cleanDienstv.length > 3) { dienstvValid = false; err(rowNumber, 'Dienstverband', 'tooLong', rawDienstv); }
-        }
-      }
+      // 2. Pers. Nr (checkPersNr).
+      const cleanPersNr = checkPersNr(err, rowNumber, rawPersNr);
+
+      // 3. Dienstverband (checkDienstv). For a standard rubriek the key must match its gegevenssoort
+      //    (decision 18, step 4b).
+      const dv = checkDienstv(err, rowNumber, rawDienstv);
+      const cleanDienstv = dv.clean;
+      const dienstvValid = dv.valid;
 
       // 4. S of V: S/STAM or V/VARIABEL.
       const cleanSofV = toUpper(trim(rawSofV));
@@ -782,125 +980,98 @@ const DPIA100 = (() => {
       const ingang = parseDate(rawIngang);
       if (ingang === null) err(rowNumber, 'Ingangsdatum', 'invalid', rawIngang);
 
-      // 6. Productiesoort: NOR or COR, empty means NOR (decision 11).
-      const cleanProductie = isBlank(rawProductie) ? 'NOR' : toUpper(trim(rawProductie));
-      if (cleanProductie === 'JWP') err(rowNumber, 'Productiesoort', 'jwp', rawProductie);
-      else if (cleanProductie !== 'NOR' && cleanProductie !== 'COR') err(rowNumber, 'Productiesoort', 'invalid', rawProductie);
+      // 6. Productiesoort (checkProductie).
+      const cleanProductie = checkProductie(err, rowNumber, rawProductie);
 
-      // 7. Waarde: no control characters, NFC, Windows-1252 only (decision 7); amounts (decision 8);
-      //    truncated over 50 characters with a warning (decision 3).
-      let cleanWaarde = trim(rawWaarde);
-      const waardeIn = cleanWaarde;
-      if (reControl.test(cleanWaarde)) {
-        err(rowNumber, 'Mutatiewaarde', 'control', cleanWaarde);
-        cleanWaarde = cleanWaarde.replace(reControlRun, ' ');
-      }
-      if (reLoneSurrogate.test(cleanWaarde)) err(rowNumber, 'Mutatiewaarde', 'unicode', rawWaarde); // .NET Normalize throws
-      else cleanWaarde = cleanWaarde.normalize('NFC');
-      const badChars = unencodableChars(cleanWaarde);
-      if (badChars) err(rowNumber, 'Mutatiewaarde', 'encoding', rawWaarde, { chars: badChars });
-
-      const warn = (code, extra) => r.warnings.push(Object.assign({ code, row: rowNumber, persNr: cleanPersNr }, extra));
-      // The type of a standard rubriek decides the checks (decision 20): N numeric, D date, T and U time;
-      // any other type (S, H, I) is text. '' = not a standard rubriek (an eigen rubriek).
-      const waardeType = !standard ? '' : ['N', 'D', 'T', 'U'].includes(standard.type) ? standard.type : 'S';
-      // Number-like: only digits, dots and commas with an optional minus. A date with dots is not an amount.
-      // Amounts (decision 8) only for an eigen rubriek or a standard numeric one: text is written as typed.
-      const isNumberLike = (waardeType === '' || waardeType === 'N') &&
-        reNumberLike.test(cleanWaarde) && reHasDigit.test(cleanWaarde) && !reDottedDate.test(cleanWaarde);
-      const m = isNumberLike ? reCommaAmount.exec(cleanWaarde) : null;
-      if (m) {
-        const sign = m[1] === '-' ? '-' : '';
-        // A leading-decimal amount (',50', '-,50') gets a 0 before the dot (issue #14).
-        const whole = m[2] || '0';
-        const fraction = m[3];
-        let converted = fraction ? `${sign}${whole}.${fraction}` : `${sign}${whole}`;
-        const thousandShape = !!fraction && reThousandWhole.test(whole) && fraction.length === 3;
-        if (thousandShape && r.notation === 'en') {
-          // English notation: '1,234' is 1234. Not converted, because '1.234' would be read as 1,234.
-          warn('thousandEn', { value: cleanWaarde, whole, fraction });
-          converted = cleanWaarde;
-        } else if (thousandShape && !r.notation) {
-          warn('commaAsDecimal', { value: cleanWaarde, converted, whole, fraction });
-        } else if (fraction) {
-          r.commaConversions.push({ row: rowNumber, from: cleanWaarde, to: converted });
-        }
-        cleanWaarde = converted;
-      } else if (isNumberLike && reLeadingDot.test(cleanWaarde)) {
-        // A leading-dot amount ('.50', '-.50'): a standard numeric rubriek gets a 0 before the dot, reported
-        // like the date and time shapes (decision 20); an eigen rubriek keeps it, with a warning (decision 8).
-        const d = reLeadingDot.exec(cleanWaarde);
-        const shaped = `${d[1] === '-' ? '-' : ''}0.${d[2]}`;
-        if (waardeType === 'N') {
-          r.formatConversions.push({ row: rowNumber, from: cleanWaarde, to: shaped });
-          cleanWaarde = shaped;
-        } else {
-          warn('leadingDot', { value: cleanWaarde, suggested: shaped });
-        }
-      } else if (isNumberLike && r.notation !== 'en' && reDotThousand.test(cleanWaarde)) {
-        // In English notation '3.250' is a plain decimal (3,25), as Beaufort reads it: no warning.
-        warn('dotDecimal', { value: cleanWaarde, asComma: cleanWaarde.replace(/\./g, ',') });
-      } else if (isNumberLike && reTwoSeparators.test(cleanWaarde)) {
-        warn('separator', { value: cleanWaarde });
-      }
-
-      // Standard rubriek: the value against its type, length and decimals (decision 20). Errors for what
-      // Beaufort rejects or would change; dates and times get the rubriek's shape, which is reported.
-      const rub = { rubriek: cleanRubriek };
-      const reshape = shaped => {
-        if (shaped !== cleanWaarde) r.formatConversions.push({ row: rowNumber, from: cleanWaarde, to: shaped });
-        cleanWaarde = shaped;
-      };
-      if (waardeType === 'N' && cleanWaarde.length > 0) {
-        if (!reNumber.test(cleanWaarde)) err(rowNumber, 'Mutatiewaarde', 'notNumber', rawWaarde, rub);
-        else {
-          const parts = cleanWaarde.replace(/^-/, '').split('.');
-          const wholeDigits = parts[0].replace(/^0+/, '').length;
-          const decimals = parts.length > 1 ? parts[1].replace(/0+$/, '').length : 0;
-          // The length of a numeric rubriek includes the decimal point and the decimals.
-          const maxWhole = standard.length - standard.decimals - (standard.decimals > 0 ? 1 : 0);
-          if (decimals > standard.decimals) {
-            const kept = cleanWaarde.split('.')[0] + (standard.decimals > 0 ? '.' + parts[1].substring(0, standard.decimals) : '');
-            err(rowNumber, 'Mutatiewaarde', 'decimals', rawWaarde, { rubriek: cleanRubriek, decimals: standard.decimals, kept });
-          } else if (wholeDigits > maxWhole) {
-            err(rowNumber, 'Mutatiewaarde', 'digits', rawWaarde, { rubriek: cleanRubriek, max: maxWhole });
-          }
-        }
-      } else if (waardeType === 'D' && cleanWaarde.length > 0) {
-        const d = parseDate(cleanWaarde); // PS: Test-And-ParseDate, then ToString('dd-MM-yyyy')
-        if (d) reshape(`${d.substring(0, 2)}-${d.substring(2, 4)}-${d.substring(4)}`);
-        else err(rowNumber, 'Mutatiewaarde', 'notDate', rawWaarde, rub);
-      } else if ((waardeType === 'T' || waardeType === 'U') && cleanWaarde.length > 0) {
-        // T holds hh:mm, U hh:mm:ss. Seconds other than 00 do not fit a T rubriek.
-        const t = reTime.exec(cleanWaarde);
-        if (t && +t[1] <= 23 && +t[2] <= 59 && (!t[3] || +t[3] <= 59) && !(waardeType === 'T' && t[3] && t[3] !== '00')) {
-          reshape(`${pad2(+t[1])}:${t[2]}${waardeType === 'U' ? ':' + (t[3] || '00') : ''}`);
-        } else {
-          err(rowNumber, 'Mutatiewaarde', 'notTime', rawWaarde, { rubriek: cleanRubriek, type: waardeType });
-        }
-      } else if (waardeType === 'S' && standard.length < 50 && cleanWaarde.length > standard.length) {
-        err(rowNumber, 'Mutatiewaarde', 'textTooLong', rawWaarde, { rubriek: cleanRubriek, length: standard.length });
-      }
-
-      // Empty = a deliberate delete in Beaufort (every rubriek). For an eigen rubriek dates and times not as
-      // the Excel tool wrote them, or as Beaufort type U holds them (hh:mm:ss), get a warning (decision 16).
-      if (cleanWaarde.length === 0) grouped.empty.push({ row: rowNumber, persNr: cleanPersNr });
-      else if (waardeType === '' && reDateLike.test(cleanWaarde) && !reDateExcel.test(cleanWaarde)) grouped.dates.push({ row: rowNumber, value: cleanWaarde });
-      else if (waardeType === '' && reTimeLike.test(cleanWaarde) && !reTimeBeaufort.test(cleanWaarde)) grouped.times.push({ row: rowNumber, value: cleanWaarde });
-      if (cleanWaarde.length > 50) {
-        const original = cleanWaarde;
-        cleanWaarde = cleanWaarde.substring(0, 50);
-        warn('truncated', { length: original.length, original, truncated: cleanWaarde });
-      }
+      // 7. Waarde (checkWaarde).
+      const w = checkWaarde(r, grouped, err, rowNumber, 'Mutatiewaarde', rawWaarde, standard, cleanRubriek, cleanPersNr);
 
       r.records.push({
-        row: rowNumber, rubriek: cleanRubriek, persNr: cleanPersNr, dienstv: cleanDienstv, indicator,
-        waarde: cleanWaarde, waardeIn, ingang: ingang || '01010001', productie: cleanProductie
+        row: rowNumber, kind: '', rubriek: cleanRubriek, persNr: cleanPersNr, dienstv: cleanDienstv, indicator,
+        waarde: w.value, waardeIn: w.waardeIn, ingang: ingang || '01010001', productie: cleanProductie
       });
     }
-    return grouped;
   }
 
+  // PS: Test-InzetRow. One row of an inzetregels CSV (decisions 21 and 22): the key, then one record per filled
+  // value, in rubriek order. An empty cell leaves the value unchanged, so it writes no record (as the Excel tool,
+  // where a row was added only for a change); a row that changes nothing is an error.
+  const reSpaceOrControl = new RegExp(`[${WS}\\x00-\\x1F\\x7F]`); // PS: -match '[\s\x00-\x1F\x7F]'
+  const ymd = d => d.substring(4) + d.substring(2, 4) + d.substring(0, 2); // ddMMyyyy -> yyyyMMdd
+  function validateInzetRows(r, rows, grouped) {
+    const col = {};
+    for (const m of r.mapping) col[m.field] = m.column ? r.headerNames.indexOf(m.column) : -1;
+    const err = (row, field, code, value, extra) => r.errors.push(Object.assign({ row, field, code, value }, extra));
+    let rowNumber = 1;
+    for (const values of rows) {
+      rowNumber++;
+      const cells = r.headerNames.map((_, i) => (i < values.length ? values[i] : ''));
+      if (cells.every(isBlank)) { r.skippedEmptyRows++; continue; }
+      r.rowsChecked++;
+      const raw = field => (col[field] >= 0 ? cells[col[field]] : '');
+      const cleanPersNr = checkPersNr(err, rowNumber, raw('Pers. Nr'));
+
+      // Dienstverband is part of the IZ key, so it is required here (an inzetregel belongs to a dienstverband).
+      const rawDienstv = raw('Dienstverband');
+      const dv = checkDienstv(err, rowNumber, rawDienstv);
+      if (dv.valid && dv.clean === '') {
+        if (isBlank(rawDienstv)) err(rowNumber, 'Dienstverband', 'empty', rawDienstv);
+        else err(rowNumber, 'Dienstverband', 'zero', rawDienstv);
+      }
+
+      // OE sleutel (decision 22): digits only, no leading zeros, 1-10 digits, not 0.
+      const rawOe = raw('OE sleutel');
+      const trimOe = trim(rawOe);
+      let cleanOe = '';
+      if (isBlank(trimOe)) err(rowNumber, 'OE sleutel', 'empty', rawOe);
+      else if (!/^[0-9]+$/.test(trimOe)) err(rowNumber, 'OE sleutel', 'digits', rawOe);
+      else {
+        cleanOe = trimOe.replace(/^0+/, '');
+        if (cleanOe.length === 0) err(rowNumber, 'OE sleutel', 'zero', rawOe);
+        else if (cleanOe.length > 10) err(rowNumber, 'OE sleutel', 'tooLong', rawOe);
+      }
+
+      // Functie (decision 22): 1-7 characters without spaces, Windows-1252, written as typed.
+      const rawFunctie = raw('Functie');
+      const cleanFunctie = trim(rawFunctie);
+      if (isBlank(cleanFunctie)) err(rowNumber, 'Functie', 'empty', rawFunctie);
+      else if (reSpaceOrControl.test(cleanFunctie)) err(rowNumber, 'Functie', 'spaces', cleanFunctie);
+      else if (unencodableChars(cleanFunctie)) err(rowNumber, 'Functie', 'encoding', rawFunctie, { chars: unencodableChars(cleanFunctie) });
+      else if (cleanFunctie.length > 7) err(rowNumber, 'Functie', 'tooLong', rawFunctie);
+      // ASCII digits only, as [0-9] in the script (not \d): a code that starts with 0 kept its zeros.
+      else if (/^[1-9][0-9]*$/.test(cleanFunctie)) grouped.functies.push({ row: rowNumber, value: cleanFunctie });
+
+      // Datum vanaf: the date in the key and the ingangsdatum of every record.
+      const rawVanaf = raw('Datum vanaf');
+      const vanaf = parseDate(rawVanaf);
+      if (vanaf === null) err(rowNumber, 'Datum vanaf', 'invalid', rawVanaf);
+
+      const cleanProductie = checkProductie(err, rowNumber, raw('Productiesoort'));
+
+      // The values, in rubriek order. Each is checked as its standard rubriek (decision 20).
+      let written = 0;
+      for (const [field, rubriek] of INZET_VALUES) {
+        const rawValue = raw(field);
+        if (isBlank(rawValue)) continue;
+        written++;
+        const standard = standardRubriek(rubriek);
+        if (standard && standard.blocked) grouped.blocked.push({ row: rowNumber, rubriek });
+        const w = checkWaarde(r, grouped, err, rowNumber, field, rawValue, standard, rubriek, cleanPersNr);
+        // Datum t/m before Datum vanaf would end the inzetregel before it starts.
+        const tm = field === 'Datum t/m' && vanaf !== null ? parseDate(trim(rawValue)) : null;
+        if (tm !== null && ymd(tm) < ymd(vanaf)) {
+          err(rowNumber, 'Datum t/m', 'beforeVanaf', rawValue, { vanaf: `${vanaf.substring(0, 2)}-${vanaf.substring(2, 4)}-${vanaf.substring(4)}` });
+        }
+        r.records.push({
+          row: rowNumber, kind: 'IZ', field, rubriek, persNr: cleanPersNr, dienstv: dv.clean, oe: cleanOe, functie: cleanFunctie,
+          // The key date as the Excel tool wrote it: d-M-yyyy (decision 22). PS: "$($d.Day)-$($d.Month)-$($d.Year)".
+          keyDate: vanaf ? `${+vanaf.substring(0, 2)}-${+vanaf.substring(2, 4)}-${+vanaf.substring(4)}` : '',
+          indicator: 'S', waarde: w.value, waardeIn: w.waardeIn, ingang: vanaf || '01010001', productie: cleanProductie
+        });
+      }
+      if (written === 0) err(rowNumber, 'Inzetregel', 'nothing', '');
+    }
+  }
   // ---------------------------------------------------------------------------------------------
   // Prompt values (asked after a successful analyze, decision 14)
   // ---------------------------------------------------------------------------------------------
@@ -933,13 +1104,21 @@ const DPIA100 = (() => {
   // Output (exact 187-character layout, field-layout.md)
   // ---------------------------------------------------------------------------------------------
 
+  // PS: the Object_id in the build loop. PS '{pers,6}', DV '{pers,6} {dv,3}'; IZ: pers, dv, OE sleutel,
+  // functie and Datum vanaf right-aligned in 6, 4, 11, 8 and 11 (decision 22).
+  function objectKey(rec) {
+    if (rec.kind === 'IZ') {
+      return rec.persNr.padStart(6) + rec.dienstv.padStart(4) + rec.oe.padStart(11) + rec.functie.padStart(8) + rec.keyDate.padStart(11);
+    }
+    return isBlank(rec.dienstv) ? rec.persNr.padStart(6) : `${rec.persNr.padStart(6)} ${rec.dienstv.padStart(3)}`;
+  }
+
   function buildLines(records, meta) {
     return records.map(rec => {
-      const objectKey = isBlank(rec.dienstv) ? rec.persNr.padStart(6) : `${rec.persNr.padStart(6)} ${rec.dienstv.padStart(3)}`;
       const line =
         meta.procescode.padEnd(3).substring(0, 3) + // 1-3     Procescode
         rec.rubriek.padEnd(6).substring(0, 6) +     // 4-9     Rubriekcode
-        objectKey.padEnd(50) +                      // 10-59   Object_id
+        objectKey(rec).padEnd(50) +                 // 10-59   Object_id
         rec.indicator +                             // 60      S/V
         meta.creatiedatum.padStart(11) +            // 61-71   Creatiedatum
         meta.gebruiker.padStart(16) +               // 72-87   Creatiegebruiker
@@ -967,11 +1146,11 @@ const DPIA100 = (() => {
   // Standard rubrieken (decision 17)
   // ---------------------------------------------------------------------------------------------
 
-  // One line per standard PS/DV rubriek: code, gegevenssoort, type, length, decimals ('-' = blank),
+  // One line per standard PS/DV/IZ rubriek: code, gegevenssoort, type, length, decimals ('-' = blank),
   // stam/variabel allowed ('S-', '-V', 'SV') and Blok ind mut ('J', 'N', '-' = blank, not blocked).
   // The same text is in dpia100.ps1 (checked by the page-rubrieken test).
-  // BEGIN STANDARD RUBRIEKEN: generated by tools/update-standard-rubrieken.ps1 from the Beaufort export of 30-10-2026, do not edit (decision 17)
-  const STANDARD_RUBRIEKEN_DATE = '30-10-2026';
+  // BEGIN STANDARD RUBRIEKEN: generated by tools/update-standard-rubrieken.ps1 from the Beaufort export of 27-11-2026, do not edit (decision 17)
+  const STANDARD_RUBRIEKEN_DATE = '27-11-2026';
   const STANDARD_RUBRIEKEN_TABLE = String.raw`
 P00001 DV N  6 2 SV N
 P00002 DV N  9 2 SV N
@@ -1738,6 +1917,15 @@ P01113 DV S  3 - S- N
 P01114 DV N  4 0 S- J
 P01118 DV N  9 2 SV N
 P01119 DV N  5 2 S- N
+P01121 IZ N 10 0 S- J
+P01122 IZ S  7 - S- J
+P01123 IZ S  3 - S- N
+P01124 IZ N  5 2 S- N
+P01125 IZ D 11 - S- J
+P01126 IZ D 11 - S- N
+P01127 IZ S  7 - S- N
+P01128 IZ S  7 - S- N
+P01129 IZ S  7 - S- N
 P01151 DV S  4 - S- N
 P01152 DV N  4 0 S- N
 P01153 DV N  9 2 S- N
@@ -2791,6 +2979,10 @@ P03411 PS S 50 - S- N
 P03412 PS S 50 - S- N
 P03413 PS S 50 - S- N
 P03414 PS S 50 - S- N
+P03420 DV S  9 - S- N
+P03421 DV N  9 2 S- N
+P03422 DV N  6 2 S- N
+P03423 DV N  9 2 S- N
 P03454 DV N  6 2 SV N
 P03516 DV N  2 - S- N
 P03573 DV D 11 - S- N
@@ -2912,6 +3104,7 @@ P05027 DV S 10 - S- N
 P05028 DV N  6 - S- N
 P05029 DV N  6 - S- N
 P05030 PS S  1 - S- N
+P05031 DV S  4 - S- N
 P05040 DV S  1 - S- N
 P05041 DV S  1 - S- N
 P05042 DV S  1 - S- N
@@ -3780,6 +3973,7 @@ P13291 DV D 11 - S- N
 P13292 DV D 11 - S- N
 P13293 DV D 11 - S- N
 P13294 DV D 11 - S- N
+P13295 DV N  9 2 -V N
 P13301 DV N 10 2 SV N
 P13302 DV N 10 2 SV N
 P13303 DV N 10 2 SV N
@@ -4915,6 +5109,7 @@ PI0449 DV D 11 0 S- N
 PI0450 DV D 11 0 S- N
 PI0451 DV D 11 0 S- N
 PI0452 DV D 11 0 S- N
+PI0453 DV D 11 - S- N
 PO0001 PS D 11 - S- N
 PO0002 PS D 11 - S- N
 PO0003 PS D 11 - S- N
@@ -5206,7 +5401,7 @@ SETKB  DV S  2 - S- N
   // PS: $standardRubrieken. Code -> table line; a damaged line means the page was changed: stop.
   const STANDARD = new Map();
   for (const line of STANDARD_RUBRIEKEN_TABLE.split(/\r?\n/)) {
-    const m = /^([A-Z0-9]{1,6}) +(PS|DV) [A-Z] +[0-9]{1,2} [0-9-] [S-][V-] [JN-]$/.exec(line);
+    const m = /^([A-Z0-9]{1,6}) +(PS|DV|IZ) [A-Z] +[0-9]{1,2} [0-9-] [S-][V-] [JN-]$/.exec(line);
     if (m) STANDARD.set(m[1], line);
     else if (trim(line) !== '') throw new Error(`The list of standard rubrieken in this page is damaged (line '${line}').`);
   }
@@ -5274,10 +5469,25 @@ SETKB  DV S  2 - S- N
     'Mutatiewaarde/digits': [e => `${e.rubriek} heeft ruimte voor maximaal ${plural(e.max, 'cijfer', 'cijfers')} voor de punt.`, 'Controleer de waarde.'],
     'Mutatiewaarde/notDate': [e => `${e.rubriek} is een datumrubriek: dit is geen datum.`, 'Schrijf dd-mm-jjjj, bijvoorbeeld 01-11-2026. Een jaar van 2 cijfers wordt niet geraden.'],
     'Mutatiewaarde/notTime': [e => `${e.rubriek} is een tijdrubriek: dit is geen geldige tijd.`, e => (e.type === 'T' ? 'Schrijf uu:mm, bijvoorbeeld 08:30.' : 'Schrijf uu:mm:ss, bijvoorbeeld 08:30:00.')],
-    'Mutatiewaarde/textTooLong': [e => `${e.rubriek} heeft ruimte voor maximaal ${plural(e.length, 'teken', 'tekens')}.`, 'Maak de waarde korter.']
+    'Mutatiewaarde/textTooLong': [e => `${e.rubriek} heeft ruimte voor maximaal ${plural(e.length, 'teken', 'tekens')}.`, 'Maak de waarde korter.'],
+    'Rubriek/izRubriek': [e => `${e.rubriek} hoort bij een inzetregel.`, 'Gebruik daarvoor een CSV met inzetregels: kolommen OE sleutel, Functie en Datum vanaf, zonder kolom Rubriek.'],
+    // Inzetregels CSV (decisions 21 and 22). Uren, Soort inzet and Datum t/m use the Mutatiewaarde texts.
+    'Dienstverband/empty': ['Leeg.', 'Een inzetregel hoort bij een dienstverband: vul het nummer in.'],
+    'Dienstverband/zero': ['Mag niet 0 zijn.', 'Een inzetregel hoort bij een dienstverband: vul het nummer in.'],
+    'OE sleutel/empty': ['Leeg.', 'Vul de OE sleutel in: de technische sleutel van de organisatorische eenheid.'],
+    'OE sleutel/digits': ['Alleen cijfers toegestaan: de OE sleutel is een nummer, niet de OE-code of de naam.', DIGITS_HINT],
+    'OE sleutel/zero': ['Mag niet 0 zijn.', ''],
+    'OE sleutel/tooLong': ['Langer dan 10 cijfers.', 'Voorloopnullen tellen niet mee.'],
+    'Functie/empty': ['Leeg.', 'Vul de functiecode van de inzetregel in.'],
+    'Functie/spaces': ['Bevat een spatie, tab of ander stuurteken.', 'Een functiecode heeft geen spaties.'],
+    'Functie/encoding': [e => `Bevat tekens die Beaufort niet kent: ${e.chars}.`, ''],
+    'Functie/tooLong': ['Langer dan 7 tekens.', 'Controleer of dit de functiecode is en niet de naam van de functie.'],
+    'Datum vanaf/invalid': ['Geen geldige datum.', 'Bijvoorbeeld 1-11-2026, 01112026 of 2026-11-01. Bestaat de datum (geen 31 februari)?'],
+    'Datum t/m/beforeVanaf': [e => `Ligt voor Datum vanaf (${e.vanaf}).`, 'De inzetregel zou eindigen voordat hij begint.'],
+    'Inzetregel/nothing': ['Niets te wijzigen.', 'Vul Uren, Soort inzet of Datum t/m in. Een lege cel laat de waarde in Beaufort ongewijzigd.']
   };
   const issuePart = (e, i) => {
-    const t = ISSUES[`${e.field}/${e.code}`][i];
+    const t = (ISSUES[`${e.field}/${e.code}`] || ISSUES[`Mutatiewaarde/${e.code}`])[i];
     return typeof t === 'function' ? t(e) : t;
   };
   const issueText = e => issuePart(e, 0);
@@ -5289,7 +5499,12 @@ SETKB  DV S  2 - S- N
     headerOnly: () => ['Het bestand bevat alleen een kopregel en geen gegevens.', 'De eerste regel (met de kolomnamen) is gevonden, maar er staan geen mutaties onder.'],
     noRecords: () => ['Er konden geen gegevensregels worden gelezen.', 'Controleer of het bestand als CSV is opgeslagen.'],
     missingHeaders: f => [`Er ${f.fields.length === 1 ? 'ontbreekt een verplichte kolom' : 'ontbreken verplichte kolommen'}: ${f.fields.join(', ')}.`,
-      'De kolommen worden herkend aan de kopregel (de eerste regel, met de kolomnamen). Pas de kolomnaam aan in Excel en controleer opnieuw.'],
+      'De kolommen worden herkend aan de kopregel (de eerste regel, met de kolomnamen). Pas de kolomnaam aan in Excel en controleer opnieuw.' +
+      (f.inzetHint ? ' Zijn het inzetregels? Een CSV met inzetregels heeft geen kolom Rubriek, maar Pers. Nr, Dienstverband, OE sleutel, Functie, Datum vanaf en Uren, Soort inzet of Datum t/m.' : '')],
+    oeCodeOnly: f => [`De kolom '${f.column}' bevat de OE-code (Org. eenheid). Een inzetregel heeft de OE sleutel nodig.`,
+      'De OE sleutel is de technische sleutel van de organisatorische eenheid: een nummer dat nooit verandert. Voeg een kolom OE sleutel met die sleutel toe.'],
+    noInzetValues: () => ['Er is niets om te wijzigen.',
+      'Een CSV met inzetregels heeft minstens een van de kolommen Uren, Soort inzet en Datum t/m nodig: dat zijn de waarden die worden gewijzigd.'],
     doubleMapped: f => ['Een kolom is aan meer dan één veld gekoppeld.',
       `${f.groups.map(g => `'${g.column}' → ${g.fields.join(' en ')}`).join('; ')}. Geef de kolom in Excel een duidelijkere naam.`],
     allEmpty: f => ['Er staan geen mutaties in het bestand.', `Alle ${plural(f.count, 'regel is', 'regels zijn')} leeg.`]
@@ -5319,7 +5534,8 @@ SETKB  DV S  2 - S- N
     truncated: w => `${rowLabel(w)}: de waarde is ingekort van ${w.length} naar 50 tekens. Was: '${w.original}'. Wordt: '${w.truncated}'.`,
     emptyValue: w => `Lege waarde in ${plural(w.rows.length, 'regel', 'regels')}: ${exampleList(w.rows, x => rowLabel(x).toLowerCase())}. Een lege waarde verwijdert de huidige waarde van de rubriek in Beaufort. Vul de waarde in als dat niet de bedoeling is.`,
     dateShape: w => `${plural(w.values.length, 'waarde lijkt', 'waarden lijken')} een datum, maar ${w.values.length === 1 ? 'staat' : 'staan'} niet als dd-mm-jjjj: ${exampleList(w.values, x => `regel ${x.row}: ${x.value}`)}. De officiële Excel-tool schreef datums als dd-mm-jjjj; in een datumrubriek kan Beaufort een andere vorm anders lezen. Schrijf bijvoorbeeld 01-11-2026.`,
-    timeShape: w => `${plural(w.values.length, 'waarde lijkt', 'waarden lijken')} een tijd, maar ${w.values.length === 1 ? 'staat' : 'staan'} niet als uu:mm of uu:mm:ss: ${exampleList(w.values, x => `regel ${x.row}: ${x.value}`)}. Een tijdrubriek in Beaufort bevat uu:mm of uu:mm:ss; Beaufort kan een andere vorm anders lezen. Schrijf bijvoorbeeld 08:30.`
+    timeShape: w => `${plural(w.values.length, 'waarde lijkt', 'waarden lijken')} een tijd, maar ${w.values.length === 1 ? 'staat' : 'staan'} niet als uu:mm of uu:mm:ss: ${exampleList(w.values, x => `regel ${x.row}: ${x.value}`)}. Een tijdrubriek in Beaufort bevat uu:mm of uu:mm:ss; Beaufort kan een andere vorm anders lezen. Schrijf bijvoorbeeld 08:30.`,
+    functieDigits: w => `Functie bestaat alleen uit cijfers in ${plural(w.values.length, 'regel', 'regels')}: ${exampleList(w.values, x => `regel ${x.row}: ${x.value}`)}. Excel haalt voorloopnullen weg als het een CSV opent (020 wordt 20), en dan keurt Beaufort de mutatie af (PI_0802). Controleer de codes in HR Core; zet de kolom in Excel op Tekst.`
   };
 
   const PROMPT_ERRORS = {
@@ -5479,6 +5695,7 @@ SETKB  DV S  2 - S- N
     $('file-details').textContent = [
       ENCODINGS[r.encodingName] || r.encodingName,
       r.delimiter ? `scheidingsteken ${DELIMITERS[r.delimiter]}` : null,
+      r.kind ? `soort bestand: ${r.kind === 'inzet' ? 'inzetregels' : 'rubriekmutaties'}` : null,
       `gecontroleerd om ${timeNow(state.checkedAt)}`
     ].filter(Boolean).join(' · ');
     $('step-check').hidden = false;
@@ -5502,8 +5719,11 @@ SETKB  DV S  2 - S- N
       return;
     }
 
-    const extra = r.skippedEmptyRows > 0 ? el('p', { text: `${plural(r.skippedEmptyRows, 'lege regel is', 'lege regels zijn')} overgeslagen.` }) : null;
-    status.replaceChildren(banner('ok', `${plural(r.records.length, 'regel', 'regels')} gecontroleerd, geen fouten.`, extra));
+    const extra = [
+      r.kind === 'inzet' ? el('p', { text: `Inzetregels: ${plural(r.records.length, 'mutatie', 'mutaties')}, één per ingevulde waarde (Soort inzet, Uren, Datum t/m).` }) : null,
+      r.skippedEmptyRows > 0 ? el('p', { text: `${plural(r.skippedEmptyRows, 'lege regel is', 'lege regels zijn')} overgeslagen.` }) : null
+    ];
+    status.replaceChildren(banner('ok', `${plural(r.rowsChecked, 'regel', 'regels')} gecontroleerd, geen fouten.`, ...extra));
     body.append(mappingSection(r));
     if (r.commaReported) body.append(banner('info', 'Bedragen aangepast', el('p', { text: commaText(r.commaConversions) })));
     if (r.formatConversions.length > 0) body.append(banner('info', 'Datums, tijden en getallen aangepast', el('p', { text: formatText(r.formatConversions) })));
@@ -5512,18 +5732,26 @@ SETKB  DV S  2 - S- N
     prepareMakeStep(r);
   }
 
-  // One column per field, so the overview stays two rows high; Mutatiewaarde is highlighted.
+  // One column per field, so the overview stays two rows high; Mutatiewaarde (rubriek CSV) and OE sleutel
+  // (inzetregels CSV) are highlighted. A missing optional column of an inzetregels CSV is not an error.
   function mappingSection(r) {
-    const mark = m => (m.field === 'Mutatiewaarde' ? 'highlight' : null);
+    const inzet = r.kind === 'inzet';
+    const mark = m => (m.field === 'Mutatiewaarde' || m.field === 'OE sleutel' ? 'highlight' : null);
     const headers = el('tr', null, el('th', { scope: 'row', text: 'Veld' }), r.mapping.map(m => el('th', { scope: 'col', class: mark(m), text: m.field })));
     const columns = el('tr', null, el('th', { scope: 'row', text: 'Kolom in je CSV' }),
       r.mapping.map(m => (m.column ? el('td', { class: mark(m), text: m.column })
-        : el('td', { class: mark(m) }, el('span', { class: 'missing', text: '(niet gevonden)' })))));
+        : m.optional ? el('td', { class: mark(m) }, el('span', { class: 'empty', text: '(geen kolom)' }))
+          : el('td', { class: mark(m) }, el('span', { class: 'missing', text: '(niet gevonden)' })))));
+    const help = inzet
+      ? [el('p', { class: 'help', text: 'Controleer vooral de OE sleutel: dat is de technische sleutel van de organisatorische eenheid, niet de OE-code. Klopt een koppeling niet, pas dan de kolomnaam aan in Excel.' }),
+        r.oeCodeColumn ? el('p', { class: 'help', text: `Niet gebruikt: '${r.oeCodeColumn}' (OE-code; de sleutel van de inzetregel gebruikt de OE sleutel).` }) : null,
+        el('p', { class: 'help', text: 'Een lege cel laat de waarde in Beaufort ongewijzigd. Kolommen die hier niet staan, zoals Ind. Afw., worden niet gebruikt.' })]
+      : [el('p', { class: 'help', text: 'Controleer vooral Mutatiewaarde: bij een eigen rubriek kan die waarde niet worden gecontroleerd. Klopt een koppeling niet, pas dan de kolomnaam aan in Excel.' }),
+        el('p', { class: 'help', text: `Standaardrubrieken worden gecontroleerd op dienstverband, S of V en waarde (${rubriekenInfo()}). Andere rubriekcodes zijn eigen rubrieken; die worden niet aan een lijst getoetst.` })];
     return el('div', null,
       el('h3', { text: 'Welke kolom is gebruikt?' }),
       el('div', { class: 'table-wrap' }, el('table', { class: 'tbl-mapping' }, el('tbody', null, headers, columns))),
-      el('p', { class: 'help', text: 'Controleer vooral Mutatiewaarde: bij een eigen rubriek kan die waarde niet worden gecontroleerd. Klopt een koppeling niet, pas dan de kolomnaam aan in Excel.' }),
-      el('p', { class: 'help', text: `Standaardrubrieken worden gecontroleerd op dienstverband, S of V en waarde (${rubriekenInfo()}). Andere rubriekcodes zijn eigen rubrieken; die worden niet aan een lijst getoetst.` }));
+      ...help);
   }
 
   function errorsSection(r) {
@@ -5559,21 +5787,38 @@ SETKB  DV S  2 - S- N
   }
 
   function previewSection(r) {
+    const inzet = r.kind === 'inzet';
     const shown = r.records.slice(0, PREVIEW_MAX);
-    const rows = shown.map(rec => el('tr', null,
-      el('td', { class: 'num', text: rec.row }),
-      el('td', { text: rec.rubriek }),
-      el('td', { class: 'num', text: rec.persNr }),
-      el('td', { class: 'num', text: rec.dienstv }),
-      el('td', { text: rec.indicator }),
-      DPIA100.isBlank(rec.waarde) ? valueCell('') : el('td', { class: 'value' }, rec.waarde,
-        rec.waarde !== rec.waardeIn ? el('span', { class: 'changed', text: `was: ${rec.waardeIn}` }) : null),
-      el('td', { text: formatDate(rec.ingang) }),
-      el('td', { text: rec.productie })));
+    const waardeCell = rec => (DPIA100.isBlank(rec.waarde) ? valueCell('') : el('td', { class: 'value' }, rec.waarde,
+      rec.waarde !== rec.waardeIn ? el('span', { class: 'changed', text: `was: ${rec.waardeIn}` }) : null));
+    // An inzetregel: the rubriek with the field it changes, then the key (pers, dv, OE sleutel, functie, vanaf).
+    const rows = shown.map(rec => (inzet
+      ? el('tr', null,
+        el('td', { class: 'num', text: rec.row }),
+        el('td', { text: `${rec.rubriek} (${rec.field})` }),
+        el('td', { class: 'num', text: rec.persNr }),
+        el('td', { class: 'num', text: rec.dienstv }),
+        el('td', { class: 'num', text: rec.oe }),
+        el('td', { text: rec.functie }),
+        el('td', { text: formatDate(rec.ingang) }),
+        waardeCell(rec),
+        el('td', { text: rec.productie }))
+      : el('tr', null,
+        el('td', { class: 'num', text: rec.row }),
+        el('td', { text: rec.rubriek }),
+        el('td', { class: 'num', text: rec.persNr }),
+        el('td', { class: 'num', text: rec.dienstv }),
+        el('td', { text: rec.indicator }),
+        waardeCell(rec),
+        el('td', { text: formatDate(rec.ingang) }),
+        el('td', { text: rec.productie }))));
+    const headers = inzet
+      ? ['Regel', 'Rubriek', 'Pers. Nr', 'Dv', 'OE sleutel', 'Functie', 'Datum vanaf', 'Waarde', 'Prod.']
+      : ['Regel', 'Rubriek', 'Pers. Nr', 'Dv', 'S/V', 'Mutatiewaarde', 'Ingangsdatum', 'Prod.'];
     const more = r.records.length > PREVIEW_MAX ? el('p', { class: 'help', text: `De eerste ${PREVIEW_MAX} van ${r.records.length} mutaties worden getoond.` }) : null;
     return el('details', { class: 'preview' },
       el('summary', { text: `Bekijk de ${plural(r.records.length, 'mutatie', 'mutaties')} zoals ze in het bestand komen` }),
-      table('tbl-preview', ['Regel', 'Rubriek', 'Pers. Nr', 'Dv', 'S/V', 'Mutatiewaarde', 'Ingangsdatum', 'Prod.'], rows),
+      table('tbl-preview', headers, rows),
       more);
   }
 

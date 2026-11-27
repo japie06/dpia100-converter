@@ -29,6 +29,12 @@ export function analyzeText(core, text, fileName = 'test.csv') {
 
 // A CSV with the standard header and the given rows (arrays of 7 cells), joined with the delimiter.
 export const HEADER = ['Rubriek', 'Pers. Nr', 'Dienstv', 'S of V', 'Waarde', 'Ingangsdatum', 'Productiesoort'];
-export function csv(rows, delim = ';') {
-  return [HEADER, ...rows].map(r => (Array.isArray(r) ? r.join(delim) : r)).join('\r\n') + '\r\n';
+export function csv(rows, delim = ';', header = HEADER) {
+  return [header, ...rows].map(r => (Array.isArray(r) ? r.join(delim) : r)).join('\r\n') + '\r\n';
 }
+
+// An inzetregels CSV (decision 21): the HR Core columns, and a row from the sandbox settings with overrides.
+export const INZET_HEADER = ['Pers. Nr', 'Dienstverband', 'OE sleutel', 'Functie', 'Datum vanaf', 'Datum t/m', 'Uren', 'Soort inzet'];
+export const inzetCsv = (rows, delim = ';') => csv(rows, delim, INZET_HEADER);
+export const inzetRow = (extra = {}) => [extra.persNr ?? '10000', extra.dv ?? '1', extra.oe ?? '314', extra.functie ?? '020',
+  extra.vanaf ?? '1-2-2027', extra.tm ?? '', extra.uren ?? '', extra.soort ?? ''];

@@ -27,6 +27,25 @@
     probes without re-importing everything. Without it, all probes are written.
 .PARAMETER Web
     Build the web-app probes (W01-W07) through dpia100.html instead of the raw probes.
+.PARAMETER Inzet
+    Build the inzetregel probes (round 6, gegevenssoort IZ) instead: raw records with the Object_id
+    'pers_nr dv_vlgnr oe_oper_sl operfunc_kd ingang_dt' as the Excel tool built it, and variants. Two files:
+      DPIA100_probes-iz-a.txt   round 6a: creates the regels (import and process this one first)
+      DPIA100_probes-iz-b.txt   round 6b: changes regels created by 6a (end date, uren, delete, kosten)
+      index-iz.txt              every P10 ID with its key, rubriek and value
+    Each regel has its own Datum vanaf ($IngangIz, then one month later per regel), so every probe is a
+    regel of its own on the same dienstverband. A day-1 date in months 1-9 makes d-M-yyyy differ from
+    dd-MM-yyyy. Probes that need a code you did not fill in below (-SoortInzet, -OeCode, -Kostensoort)
+    are skipped with a message.
+    With -Web -Inzet (W08, round 6c) an inzetregels CSV goes through the page's core instead, as a user
+    would make it from HR Core: web-probes-iz.csv, DPIA100_web-probes-iz.txt and index-web-iz.txt. Import
+    and process it after round 6a; its regels start at $IngangIzWeb, after those of round 6.
+.PARAMETER SoortInzet
+    A valid soort inzet code (P01123, reference table DPIC356) for P10-4 and W08-5. Empty skips them.
+.PARAMETER OeCode
+    The OE code (not the sleutel) of OE sleutel $Oe, only if it differs from the sleutel, for P10-7.
+.PARAMETER Kostensoort
+    A valid kostensoort (P01127, reference table DPIC353) for P10-12. Empty skips P10-12.
 .EXAMPLE
     pwsh tests\beaufort\make-probes.ps1
 .EXAMPLE
@@ -36,8 +55,14 @@
     Round 5: short rubriek code (#25), PS rubriek with a DV key (#2) and the leftovers of #1.
 .EXAMPLE
     pwsh tests\beaufort\make-probes.ps1 -Web
+.EXAMPLE
+    pwsh tests\beaufort\make-probes.ps1 -Inzet -SoortInzet <code>
+    Round 6: inzetregels (IZ).
+.EXAMPLE
+    pwsh tests\beaufort\make-probes.ps1 -Web -Inzet -SoortInzet <code>
+    Round 6c (W08): an inzetregels CSV through the web page.
 #>
-param([string[]]$Only, [switch]$Web)
+param([string[]]$Only, [switch]$Web, [switch]$Inzet, [string]$SoortInzet = '', [string]$OeCode = '', [string]$Kostensoort = '')
 # With -File, "P04-5,P04-6,P08" arrives as one string.
 $Only = @($Only | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 
@@ -53,6 +78,12 @@ $RubTxt  = 'TST003'     # PS, stam, type S (tekst), length 50
 $RubDv   = 'TST002'     # DV, stam, type S (tekst), length 50
 $RubNum  = 'TST004'     # DV, stam, type N (numeriek), 2 decimals (variabel rubrieken cannot be created)
 $RubShort = 'T01'       # DV, stam, type S (tekst), a code shorter than 6 characters (issue #25)
+# Inzetregels (round 6, -Inzet). The OE is the sleutel (oe_oper_sl, technical key), not the OE code.
+$Oe       = '314'       # OE sleutel the test person can be ingezet on
+$Functie  = '020'       # operationele functie code (alphanumeric; the leading zero is part of the code)
+$Uren     = '36'        # uren per week for a new regel (P01124, N 5,2)
+$IngangIz = '01012022'  # Datum vanaf of the first probe regel; one month later per regel (in the past, so processable)
+$IngangIzWeb = '01012023' # Datum vanaf of the first W08 regel (round 6c); one month later per regel
 # --------------------------------------------------------------------------------------------
 
 $ErrorActionPreference = 'Stop'
@@ -62,9 +93,60 @@ $ansi  = [System.Text.Encoding]::GetEncoding(1252, [System.Text.EncoderException
 $index = [System.Collections.Generic.List[string]]::new()
 
 # ---- Round 4: probes for the web version (-Web) ---------------------------------------------
+if ($Web -and $Inzet) {
+    # ---- Round 6c: inzetregels through the web version (-Web -Inzet, W08) ------------------------
+    # An inzetregels CSV as a user makes it from the HR Core Inzet tab (decisions 21-22): one row per regel,
+    # one record per filled value. The Opmerking column holds the W-ID; the converter ignores it.
+    . (Join-Path $PSScriptRoot '..\web\WebTest.ps1')
+    Get-ChildItem $outDir -File | Where-Object { $_.Name -like '*web-probes-iz*' -or $_.Name -eq 'index-web-iz.txt' } | Remove-Item
+    $inv = [System.Globalization.CultureInfo]::InvariantCulture
+    $start = [DateTime]::ParseExact($IngangIzWeb, 'ddMMyyyy', $inv)
+    $rows = [System.Collections.Generic.List[string]]::new()
+    $script:records = 0
+    function IzRow {
+        param($Id, [int]$Month, $Format = 'd-M-yyyy', $Tm = '', $UrenCell = $Uren, $Soort = '', $Pers = $PersNr, $DvCell = $Dv, $OeCell = $Oe, $Func = $Functie, $What)
+        if ($Only -and -not ($Only | Where-Object { $Id -like "$_*" })) { return }
+        $vanaf = $start.AddMonths($Month)
+        $cells = @($Pers, $DvCell, $OeCell, $Func, $vanaf.ToString($Format, $inv), $Tm, $UrenCell, $Soort, $Id)
+        $script:rows.Add($cells -join ';')
+        $script:records += @($Tm, $UrenCell, $Soort | Where-Object { $_ }).Count
+        $script:index.Add("$Id  regel $($vanaf.ToString('dd-MM-yyyy', $inv)) (key date $($vanaf.ToString('d-M-yyyy', $inv))): $What  [$($cells -join ';')]")
+    }
+    IzRow 'W08-1' 0 -What 'new regel, uren only, vanaf typed as d-M-yyyy (as Paul)'
+    IzRow 'W08-2' 1 -Format 'dd-MM-yyyy' -Tm $start.AddMonths(7).AddDays(-1).ToString('d-M-yyyy', $inv) -What 'new regel with uren and an end date (shaped to dd-mm-yyyy and reported)'
+    IzRow 'W08-3' 2 -Format 'yyyy-MM-dd' -UrenCell '32,5' -What 'uren with a decimal comma (written 32.5), vanaf typed yyyy-MM-dd'
+    IzRow 'W08-4' 3 -Format 'd M yyyy' -Pers "0$PersNr" -DvCell "0$Dv" -OeCell " 0$Oe " -Func " $Functie " -What 'leading zeros and spaces around the key: written without them'
+    if ($SoortInzet) { IzRow 'W08-5' 4 -Soort $SoortInzet -What "soort inzet $SoortInzet and uren: two records on one new regel" }
+    else { Write-Host 'W08-5 skipped: no -SoortInzet given' -ForegroundColor Yellow; $script:index.Add('W08-5 skipped: no -SoortInzet given') }
+    if ($rows.Count -eq 0) { throw "No probes match -Only $($Only -join ',')." }
+
+    $csvText  = "Pers. Nr;Dienstverband;OE sleutel;Functie;Datum vanaf;Datum t/m;Uren;Soort inzet;Opmerking`r`n" + ($rows -join "`r`n") + "`r`n"
+    $csvBytes = [byte[]](0xEF, 0xBB, 0xBF) + [System.Text.UTF8Encoding]::new($false).GetBytes($csvText)
+    [System.IO.File]::WriteAllBytes((Join-Path $outDir 'web-probes-iz.csv'), $csvBytes)
+    $case = [PSCustomObject]@{
+        name = 'web-probes-iz'; input = [Convert]::ToBase64String($csvBytes); fileName = 'web-probes-iz.csv'
+        answers = @($Proces, $Cdate, $User, 'Y'); outputName = $null
+    }
+    $result = (Invoke-WebHarness -Cases @($case) -OutDir (Join-Path ([IO.Path]::GetTempPath()) 'dpia100-probes')).cases[0]
+    if ($result.exitCode -ne 0 -or -not $result.output) {
+        Write-Host "The page did not make a file:`n$($result.transcript)" -ForegroundColor Red
+        exit 1
+    }
+    $bytes = [Convert]::FromBase64String($result.output)
+    $file  = Join-Path $outDir $result.suggestedName
+    [System.IO.File]::WriteAllBytes($file, $bytes)
+    if ($bytes.Length -ne $script:records * 189) { throw "Expected $($script:records) records of 187 bytes + CRLF, got $($bytes.Length) bytes." }
+    [System.IO.File]::WriteAllLines((Join-Path $outDir 'index-web-iz.txt'), $index, [System.Text.UTF8Encoding]::new($true))
+    $sha = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash
+    Write-Host ("{0,-27} {1,3} records {2,6} bytes" -f $result.suggestedName, $script:records, $bytes.Length)
+    Write-Host "SHA-256 $sha"
+    Write-Host "Input: $(Join-Path $outDir 'web-probes-iz.csv')`nIndex: $(Join-Path $outDir 'index-web-iz.txt')"
+    exit 0
+}
+
 if ($Web) {
     . (Join-Path $PSScriptRoot '..\web\WebTest.ps1')
-    Get-ChildItem $outDir -File -Filter '*web-probes*' | Remove-Item
+    Get-ChildItem $outDir -File -Filter '*web-probes*' | Where-Object Name -notlike '*web-probes-iz*' | Remove-Item
     Remove-Item (Join-Path $outDir 'index-web.txt') -ErrorAction SilentlyContinue
     $inv  = [System.Globalization.CultureInfo]::InvariantCulture
     $date = [DateTime]::ParseExact($Ingang, 'ddMMyyyy', $inv)
@@ -156,7 +238,11 @@ if ($Web) {
     exit 0
 }
 
-Get-ChildItem $outDir -File | Where-Object Name -notlike '*web-probes*' | Where-Object Name -ne 'index-web.txt' | Remove-Item
+if ($Inzet) {
+    Get-ChildItem $outDir -File | Where-Object { $_.Name -like '*-iz*' -and $_.Name -notlike '*web*' } | Remove-Item
+} else {
+    Get-ChildItem $outDir -File | Where-Object Name -notlike '*web-probes*' | Where-Object Name -notlike '*-iz*' | Where-Object Name -ne 'index-web.txt' | Remove-Item
+}
 
 # Formatted keys. Not named $ps/$dv: PowerShell variable names ignore case, so $dv would overwrite $Dv.
 $psKey = '{0,6}' -f $PersNr
@@ -195,6 +281,92 @@ function Write-Probe([string]$name, [object[]]$lines, [string]$newline = "`r`n",
     $bytes = $ansi.GetBytes($text)
     [System.IO.File]::WriteAllBytes((Join-Path $outDir "$name.txt"), [byte[]]$bytes)
     Write-Host ("{0,-24} {1,3} lines {2,6} bytes" -f "$name.txt", $lines.Count, $bytes.Length)
+}
+
+# ---- Round 6: inzetregels, gegevenssoort IZ (-Inzet) ----------------------------------------
+# IZ rubrieken (export 210006 of 27-11-2026), all stam only: P01121 OE, P01122 functie and P01125 ingang are
+# blocked for indirect mutation (they are the key); P01123 soort inzet S 3, P01124 uren N 5,2, P01126 einde
+# D, P01127-P01129 kostensoort/-plaats/-drager S 7 can be mutated.
+if ($Inzet) {
+    $inv = [System.Globalization.CultureInfo]::InvariantCulture
+    $izStart = [DateTime]::ParseExact($IngangIz, 'ddMMyyyy', $inv)
+
+    # The Object_id as the Excel tool built it (DPIA100.vb:464-469, :591): pers 6, dv space + 3, oe space + 10,
+    # functie space + 7, ingang_dt in 11, each right-aligned. -DateSlot is the 11-position date as written.
+    function IzKey([string]$DateSlot, [string]$OeKey = $Oe, [string]$Func = $Functie) {
+        '{0,6}{1,4}{2,11}{3,8}{4,11}' -f $PersNr, $Dv, $OeKey, $Func, $DateSlot
+    }
+    # The key date shapes. Excel: the Windows short date of a Dutch PC (d-M-yyyy), as in Paul's file.
+    function ExcelDate([DateTime]$d) { $d.ToString('d-M-yyyy', $inv).PadLeft(11) }
+    function Vanaf([int]$n) { $izStart.AddMonths($n) }
+    function Idate([DateTime]$d) { '   ' + $d.ToString('ddMMyyyy', $inv) }
+    function Show([DateTime]$d) { $d.ToString('dd-MM-yyyy', $inv) }
+    function Skip([string]$id, [string]$why) {
+        Write-Host "$id skipped: $why" -ForegroundColor Yellow
+        $script:index.Add("$id skipped: $why")
+    }
+
+    $a = [System.Collections.Generic.List[object]]::new()
+    $b = [System.Collections.Generic.List[object]]::new()
+
+    # Regels by month offset: 0 P10-1a, 1 P10-1b, 2 P10-1c, 3 P10-2, 4 P10-3, 5 P10-4, 6 P10-5, 7 P10-6, 8 P10-7.
+    Section "Round 6a (DPIA100_probes-iz-a.txt): create regels. Pers $PersNr, dv $Dv, OE sleutel $Oe, functie $Functie"
+    # P10-1: Paul's case. A new key with only P01124 creates the regel. Three regels, used again in round 6b.
+    foreach ($s in @(@('P10-1a', 0), @('P10-1b', 1), @('P10-1c', 2))) {
+        $d = Vanaf $s[1]
+        $a.Add((Rec $Uren -Rub 'P01124' -Obj (IzKey (ExcelDate $d)) -Idate (Idate $d) -Label "$($s[0]) uren, key date Excel d-M-yyyy $(Show $d)"))
+    }
+    # P10-1c also gets an end date at creation (round 6b deletes it again).
+    $d = Vanaf 2
+    $a.Add((Rec (Show $d.AddMonths(6).AddDays(-1)) -Rub 'P01126' -Obj (IzKey (ExcelDate $d)) -Idate (Idate $d) -Label "P10-1c einde $(Show $d.AddMonths(6).AddDays(-1)) bij aanmaken"))
+    # P10-2 and P10-3: the other date shapes Beaufort documents for dates (ddmmeejj, dd-mm-eejj).
+    $d = Vanaf 3
+    $a.Add((Rec $Uren -Rub 'P01124' -Obj (IzKey ('   ' + $d.ToString('ddMMyyyy', $inv))) -Idate (Idate $d) -Label "P10-2 uren, key date ddMMyyyy $(Show $d)"))
+    $d = Vanaf 4
+    $a.Add((Rec $Uren -Rub 'P01124' -Obj (IzKey (' ' + $d.ToString('dd-MM-yyyy', $inv))) -Idate (Idate $d) -Label "P10-3 uren, key date dd-MM-yyyy $(Show $d)"))
+    # P10-4: a new regel with soort inzet and uren together.
+    $d = Vanaf 5
+    if ($SoortInzet) {
+        $a.Add((Rec $SoortInzet -Rub 'P01123' -Obj (IzKey (ExcelDate $d)) -Idate (Idate $d) -Label "P10-4 soort $SoortInzet, Excel key $(Show $d)"))
+        $a.Add((Rec $Uren -Rub 'P01124' -Obj (IzKey (ExcelDate $d)) -Idate (Idate $d) -Label "P10-4 uren, same regel"))
+    } else { Skip 'P10-4' 'no -SoortInzet given' }
+    # P10-5: mutation ingangsdatum 14 days after the key date. Which date does the regel get?
+    $d = Vanaf 6
+    $a.Add((Rec $Uren -Rub 'P01124' -Obj (IzKey (ExcelDate $d)) -Idate (Idate $d.AddDays(14)) -Label "P10-5 uren, key $(Show $d), ingangsdatum $(Show $d.AddDays(14))"))
+    # P10-6: functie without its leading zero. Does Beaufort find functie $Functie, reject it, or store '20'?
+    $d = Vanaf 7
+    $a.Add((Rec $Uren -Rub 'P01124' -Obj (IzKey (ExcelDate $d) -Func $Functie.TrimStart('0')) -Idate (Idate $d) -Label "P10-6 uren, functie '$($Functie.TrimStart('0'))' instead of '$Functie'"))
+    # P10-7: the OE code instead of the sleutel. Expected: rejected (no such sleutel) or a wrong OE.
+    $d = Vanaf 8
+    if ($OeCode -and $OeCode -ne $Oe) {
+        $a.Add((Rec $Uren -Rub 'P01124' -Obj (IzKey (ExcelDate $d) -OeKey $OeCode) -Idate (Idate $d) -Label "P10-7 uren, OE code $OeCode instead of sleutel $Oe"))
+    } else { Skip 'P10-7' 'no -OeCode given that differs from the sleutel' }
+    # P10-8: P01121 is blocked for indirect mutation (Blok ind mut J). Expected: rejected at import.
+    $d = Vanaf 0
+    $a.Add((Rec $Oe -Rub 'P01121' -Obj (IzKey (ExcelDate $d)) -Idate (Idate $d) -Label "P10-8 geblokkeerde rubriek P01121 op regel P10-1a"))
+
+    Section 'Round 6b (DPIA100_probes-iz-b.txt): change the regels of round 6a. Import and process 6a first.'
+    # P10-9: close regel P10-1a (Paul's first record: P01126 with the regel's own Datum vanaf as ingangsdatum).
+    $d = Vanaf 0
+    $end = $d.AddMonths(3).AddDays(-1)
+    $b.Add((Rec (Show $end) -Rub 'P01126' -Obj (IzKey (ExcelDate $d)) -Idate (Idate $d) -Label "P10-9 einde $(Show $end) op regel P10-1a"))
+    # P10-10: change the uren of regel P10-1b.
+    $d = Vanaf 1
+    $b.Add((Rec '32' -Rub 'P01124' -Obj (IzKey (ExcelDate $d)) -Idate (Idate $d) -Label "P10-10 uren 36 -> 32 op regel P10-1b"))
+    # P10-11: an empty P01126 on regel P10-1c, which got an end date in round 6a. Deleted?
+    $d = Vanaf 2
+    $b.Add((Rec '' -Rub 'P01126' -Obj (IzKey (ExcelDate $d)) -Idate (Idate $d) -Label "P10-11 lege einddatum op regel P10-1c"))
+    # P10-12: a kostensoort on regel P10-1b. Does HR Core then show Ind. Afw.?
+    $d = Vanaf 1
+    if ($Kostensoort) {
+        $b.Add((Rec $Kostensoort -Rub 'P01127' -Obj (IzKey (ExcelDate $d)) -Idate (Idate $d) -Label "P10-12 kostensoort $Kostensoort op regel P10-1b (Ind. Afw.?)"))
+    } else { Skip 'P10-12' 'no -Kostensoort given' }
+
+    Write-Probe 'DPIA100_probes-iz-a' $a
+    Write-Probe 'DPIA100_probes-iz-b' $b
+    [System.IO.File]::WriteAllLines((Join-Path $outDir 'index-iz.txt'), $index, [System.Text.UTF8Encoding]::new($true))
+    Write-Host "`nIndex of all P10 probe IDs: $(Join-Path $outDir 'index-iz.txt')"
+    exit 0
 }
 
 # List[object], not List[string]: PowerShell turns $null (a probe skipped by -Only) into '' for strings.

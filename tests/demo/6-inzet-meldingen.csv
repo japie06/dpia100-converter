@@ -1,0 +1,5 @@
+Pers. Nr;Dienstverband;OE sleutel;Org. Eenh.;Functie;Datum vanaf;Datum t/m;Uren;Soort inzet;Ind. Afw.;Opmerking
+123456;3;2964;4711;020;1-2-2026;1-12-2026;;;N;Huidige inzetregel afsluiten: Datum t/m wordt dd-mm-jjjj, alleen gemeld
+123456;3;2448;4712;020;2-12-2026;;32,5;;N;Nieuwe inzetregel: komma wordt punt, alleen gemeld
+123456;3;2448;4712;020;2-12-2026;;.5;VST;N;"Uren met punt vooraan: wordt 0.5, alleen gemeld; Soort inzet geeft een tweede mutatie"
+123456;3;2448;4712;20;3-12-2026;;36;;N;Functie alleen cijfers: waarschuwing, Excel kan een voorloopnul hebben weggehaald (020 wordt 20)

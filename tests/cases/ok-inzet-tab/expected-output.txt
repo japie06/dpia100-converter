@@ -1,0 +1,2 @@
+CSV kind          : inzetregels (IZ)
+[SUCCESS]

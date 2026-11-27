@@ -1,0 +1,2 @@
+1 validation error(s)
+Rubriek P01124 belongs to an inzetregel (IZ): use an inzetregels CSV with OE sleutel, Functie and Datum vanaf

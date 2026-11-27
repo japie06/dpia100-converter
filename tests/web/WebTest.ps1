@@ -3,10 +3,10 @@
     Helpers to test dpia100.html in headless Microsoft Edge. Dot-sourced by tests/run-tests.ps1 and
     tests/web/differential.ps1; nothing to install (Edge is on every Windows PC and CI runner).
 .DESCRIPTION
-    msedge.exe hands its work to a detached browser process, so its stdout (--dump-dom) cannot be
-    captured. A test page therefore reports with console.log('<marker>:<base64 JSON>'), which Edge
-    writes to chrome_debug.log in a throwaway profile (--enable-logging). --virtual-time-budget lets
-    timers and promises run before Edge closes the page.
+    msedge.exe hands its work to a detached browser process, so its stdout cannot be captured. A test
+    page therefore reports with console.log('<marker>:<base64 JSON>'), which Edge writes to
+    chrome_debug.log in a throwaway profile (--enable-logging). No --dump-dom: in an interactive terminal
+    Edge attaches to the console and prints the whole page there. Edge is stopped once the result is in.
 #>
 
 $script:RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).ProviderPath
@@ -39,7 +39,7 @@ function Invoke-EdgeLog([string]$HtmlPath, [string]$Pattern, [int]$TimeoutSec = 
     $url = ([Uri](Resolve-Path -LiteralPath $HtmlPath).ProviderPath).AbsoluteUri
     $edgeArgs = @('--headless', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--disable-extensions',
                   '--disable-sync', '--mute-audio', "--user-data-dir=`"$profileDir`"", '--enable-logging', '--v=0',
-                  '--virtual-time-budget=30000', '--dump-dom', $url)
+                  '--virtual-time-budget=30000', $url)
     Start-Process -FilePath $edge -ArgumentList $edgeArgs -WindowStyle Hidden | Out-Null
 
     $log = Join-Path $profileDir 'chrome_debug.log'
@@ -55,17 +55,13 @@ function Invoke-EdgeLog([string]$HtmlPath, [string]$Pattern, [int]$TimeoutSec = 
         }
     }
 
-    # Edge closes itself after --dump-dom; wait for that, then remove the profile.
+    # Stop this Edge (only the processes of the throwaway profile), then remove the profile.
+    Get-CimInstance Win32_Process -Filter "Name='msedge.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -like "*$profileDir*" } |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
     $deadline = [DateTime]::Now.AddSeconds(15)
     while ((Test-Path -LiteralPath $profileDir) -and [DateTime]::Now -lt $deadline) {
         try { Remove-Item -LiteralPath $profileDir -Recurse -Force -ErrorAction Stop } catch { Start-Sleep -Milliseconds 300 }
-    }
-    if (Test-Path -LiteralPath $profileDir) {
-        Get-CimInstance Win32_Process -Filter "Name='msedge.exe'" -ErrorAction SilentlyContinue |
-            Where-Object { $_.CommandLine -like "*$profileDir*" } |
-            ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-        Start-Sleep -Milliseconds 500
-        Remove-Item -LiteralPath $profileDir -Recurse -Force -ErrorAction SilentlyContinue
     }
 
     # Only the page's own console lines (not Edge's internal pages).

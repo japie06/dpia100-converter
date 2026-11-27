@@ -8,7 +8,8 @@ in `docs/CHANGELOG.md`.
 
 `dpia100.ps1` converts a CSV of HR mutations into `DPIA100_<csv name>.txt` (next to the CSV), the fixed-width import file for
 Visma/Raet **Beaufort** (function 100254, *Import externe indirecte mutaties*). It replaces the official Excel tool's "Maak DPIA100" button with stricter validation. Users are non-technical colleagues at
-a Dutch municipality who drag a CSV onto `dpia100.bat`.
+a Dutch municipality who drag a CSV onto `dpia100.bat`. Two kinds of CSV, told apart by the headers: rubriek mutations
+(PS/DV, one rubriek per row) and inzetregels (IZ, one HR Core inzetregel per row, decisions 21-23).
 
 `dpia100.html` is the same converter as a web page (decision 15): one self-contained file, Dutch UI,
 everything local in the browser, opened from the release zip or GitHub Pages. It is a line-by-line
@@ -42,7 +43,7 @@ JavaScript port of the script, not a wrapper: a browser cannot run PowerShell. T
 | `docs/DPIA100 record indeling.pdf` | Beaufort help (2024): record layout. Primary spec. Local only, not in the repo (copyrighted). |
 | `docs/Microsoft Word - Handboek DPIA100 via Excel.doc.pdf` | Raet handbook (2005): Excel tool and Beaufort setup. Local only, not in the repo (copyrighted). |
 | `tools/convert-rubrieken.ps1` | Cleans the Beaufort report *Overzicht rubrieken* (210006) into a CSV. The real export and its CSV are git-ignored. |
-| `tools/update-standard-rubrieken.ps1` | Writes the standard PS/DV rubrieken of an export into the generated region of `dpia100.ps1` and the core of `dpia100.html` (decision 17), then updates the CSP. |
+| `tools/update-standard-rubrieken.ps1` | Writes the standard PS/DV/IZ rubrieken of an export into the generated region of `dpia100.ps1` and the core of `dpia100.html` (decision 17), then updates the CSP. |
 | `tests/rubrieken/` | Tests of both tools on a synthetic export (`pwsh tests\rubrieken\run-tests.ps1`, also in CI). |
 | `docs/rubrieken-export.md` | Dutch: the rubrieken report format, what it holds, and how the standard rubrieken get into the converter. |
 | `docs/DPIA100-Excel-tool/` | Source of the official Excel tool (`DPIA100.xlsm` V 06.12.6, VBA exports). Local only, git-ignored: copyrighted, contains the sheet password and the municipality's rubriek list. Summary in `field-layout.md` (*Excel tool*). |
@@ -57,8 +58,8 @@ JavaScript port of the script, not a wrapper: a browser cannot run PowerShell. T
 - **Fail fast, report everything.** Any validation error aborts with no output file. All errors are
   collected into one table first. The only non-fatal cases are warnings: truncation over 50
   characters, amounts Beaufort may misread, empty values (a delete in Beaufort), dates or times not
-  in the Excel-tool shape (decisions 3, 8 and 16), and a standard rubriek blocked for indirect mutation
-  (decision 19). With warnings, the file is only written after the user types `Y`; anything else (also
+  in the Excel-tool shape (decisions 3, 8 and 16), a standard rubriek blocked for indirect mutation
+  (decision 19), and an inzet functie of digits only (decision 22). With warnings, the file is only written after the user types `Y`; anything else (also
   end of input) cancels like an error.
 - **Nothing changes silently.** Do not "clean" input into a different valid-looking value (for
   example stripping non-digits, or writing `?` for characters that can't be encoded). Reject instead.
@@ -120,15 +121,20 @@ Top to bottom:
    - `Split-CsvHeader` (a custom parser for the header record)
    - `Get-UniqueHeaderNames`
    - `Test-And-ParseDate`
-   - `Find-PropertyByPattern` (patterns of 2 characters or fewer must match the whole header)
+   - `Find-PropertyByPattern` (patterns of 2 characters or fewer must match the whole header) and
+     `Find-PropertyByPriority` (the same match, pattern first: the inzet fields, decision 21)
    - The generated standard rubrieken table (about 4,200 lines, decision 17), parsed into
      `$standardRubrieken`, and `Get-StandardRubriek` (attributes of a code, or `$null` for an eigen rubriek).
 7. CSV parsing: the header via `Split-CsvHeader`, the data rows via `ConvertFrom-Csv -Header`, with a
    line break prefixed so a first row starting with `#` is not taken for a `#TYPE` line.
-8. Header mapping. The mapping is printed; the script aborts on a missing field or on one column
-   mapped to two fields.
+8. Kind and header mapping. No Rubriek column, a Functie and an OE sleutel or OE code column = inzetregels
+   (`CSV kind`, `$isInzet`); only an OE code stops. The mapping is printed (optional inzet fields as
+   `(not found, optional)`); the script aborts on a missing field, on an inzet CSV without value columns, or
+   on one column mapped to two fields.
 9. Per-row validation into `$validationErrors` and `$preparedRecords`. Completely empty rows are
-   skipped. For a standard rubriek: key, S of V and Blok ind mut (step 4b) and the Waarde by type
+   skipped. Shared helpers: `Get-CleanPersNr`, `Get-CleanDienstv`, `Get-CleanProductie` and `Test-Waarde`
+   (the Waarde checks, also for each inzet value); an inzet row goes to `Test-InzetRow` (key, then one record
+   per filled value, `Kind = 'IZ'`). For a standard rubriek: key, S of V and Blok ind mut (step 4b) and the Waarde by type
    (decision 20). Blocked rubrieken and empty, date-like and time-like values are collected for one
    grouped warning each (`Join-Examples`). Abort on errors, otherwise print `[OK]`, the comma and
    date/time report lines and the warnings.
@@ -143,8 +149,9 @@ Top to bottom:
 3. Static markup: header, step 1 (drop zone, file bar), step 2 (check), step 3 (form), privacy section,
    footer. A `#startup-error` banner shows until the UI script removes it (JavaScript off or blocked).
 4. `<script id="dpia100-core">`: `const DPIA100`, the port. `analyze(bytes, fileName)` covers everything up
-   to the row validation (decision 14) and returns `{ fatal, errors, warnings, commaConversions,
-   formatConversions, records, mapping, ... }`. Also `checkProcescode`, `checkCreatiedatum`,
+   to the row validation (decision 14) and returns `{ kind, fatal, errors, warnings, commaConversions,
+   formatConversions, records, rowsChecked, mapping, ... }`. `validateRows` and `validateInzetRows` share
+   `checkPersNr`, `checkDienstv`, `checkProductie` and `checkWaarde`; `objectKey` builds the PS, DV or IZ key. Also `checkProcescode`, `checkCreatiedatum`,
    `checkGebruiker`, `buildLines`, `encodeOutput`, `outputFileName`, `isValidOutputName`,
    `standardRubriek`, `standardRubriekCount` and `STANDARD_RUBRIEKEN_DATE`. Each function names its
    PowerShell counterpart. The generated standard rubrieken table is at the end of the core.
@@ -161,7 +168,9 @@ Top to bottom:
   and referenced from the code, for example "(decision 8)" or "(.NOT_IN_CURRENT_SPEC B)". Keep them
   in sync when changing behaviour.
 - Field labels in messages: `Rubriek`, `Pers. Nr`, `Dienstverband`, `S of V`, `Mutatiewaarde`,
-  `Ingangsdatum`, `Productiesoort`.
+  `Ingangsdatum`, `Productiesoort`; for inzetregels also `OE sleutel`, `Functie`, `Datum vanaf`, `Datum t/m`,
+  `Uren`, `Soort inzet` and `Inzetregel`. The Waarde codes of `checkWaarde` take the field as a parameter; the
+  UI and the harness fall back to the `Mutatiewaarde` text.
 - Validation errors are `[PSCustomObject]@{ Row; Column; Value; Issue }`. Row 1 is the header.
 - Update `docs/CHANGELOG.md` with every behavioural change, and run the test suite.
 - Update the demo files with every new or changed message: a row in `tests/demo/make-demo.ps1`, then run it
@@ -174,9 +183,10 @@ Top to bottom:
 
 ## Scope decisions by the owner
 
-- **In scope:** PS and DV only, productiesoort NOR or COR, verrekenperiode always blank. Rubriek 1-6
+- **In scope:** PS and DV, and IZ through an inzetregels CSV (soort inzet, uren, einddatum; no kosten),
+  productiesoort NOR or COR, verrekenperiode always blank. Rubriek 1-6
   characters; a shorter code is left-aligned (Beaufort processes it, probe P09, #25).
-- **Standard rubrieken are known, eigen rubrieken are not (decisions 17-20).** The standard PS/DV
+- **Standard rubrieken are known, eigen rubrieken are not (decisions 17-20).** The standard PS/DV/IZ
   rubrieken (Fix = J, about 4,200) are hard-coded from the 210006 export; their gegevenssoort, type,
   length, decimals, stam/variabel and Blok ind mut cannot be changed by a customer. A code that is not in
   the list is an eigen rubriek (or a newer standard one): **allowed without any message** and checked as
@@ -208,12 +218,20 @@ Top to bottom:
 - **The official PDF docs stay leading.** Beaufort accepts more at import than the docs allow
   (lowercase codes, other alignments, leading zeros, tabs, 186/188-byte lines; see
   `tests/beaufort/findings.md`). Don't relax the script because of that.
+- **Inzetregels: the OE is the sleutel (decision 22).** oe_oper_sl is the technical key of the OE, an integer
+  that never changes; not the OE code (*Org. eenheid*) or the name. A CSV with only a code column stops. The
+  key date is Datum vanaf as `d-M-yyyy`, as the Excel tool wrote it; it is the start of the regel. Functie is
+  written as typed and Beaufort matches it exactly (`20` is not `020`, PI_0802), so a functie of digits only
+  that does not start with 0 gets one grouped warning: Excel may have dropped a leading zero. An empty cell
+  leaves the value unchanged (no record), as in the Excel tool; an empty Datum t/m record would reopen a
+  regel. Probe round 6 (`findings.md`) confirmed all of this in the sandbox.
 - **Duplicate rows are up to the user.** Beaufort creates both; the script does not check.
 - **Beaufort is the safety net for eigen rubrieken.** It rejects only the records with errors and
   reports them clearly, including S/V mismatches. For standard rubrieken the script catches the key, S/V
   and value errors itself (decisions 18 and 20); min/max and referentietabel values stay with Beaufort.
 - **Candidates for later** are listed in `.NOT_IN_CURRENT_SPEC`: other object types, verrekenperiode
-  plus JWP, and eigen rubrieken with the rest of the rubriek data (C, #24).
+  plus JWP, eigen rubrieken with the rest of the rubriek data (C, #24), and the kosten of an inzetregel
+  (P01127-P01129).
 
 ## Testing
 
@@ -232,7 +250,9 @@ Top to bottom:
   fixture that is not about those uses an eigen code (`E00101`, `TST...`). The `*-standard-*` cases use
   real standard codes (P00001 DV N 6,2, P00301 PS S 50, P00321 PS D, P00100 blocked, SETKB short, ...);
   check a code's line in the table before using it. `npm run test:unit` can do the same with
-  `loadCore({ extraRubrieken })`.
+  `loadCore({ extraRubrieken })`. The `*inzet*` cases use the fixed IZ rubrieken (P01123 S 3, P01124 N 5,2,
+  P01126 D); `ok-inzet-reference-excel-tool` holds two real Excel-tool IZ records with the pers_nr replaced
+  (gold reference for the IZ key). `core.mjs` has `inzetCsv` and `inzetRow` for unit tests.
 - **Order of operations (decision 14).** Prompt text is not captured when stdin is piped, but each answer
   read is echoed on its own line. The runner uses that: a failure case without `answers.txt` must not
   show `TSTUSER` or `[OK]`. The `ok-order-*` cases expect the echo, so they fail if it ever disappears
@@ -257,7 +277,7 @@ Top to bottom:
   the authoritative parity runner; `npm test` runs the fast unit tests and the UI interactions.
   - `npm run test:unit`: `node:test`, no dependencies. `tests/web/core.test.mjs` tests the core
     function by function (dates, delimiter, CSV quirks, .NET semantics, the decision 8 table per
-    delimiter, 1252, layout, prompts). `tests/web/core.mjs` loads the core block from the page in a `vm`.
+    delimiter, 1252, layout, prompts, inzetregels). `tests/web/core.mjs` loads the core block from the page in a `vm`.
   - `npm run test:ui`: Playwright Test, `tests/web/ui.spec.mjs`, on the **installed Edge**
     (`channel: 'msedge'` in `playwright.config.mjs`). Never run `npx playwright install`; set
     `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` for `npm ci`. The main route is primary: dialogs switched off,
@@ -270,14 +290,17 @@ Top to bottom:
 - **Demo files (`tests/demo`, by hand, not in CI).** For the owner's visible check and to show users every
   message. `make-demo.ps1` writes them as raw bytes: `1-fouten.csv` (every row error, exactly one per row,
   UTF-8 BOM), `2-waarschuwingen.csv` (every warning and report of a `;` file, Windows-1252), `3-`/`4-`
-  for the `,` and tab amount warnings, and one `bestand-*.csv` per file-level error. The extra column
+  for the `,` and tab amount warnings, `5-inzet-fouten.csv` (every inzet row error, one per row, UTF-8 BOM),
+  `6-inzet-meldingen.csv` (an inzet file without errors: the reports, ignored columns and the functie warning), and one
+  `bestand-*.csv` per file-level error. The extra column
   `Opmerking` (Dutch) matches no header pattern, so the converter ignores it. `check-demo.mjs` takes every
   `err(...)`, `warn(...)`, grouped warning and fatal code from the page core, runs the files through it, and
   fails on a code no file shows (exempt: `noRecords`, `unicode`, and `notTime` while the list has no T/U
-  rubriek) or on a row of `1-fouten.csv` without exactly one error. Add a row there whenever a message is
+  rubriek) or on a row of `1-fouten.csv` or `5-inzet-fouten.csv` without exactly one error. Add a row there whenever a message is
   added or changed.
 - **Differential test.** `pwsh tests\web\differential.ps1 [-Count N] [-Seed S] [-Engine powershell]`
-  generates random CSVs (encodings, delimiters, quoting quirks, broken values) into `tests/out/diff`,
+  generates random CSVs (encodings, delimiters, quoting quirks, broken values; about a quarter are
+  inzetregels CSVs) into `tests/out/diff`,
   runs each through the script and all through the page, and compares exit codes, bytes, key console
   lines and error positions. CI runs 40 files with the run number as seed; rerun a failure with that
   seed. It captures PowerShell output as UTF-8 (`-Command` with `[Console]::OutputEncoding`).
@@ -312,11 +335,15 @@ Top to bottom:
   `make-probes.ps1 -Web` (round 4) tests the web app instead. It writes one probe CSV of valid input,
   `web-probes.csv`, and lets the page's core make `DPIA100_web-probes.txt` through the `edge` harness.
   The owner can recreate that file in the real page and compare. Every W row gets its own ingangsdatum, so
-  processing does not overwrite values and each stored value can be checked. Round 4 found that the
-  processing report leaves out the bytes 0x80-0x9F and 0xFF (`€`, curly quotes, dashes); run 3
-  (2026-11-04) showed they are stored correctly, so that is the report only (#20). The test rubrieken
-  TST002/TST003 keep history since run 3; TST004 now has Lengte 4 (2 decimals), so amounts over `9.99`
-  are rejected at processing (PI_0637); a minus sign does not count (run 4, probe W07).
+  processing does not overwrite values and each stored value can be checked. Beaufort's processing report
+  leaves out the bytes 0x80-0x9F and 0xFF (`€`, curly quotes, dashes), but they are stored correctly
+  (#20). The test rubrieken TST002/TST003 keep history; TST004 has Lengte 4 (2 decimals), so amounts over
+  `9.99` are rejected at processing (PI_0637); a minus sign does not count.
+  Inzetregels: `-Inzet` (round 6) writes raw IZ probes (P10) in two files, `DPIA100_probes-iz-a.txt` (create
+  regels) and `-b.txt` (change them, after 6a is processed); `-Web -Inzet` (round 6c, W08) makes
+  `DPIA100_web-probes-iz.txt` from an inzetregels CSV through the page's core. Sandbox settings at the top
+  of the script: pers 10000, dv 1, OE sleutel 314, functie `020`, uren 36; each regel has its own Datum
+  vanaf, one month apart. Pass a real soort inzet code with `-SoortInzet`, or its probes are skipped.
 - **Headless runs.** Pipe the prompt answers in (add `Y` to confirm warnings) and pass `-NoPause`
   (works on 5.1 and 7): `printf 'CMT\n07 10 2026\nTSTUSER\nY\n' | pwsh -NoProfile -File dpia100.ps1 -InputCsvPath t.csv -OutputTxtPath out.txt -NoPause`
 - **pwsh on Linux.** It writes LF line endings, so convert to CRLF before comparing.

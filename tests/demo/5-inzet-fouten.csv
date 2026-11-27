@@ -1,0 +1,20 @@
+﻿Pers. Nr;Dienstverband;OE sleutel;Functie;Datum vanaf;Datum t/m;Uren;Soort inzet;Opmerking
+123456;1;314;020;1-1-2027;;36;;Goede regel ter vergelijking: geeft geen fout
+123456;;314;020;1-1-2027;;36;;Dienstverband is leeg: een inzetregel hoort bij een dienstverband
+123456;0;314;020;1-1-2027;;36;;Dienstverband is 0
+123456;1;;020;1-1-2027;;36;;OE sleutel is leeg
+123456;1;OE-12;020;1-1-2027;;36;;OE sleutel met letters (dit is de OE-code, niet de sleutel)
+123456;1;000;020;1-1-2027;;36;;OE sleutel is alleen nullen
+123456;1;12345678901;020;1-1-2027;;36;;OE sleutel langer dan 10 cijfers
+123456;1;314;;1-1-2027;;36;;Functie is leeg
+123456;1;314;02 0;1-1-2027;;36;;Functie met een spatie
+123456;1;314;ĳ20;1-1-2027;;36;;Functie met een teken dat niet in Windows-1252 bestaat
+123456;1;314;Medewerker;1-1-2027;;36;;Functie langer dan 7 tekens (de naam in plaats van de code)
+123456;1;314;020;31-02-2027;;36;;Datum vanaf bestaat niet
+123456;1;314;020;1-1-2027;31-12-2026;;;Datum t/m ligt voor Datum vanaf
+123456;1;314;020;1-1-2027;eind;;;Datum t/m is geen datum
+123456;1;314;020;1-1-2027;;100;;Uren (lengte 5, 2 decimalen) met 3 cijfers voor de komma
+123456;1;314;020;1-1-2027;;36,125;;Uren met 3 decimalen
+123456;1;314;020;1-1-2027;;veel;;Uren is geen getal
+123456;1;314;020;1-1-2027;;;ABCD;Soort inzet langer dan 3 tekens
+123456;1;314;020;1-1-2027;;;;Niets ingevuld bij Uren, Soort inzet en Datum t/m
